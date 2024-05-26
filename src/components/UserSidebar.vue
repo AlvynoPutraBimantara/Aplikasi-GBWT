@@ -3,29 +3,24 @@
     <div class="sidebar-heading">Aplikasi GBWT</div>
     <div class="list-group list-group-flush">
       <router-link
-        to="/Warung"
-        class="list-group-item list-group-item-action bg-light"
-        >Warung</router-link
-      >
-      <router-link
-        to="/Produk"
-        class="list-group-item list-group-item-action bg-light"
-        >Produk</router-link
-      >
-      <router-link
-        to="/Kategori"
-        class="list-group-item list-group-item-action bg-light"
-        >Kategori</router-link
-      >
-      <router-link
-        to="/UserTambahProduk"
-        class="list-group-item list-group-item-action bg-light"
-        >Tambah Produk</router-link
-      >
-      <router-link
         :to="`/Profil/${userId}`"
         class="list-group-item list-group-item-action bg-light"
         >Profil</router-link
+      >
+      <router-link
+        to="/Pesanan"
+        class="list-group-item list-group-item-action bg-light"
+        >Pesanan</router-link
+      >
+      <router-link
+        to="/Dagangan"
+        class="list-group-item list-group-item-action bg-light"
+        >Dagangan Saya</router-link
+      >
+      <router-link
+        to="/Penjualan"
+        class="list-group-item list-group-item-action bg-light"
+        >Penjualan</router-link
       >
       <a
         v-on:click="logout"

@@ -20,6 +20,9 @@ import Profil from "./components/Profil.vue";
 import DetilProduk from "./components/DetilProduk.vue";
 import DetilWarung from "./components/DetilWarung.vue";
 import DetilKategori from "./components/DetilKategori.vue";
+import Penjualan from "./components/Penjualan.vue";
+import Dagangan from "./components/Dagangan.vue";
+import Pesanan from "./components/Pesanan.vue";
 
 const routes = [
   {
@@ -132,6 +135,21 @@ const routes = [
     name: "UserHeader",
     component: UserHeader,
     path: "/UserHeader",
+  },
+  {
+    name: "Pesanan",
+    component: Pesanan,
+    path: "/Pesanan",
+  },
+  {
+    name: "Penjualan",
+    component: Penjualan,
+    path: "/Penjualan",
+  },
+  {
+    name: "Dagangan",
+    component: Dagangan,
+    path: "/Dagangan",
   },
 ];
 

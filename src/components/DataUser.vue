@@ -37,7 +37,6 @@
 
 <script>
 import Header from "./Header.vue";
-
 import axios from "axios";
 
 export default {
@@ -71,7 +70,7 @@ export default {
         this.$router.push({ name: "SignUp" });
       } else {
         let result = await axios.get("http://localhost:3000/User");
-        this.User = result.data;
+        this.User = result.data.filter((user) => user.role !== "admin");
       }
     },
   },

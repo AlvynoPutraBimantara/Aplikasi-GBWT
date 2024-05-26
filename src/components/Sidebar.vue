@@ -1,5 +1,3 @@
-// src/components/Sidebar.vue
-
 <template>
   <div class="bg-light border-right" id="sidebar-wrapper">
     <div class="sidebar-heading">Aplikasi GBWT</div>
@@ -56,5 +54,12 @@ export default {
 </script>
 
 <style scoped>
-/* Add any specific styles for the sidebar here */
+.list-group-item-action {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.list-group-item-action:hover {
+  background-color: darkblue;
+  color: white;
+}
 </style>

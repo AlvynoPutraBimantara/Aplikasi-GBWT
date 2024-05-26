@@ -121,21 +121,40 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
+.tambah {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
 .tambah input,
-.tambah select {
+.tambah select,
+.tambah button {
   display: block;
   margin-bottom: 10px;
-  padding: 8px;
-  width: 30%;
+  padding: 10px;
+  width: 300px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 16px;
-  margin: auto;
 }
 
-.tambah select {
-  margin-bottom: 10px; /* Add margin to the top of the select element */
+.tambah input::placeholder,
+.tambah select::placeholder {
+  color: #aaa;
+}
+
+.tambah button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.update button:hover {
+  background-color: #0056b3;
 }
 </style>

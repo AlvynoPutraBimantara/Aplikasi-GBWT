@@ -31,9 +31,11 @@ export default {
   },
   computed: {
     filteredUsers() {
-      return this.users.filter((user) =>
-        user.NamaWarung.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
+      return this.users
+        .filter((user) => user.role !== "admin")
+        .filter((user) =>
+          user.NamaWarung.toLowerCase().includes(this.searchQuery.toLowerCase())
+        );
     },
   },
   methods: {
@@ -43,7 +45,7 @@ export default {
     async loadUsers() {
       try {
         const response = await axios.get("http://localhost:3000/User");
-        this.users = response.data;
+        this.users = response.data.filter((user) => user.role !== "admin");
       } catch (error) {
         console.error("Error loading users:", error);
       }

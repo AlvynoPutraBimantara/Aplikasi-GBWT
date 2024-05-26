@@ -23,6 +23,7 @@ import DetilKategori from "./components/DetilKategori.vue";
 import Penjualan from "./components/Penjualan.vue";
 import Dagangan from "./components/Dagangan.vue";
 import Pesanan from "./components/Pesanan.vue";
+import TambahDagangan from "./components/TambahDagangan.vue";
 
 const routes = [
   {
@@ -150,6 +151,11 @@ const routes = [
     name: "Dagangan",
     component: Dagangan,
     path: "/Dagangan",
+  },
+  {
+    name: "TambahDagangan",
+    component: TambahDagangan,
+    path: "/TambahDagangan",
   },
 ];
 

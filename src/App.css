@@ -27,15 +27,7 @@ body {
 }
 
 #sidebar-wrapper .list-group {
-  width: 15rem;
-}
-
-#page-content-wrapper {
-  min-width: 100vw;
-}
-
-#wrapper.toggled #sidebar-wrapper {
-  margin-left: 0;
+  width: 245px;
 }
 
 @media (min-width: 768px) {
@@ -52,9 +44,46 @@ body {
     margin-left: -15rem;
   }
 }
+
 .bg-light {
   background-color: skyblue !important;
 }
+
 #page-content-wrapper {
   background-color: rgb(216, 233, 238);
+}
+
+/* Button styles with hover effects */
+.register input,
+.login input,
+.tambah input {
+  width: 300px;
+  height: 40px;
+  display: block;
+  margin-bottom: 30px;
+  margin-right: auto;
+  margin-left: auto;
+  border: 1px solid skyblue;
+}
+
+.register button,
+.login button,
+.tambah button {
+  width: 300px;
+  height: 40px;
+  border: 1px solid black;
+  background: darkblue;
+  color: white;
+  cursor: pointer;
+  margin-right: auto;
+  margin-left: auto;
+  display: block;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.register button:hover,
+.login button:hover,
+.tambah button:hover {
+  background-color: skyblue;
+  color: black;
 }

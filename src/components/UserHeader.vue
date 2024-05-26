@@ -6,8 +6,6 @@
     <router-link to="/Warung">Warung</router-link>
     <router-link to="/Produk">Produk</router-link>
     <router-link to="/Kategori">Kategori</router-link>
-    <router-link to="/UserTambahProduk">Tambah Produk</router-link>
-    <router-link :to="`/Profil/${userId}`">Profil</router-link>
     <a v-on:click="logout" href="#">Logout</a>
   </div>
 </template>

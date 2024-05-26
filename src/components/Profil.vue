@@ -1,6 +1,6 @@
 // Profil.vue
 <template>
-  <Header />
+  <UserHeader />
   <h1>Profil</h1>
   <form class="update">
     <input
@@ -35,16 +35,19 @@
     />
     <button type="button" v-on:click="UpdateProfil">Update Data Profil</button>
   </form>
+  <form class="logout">
+    <button class="logout-btn" v-on:click="logout">Logout</button>
+  </form>
 </template>
 
 <script>
-import Header from "./Header.vue";
+import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
   name: "Profil",
   components: {
-    Header,
+    UserHeader,
   },
   data() {
     return {
@@ -74,6 +77,10 @@ export default {
         this.$router.push({ name: "Dashboard" });
       }
       console.warn("result", result);
+    },
+    logout() {
+      localStorage.clear();
+      this.$router.push({ name: "Login" });
     },
   },
   async mounted() {
@@ -125,5 +132,24 @@ export default {
 
 .update button:hover {
   background-color: #0056b3;
+}
+.logout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.logout-btn {
+  background-color: red;
+  display: block;
+  padding: 10px;
+  width: 300px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.logout-btn:hover {
+  background-color: darkred;
 }
 </style>

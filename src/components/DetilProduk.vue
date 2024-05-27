@@ -21,6 +21,20 @@
         <div class="detail-item">
           <p>Stok: {{ product.Stok }}</p>
         </div>
+        <div class="detail-item quantity-form">
+          <label for="quantity">Jumlah:</label>
+          <input
+            type="number"
+            id="quantity"
+            v-model.number="quantity"
+            min="1"
+            :max="product.Stok"
+          />
+          <button @click="addToCart" :disabled="isOwnProduct">
+            Tambah ke Keranjang
+          </button>
+          <p v-if="isOwnProduct">You cannot order your own product.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -37,7 +51,14 @@ export default {
   data() {
     return {
       product: {},
+      quantity: 1,
+      user: JSON.parse(localStorage.getItem("user-info")),
     };
+  },
+  computed: {
+    isOwnProduct() {
+      return this.product.Pedagang === this.user.NamaWarung;
+    },
   },
   async mounted() {
     const productId = this.$route.params.id;
@@ -49,6 +70,24 @@ export default {
     } catch (error) {
       console.error("Error loading product details:", error);
     }
+  },
+  methods: {
+    addToCart() {
+      if (
+        this.quantity > 0 &&
+        this.quantity <= this.product.Stok &&
+        !this.isOwnProduct
+      ) {
+        this.$store.dispatch("addToCart", {
+          id: this.product.id,
+          name: this.product.Nama,
+          price: parseFloat(this.product.Harga),
+          quantity: this.quantity,
+        });
+      } else {
+        alert("Invalid quantity selected");
+      }
+    },
   },
 };
 </script>
@@ -83,5 +122,37 @@ export default {
 .detail-item p {
   text-align: left;
   margin: 0;
+}
+
+.quantity-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quantity-form label {
+  margin-right: 10px;
+}
+
+quantity-form input {
+  width: 60px;
+  padding: 5px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-right: 10px;
+}
+
+.quantity-form button {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.quantity-form button:hover {
+  background-color: #218838;
 }
 </style>

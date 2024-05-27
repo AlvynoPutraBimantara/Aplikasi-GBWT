@@ -8,7 +8,7 @@
         >Profil</router-link
       >
       <router-link
-        to="/Pesanan"
+        to="/Orders"
         class="list-group-item list-group-item-action bg-light"
         >Pesanan</router-link
       >
@@ -21,6 +21,11 @@
         to="/Penjualan"
         class="list-group-item list-group-item-action bg-light"
         >Penjualan</router-link
+      >
+      <router-link
+        to="/Cart"
+        class="list-group-item list-group-item-action bg-light"
+        >Keranjang</router-link
       >
       <a
         v-on:click="logout"

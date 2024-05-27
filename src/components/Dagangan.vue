@@ -57,7 +57,7 @@ export default {
       }
     },
     goToProductPage(productId) {
-      this.$router.push({ name: "DetilProduk", params: { id: productId } });
+      this.$router.push({ name: "UpdateProduk", params: { id: productId } });
     },
   },
   computed: {

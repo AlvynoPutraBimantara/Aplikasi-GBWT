@@ -22,8 +22,9 @@ import DetilWarung from "./components/DetilWarung.vue";
 import DetilKategori from "./components/DetilKategori.vue";
 import Penjualan from "./components/Penjualan.vue";
 import Dagangan from "./components/Dagangan.vue";
-import Pesanan from "./components/Pesanan.vue";
 import TambahDagangan from "./components/TambahDagangan.vue";
+import Cart from "./components/Cart.vue";
+import Orders from "./components/Orders.vue";
 
 const routes = [
   {
@@ -72,7 +73,6 @@ const routes = [
     name: "UpdateProduk",
     component: UpdateProduk,
     path: "/UpdateProduk/:id",
-    meta: { requiresAdmin: true },
   },
   {
     name: "DataKategori",
@@ -138,11 +138,6 @@ const routes = [
     path: "/UserHeader",
   },
   {
-    name: "Pesanan",
-    component: Pesanan,
-    path: "/Pesanan",
-  },
-  {
     name: "Penjualan",
     component: Penjualan,
     path: "/Penjualan",
@@ -156,6 +151,16 @@ const routes = [
     name: "TambahDagangan",
     component: TambahDagangan,
     path: "/TambahDagangan",
+  },
+  {
+    name: "Cart",
+    component: Cart,
+    path: "/Cart",
+  },
+  {
+    name: "Orders",
+    component: Orders,
+    path: "/Orders",
   },
 ];
 

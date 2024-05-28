@@ -25,6 +25,7 @@ import Dagangan from "./components/Dagangan.vue";
 import TambahDagangan from "./components/TambahDagangan.vue";
 import Cart from "./components/Cart.vue";
 import Orders from "./components/Orders.vue";
+import ProfilAdmin from "./components/ProfilAdmin.vue";
 
 const routes = [
   {
@@ -116,6 +117,11 @@ const routes = [
     name: "Profil",
     component: Profil,
     path: "/Profil/:id",
+  },
+  {
+    name: "ProfilAdmin",
+    component: ProfilAdmin,
+    path: "/ProfilAdmin/:id",
   },
   {
     name: "DetilProduk",

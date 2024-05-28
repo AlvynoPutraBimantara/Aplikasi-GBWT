@@ -51,7 +51,7 @@ export default {
   },
   methods: {
     UpdateUser(id) {
-      this.$router.push({ name: "Profil", params: { id: id } });
+      this.$router.push({ name: "ProfilAdmin", params: { id: id } });
     },
     async HapusUser(id) {
       let result = await axios.delete(`http://localhost:3000/User/${id}`);

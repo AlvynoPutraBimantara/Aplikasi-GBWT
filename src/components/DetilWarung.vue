@@ -1,4 +1,4 @@
-//DetilWarung
+//DetilWarung.vue;
 <template>
   <div>
     <UserHeader />

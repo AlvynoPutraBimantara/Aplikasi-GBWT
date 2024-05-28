@@ -1,4 +1,3 @@
-//UserTambahProduk.vue
 <template>
   <UserHeader />
   <h1>Tambah Produk</h1>
@@ -34,17 +33,6 @@
       v-model="DataProduk.Keterangan"
     />
 
-    <select v-model="DataProduk.Pedagang">
-      <option disabled value="">Pilih Warung</option>
-      <option
-        v-for="warung in warungList"
-        :key="warung.id"
-        :value="warung.NamaWarung"
-      >
-        {{ warung.NamaWarung }}
-      </option>
-    </select>
-
     <input
       type="text"
       name="Stok"
@@ -61,7 +49,7 @@ import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
-  name: "TambahProduk",
+  name: "TambahDagangan",
   components: {
     UserHeader,
   },
@@ -76,18 +64,23 @@ export default {
         Stok: "",
       },
       kategoriList: [],
-      warungList: [],
     };
   },
   methods: {
     async TambahProduk() {
       try {
-        const result = await axios.post(
-          "http://localhost:3000/DataProduk",
-          this.DataProduk
-        );
-        if (result.status === 201) {
-          this.$router.push({ name: "DataProduk" });
+        let user = JSON.parse(localStorage.getItem("user-info"));
+        if (user && user.NamaWarung) {
+          this.DataProduk.Pedagang = user.NamaWarung;
+          const result = await axios.post(
+            "http://localhost:3000/DataProduk",
+            this.DataProduk
+          );
+          if (result.status === 201) {
+            this.$router.push({ name: "Dagangan" });
+          }
+        } else {
+          this.$router.push({ name: "Login" });
         }
       } catch (error) {
         console.error("Error adding product:", error);
@@ -101,23 +94,9 @@ export default {
         console.error("Error fetching categories:", error);
       }
     },
-    async fetchWarung() {
-      try {
-        const response = await axios.get("http://localhost:3000/User");
-        this.warungList = response.data;
-      } catch (error) {
-        console.error("Error fetching warungs:", error);
-      }
-    },
   },
   mounted() {
-    let user = localStorage.getItem("user-info");
-    if (!user) {
-      this.$router.push({ name: "SignUp" });
-    } else {
-      this.fetchKategori();
-      this.fetchWarung();
-    }
+    this.fetchKategori();
   },
 };
 </script>
@@ -155,7 +134,7 @@ export default {
   cursor: pointer;
 }
 
-.update button:hover {
+.tambah button:hover {
   background-color: #0056b3;
 }
 </style>

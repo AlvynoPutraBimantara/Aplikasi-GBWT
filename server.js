@@ -22,6 +22,12 @@ app.get("/Orders", (req, res) => {
 app.post("/Orders", (req, res) => {
   const data = getData();
   const newOrder = req.body;
+
+  // Ensure the ID is a string
+  if (typeof newOrder.id !== "string") {
+    return res.status(400).send("Order ID must be a string");
+  }
+
   data.Orders.push(newOrder);
   data.Cart = [];
   saveData(data);
@@ -31,9 +37,20 @@ app.post("/Orders", (req, res) => {
 app.delete("/Orders/:id", (req, res) => {
   const data = getData();
   const orderId = req.params.id;
-  data.Orders = data.Orders.filter((order) => order.id !== orderId);
-  saveData(data);
-  res.status(204).end();
+
+  // Log the order ID to debug
+  console.log(`Attempting to delete order with ID: ${orderId}`);
+
+  const orderIndex = data.Orders.findIndex((order) => order.id === orderId);
+
+  if (orderIndex !== -1) {
+    data.Orders.splice(orderIndex, 1);
+    saveData(data);
+    res.status(204).end();
+  } else {
+    console.log(`Order with ID: ${orderId} not found`);
+    res.status(404).send("Order not found");
+  }
 });
 
 app.get("/Cart", (req, res) => {

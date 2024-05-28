@@ -14,7 +14,6 @@ const getData = () => JSON.parse(fs.readFileSync(dbFilePath, "utf-8"));
 const saveData = (data) =>
   fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2));
 
-// Orders routes
 app.get("/Orders", (req, res) => {
   const data = getData();
   res.json(data.Orders);
@@ -29,7 +28,14 @@ app.post("/Orders", (req, res) => {
   res.status(201).json(newOrder);
 });
 
-// Cart routes
+app.delete("/Orders/:id", (req, res) => {
+  const data = getData();
+  const orderId = req.params.id;
+  data.Orders = data.Orders.filter((order) => order.id !== orderId);
+  saveData(data);
+  res.status(204).end();
+});
+
 app.get("/Cart", (req, res) => {
   const data = getData();
   res.json(data.Cart);
@@ -43,17 +49,21 @@ app.post("/Cart", (req, res) => {
   res.status(201).json(newCartItem);
 });
 
-app.put("/Cart/:id", (req, res) => {
+app.put("/DataProduk/:id", (req, res) => {
   const data = getData();
-  const cartItemId = req.params.id;
-  const newQuantity = req.body.quantity;
-  const item = data.Cart.find((item) => item.id === cartItemId);
-  if (item) {
-    item.quantity = newQuantity;
+  const productId = req.params.id;
+  const updatedProduct = req.body;
+
+  const productIndex = data.DataProduk.findIndex((p) => p.id === productId);
+  if (productIndex !== -1) {
+    data.DataProduk[productIndex] = updatedProduct;
     saveData(data);
-    res.status(200).json(item);
+    console.log(
+      `Product ${updatedProduct.Nama} updated: new stock ${updatedProduct.Stok}`
+    );
+    res.status(200).json(updatedProduct);
   } else {
-    res.status(404).send("Item not found");
+    res.status(404).send("Product not found");
   }
 });
 
@@ -67,9 +77,9 @@ app.delete("/Cart/:id", (req, res) => {
 
 app.get("/DataProduk", (req, res) => {
   const data = getData();
-  res.send(data.DataProduk);
+  res.json(data.DataProduk);
 });
 
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server is running on http://localhost:${port}`);
 });

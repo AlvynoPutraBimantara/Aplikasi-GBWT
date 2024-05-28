@@ -83,6 +83,17 @@ export default createStore({
     clearCart({ commit }) {
       commit("CLEAR_CART");
     },
+    async clearCartOnServer() {
+      try {
+        const response = await axios.get("http://localhost:3000/Cart");
+        const cartItems = response.data;
+        for (const item of cartItems) {
+          await axios.delete(`http://localhost:3000/Cart/${item.id}`);
+        }
+      } catch (error) {
+        console.error("Error clearing cart on server:", error);
+      }
+    },
     async fetchOrders({ commit }) {
       try {
         const response = await axios.get("http://localhost:3000/Orders");
@@ -93,7 +104,6 @@ export default createStore({
     },
     async placeOrder({ commit }, order) {
       try {
-        // Generate a new order ID as a string
         const newOrderId = String(Date.now());
         const newOrder = { ...order, id: newOrderId };
 
@@ -129,7 +139,6 @@ export default createStore({
         console.log("Accepting order:", order);
         console.log("Current products state:", state.products);
 
-        // Step 1: Check stock for each item in the order
         for (const item of order.items) {
           console.log("Processing item:", item);
           const product = state.products.find((p) => p.id === item.id);
@@ -150,7 +159,6 @@ export default createStore({
           }
         }
 
-        // Step 2: Update stock for each item in the order
         for (const item of order.items) {
           const product = state.products.find((p) => p.id === item.id);
           const updatedStock = Number(product.Stok) - item.quantity;
@@ -175,12 +183,10 @@ export default createStore({
           });
         }
 
-        // Step 3: Remove the order from the state
         await axios.delete(`http://localhost:3000/Orders/${order.id}`);
         commit("REMOVE_ORDER", order.id);
       } catch (error) {
         console.error("Error accepting order:", error.message);
-        // Optionally handle the error (e.g., show a notification to the user)
       }
     },
   },

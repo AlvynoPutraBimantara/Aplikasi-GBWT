@@ -72,18 +72,24 @@ export default {
     }
   },
   methods: {
-    addToCart() {
+    async addToCart() {
       if (
         this.quantity > 0 &&
         this.quantity <= this.product.Stok &&
         !this.isOwnProduct
       ) {
-        this.$store.dispatch("addToCart", {
-          id: this.product.id,
-          name: this.product.Nama,
-          price: parseFloat(this.product.Harga),
-          quantity: this.quantity,
-        });
+        try {
+          await this.$store.dispatch("addToCart", {
+            id: this.product.id,
+            name: this.product.Nama,
+            price: parseFloat(this.product.Harga),
+            quantity: this.quantity,
+          });
+          alert("Product successfully added to cart!");
+        } catch (error) {
+          console.error("Error adding to cart:", error);
+          alert("Failed to add product to cart. Please try again.");
+        }
       } else {
         alert("Invalid quantity selected");
       }

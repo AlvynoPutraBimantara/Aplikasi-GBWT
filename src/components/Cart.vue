@@ -13,7 +13,6 @@
           :min="1"
           :max="getProductStock(item.id)"
         />
-
         <button @click="removeFromCart(item.id)">Remove</button>
       </div>
       <p>Total: {{ cartTotalPrice }}</p>
@@ -65,6 +64,7 @@ export default {
         total: this.cartTotalPrice,
       };
       await this.$store.dispatch("placeOrder", order);
+      await this.$store.dispatch("clearCartOnServer");
       this.$store.dispatch("clearCart");
     },
     getProductStock(productId) {

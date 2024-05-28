@@ -29,7 +29,7 @@ app.post("/Orders", (req, res) => {
   }
 
   data.Orders.push(newOrder);
-  data.Cart = [];
+  data.Cart = []; // Clear cart on server
   saveData(data);
   res.status(201).json(newOrder);
 });
@@ -88,6 +88,13 @@ app.delete("/Cart/:id", (req, res) => {
   const data = getData();
   const cartItemId = req.params.id;
   data.Cart = data.Cart.filter((item) => item.id !== cartItemId);
+  saveData(data);
+  res.status(204).end();
+});
+
+app.delete("/Cart", (req, res) => {
+  const data = getData();
+  data.Cart = [];
   saveData(data);
   res.status(204).end();
 });

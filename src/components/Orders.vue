@@ -54,29 +54,17 @@ export default {
     await this.$store.dispatch("fetchOrders");
     await this.$store.dispatch("fetchProducts"); // Ensure products are fetched
   },
-
   methods: {
     async deleteOrder(orderId) {
-      await this.$store.dispatch("processTransaction");
       await this.$store.dispatch("deleteOrder", orderId.toString());
     },
     async acceptOrder(order) {
-      await this.$store.dispatch("processTransaction");
-      await this.$store.dispatch("acceptOrder", order);
-    },
-    createTransaction(order) {
-      const groupedItems = order.items.reduce((acc, item) => {
-        if (!acc[item.pedagang]) {
-          acc[item.pedagang] = [];
-        }
-        acc[item.pedagang].push({ name: item.name, quantity: item.quantity });
-        return acc;
-      }, {});
-
-      return {
-        id: Date.now().toString(),
-        itemsByPedagang: groupedItems,
-      };
+      try {
+        await this.$store.dispatch("acceptOrder", order);
+        console.log("Order accepted and transaction created successfully.");
+      } catch (error) {
+        console.error("Error accepting order:", error);
+      }
     },
   },
 };

@@ -120,3 +120,20 @@ app.get("/Transactions", (req, res) => {
   const data = getData();
   res.json(data.Transactions);
 });
+
+app.delete("/Transactions/:id", (req, res) => {
+  const data = getData();
+  const transactionId = req.params.id;
+
+  const transactionIndex = data.Transactions.findIndex(
+    (transaction) => transaction.id === transactionId
+  );
+
+  if (transactionIndex !== -1) {
+    data.Transactions.splice(transactionIndex, 1);
+    saveData(data);
+    res.status(204).end();
+  } else {
+    res.status(404).send("Transaction not found");
+  }
+});

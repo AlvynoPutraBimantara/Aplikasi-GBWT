@@ -58,6 +58,19 @@ export default createStore({
     ADD_TRANSACTION(state, transaction) {
       state.transactions.push(transaction);
     },
+    REMOVE_TRANSACTION(state, transactionId) {
+      state.transactions = state.transactions.filter(
+        (transaction) => transaction.id !== transactionId
+      );
+    },
+    UPDATE_PRODUCT(state, updatedProduct) {
+      const index = state.products.findIndex(
+        (product) => product.id === updatedProduct.id
+      );
+      if (index !== -1) {
+        state.products.splice(index, 1, updatedProduct);
+      }
+    },
   },
   actions: {
     async fetchCart({ commit }) {
@@ -111,30 +124,17 @@ export default createStore({
     },
     async placeOrder({ commit }, order) {
       try {
-        const newOrderId = String(Date.now());
-        const newOrder = { ...order, id: newOrderId };
-
         const response = await axios.post(
           "http://localhost:3000/Orders",
-          newOrder
+          order
         );
         commit("ADD_ORDER", response.data);
       } catch (error) {
         console.error("Error placing order:", error);
       }
     },
-    async fetchProducts({ commit }) {
-      try {
-        const response = await axios.get("http://localhost:3000/DataProduk");
-        console.log("Fetched products:", response.data);
-        commit("SET_PRODUCTS", response.data);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      }
-    },
     async deleteOrder({ commit }, orderId) {
       try {
-        console.log(`Deleting order with ID: ${orderId}`);
         await axios.delete(`http://localhost:3000/Orders/${orderId}`);
         commit("REMOVE_ORDER", orderId);
       } catch (error) {
@@ -143,85 +143,45 @@ export default createStore({
     },
     async acceptOrder({ commit, state }, order) {
       try {
-        console.log("Accepting order:", order);
-        console.log("Current products state:", state.products);
-
-        for (const item of order.items) {
-          console.log("Processing item:", item);
-          const product = state.products.find((p) => p.id === item.id);
-          console.log("Found product:", product);
-          if (!product) {
-            console.error(`Product ${item.name} not found`);
-            throw new Error(`Product ${item.name} not found`);
-          }
-
-          const productStock = Number(product.Stok);
-          console.log(
-            `Checking stock for ${item.name}: required ${item.quantity}, available ${productStock}`
-          );
-
-          if (productStock < item.quantity) {
-            console.error(`Insufficient stock for product ${item.name}`);
-            throw new Error(`Insufficient stock for product ${item.name}`);
-          }
-        }
-
         for (const item of order.items) {
           const product = state.products.find((p) => p.id === item.id);
-          const updatedStock = Number(product.Stok) - item.quantity;
-
-          const updatedProduct = {
-            ...product,
-            Stok: updatedStock,
-          };
-
-          await axios.put(
-            `http://localhost:3000/DataProduk/${product.id}`,
-            updatedProduct
-          );
-
-          console.log(
-            `Updated stock for ${item.name}: new stock ${updatedStock}`
-          );
-
-          commit("UPDATE_PRODUCT_STOCK", {
-            productId: product.id,
-            quantity: item.quantity,
-          });
+          if (product && product.Stok >= item.quantity) {
+            await axios.patch(`http://localhost:3000/DataProduk/${item.id}`, {
+              Stok: product.Stok - item.quantity,
+            });
+            commit("UPDATE_PRODUCT_STOCK", {
+              productId: item.id,
+              quantity: item.quantity,
+            });
+          } else {
+            throw new Error(`Insufficient stock for product ID ${item.id}`);
+          }
         }
-
-        await axios.delete(`http://localhost:3000/Orders/${order.id}`);
-        commit("REMOVE_ORDER", order.id);
 
         const transaction = {
-          id: Date.now().toString(),
-          pedagang: order.items.map((item) => item.pedagang), // Assuming `pedagang` is a property of items
-          items: order.items.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-          })),
+          id: `"${Date.now()}"`,
+          orderId: `"${order.id}"`,
+          items: order.items,
+          total: order.total,
+          timestamp: new Date().toISOString(),
         };
+        await axios.post("http://localhost:3000/Transactions", transaction);
+        commit("ADD_TRANSACTION", transaction);
 
-        const transactionResponse = await axios.post(
-          "http://localhost:3000/Transactions",
-          transaction
-        );
-        commit("ADD_TRANSACTION", transactionResponse.data);
+        // Delete the order
+        await axios.delete(`http://localhost:3000/Orders/${order.id}`);
+        commit("REMOVE_ORDER", order.id);
       } catch (error) {
         console.error("Error accepting order:", error);
         throw error;
       }
     },
-    async saveTransaction({ commit }, transaction) {
+    async fetchProducts({ commit }) {
       try {
-        const response = await axios.post(
-          "http://localhost:3000/Transactions",
-          transaction
-        );
-        commit("ADD_TRANSACTION", response.data);
+        const response = await axios.get("http://localhost:3000/DataProduk");
+        commit("SET_PRODUCTS", response.data);
       } catch (error) {
-        console.error("Error saving transaction:", error);
-        throw error;
+        console.error("Error fetching products:", error);
       }
     },
     async fetchTransactions({ commit }) {
@@ -232,45 +192,39 @@ export default createStore({
         console.error("Error fetching transactions:", error);
       }
     },
-    async processTransaction({ commit, state }) {
-      const pedagangData = await axios.get("http://localhost:3000/DataProduk");
-      const orders = state.orders;
-      const transactions = [];
-
-      orders.forEach((order) => {
-        order.items.forEach((item) => {
-          const product = pedagangData.data.find((p) => p.id === item.id);
-          if (product) {
-            const pedagangTransaction = transactions.find(
-              (t) => t.Pedagang === product.Pedagang
-            );
-            if (pedagangTransaction) {
-              pedagangTransaction.items.push({
-                id: item.id,
-                name: item.name,
-                quantity: item.quantity,
-              });
-            } else {
-              transactions.push({
-                id: String(Date.now()),
-                Pedagang: product.Pedagang,
-                items: [
-                  { id: item.id, name: item.name, quantity: item.quantity },
-                ],
-              });
-            }
-          }
-        });
-      });
-
-      await axios.post("http://localhost:3000/Transactions", transactions);
-      commit("SET_TRANSACTIONS", transactions);
+    async deleteTransaction({ commit }, transactionId) {
+      try {
+        await axios.delete(
+          `http://localhost:3000/Transactions/${transactionId}`
+        );
+        commit("REMOVE_TRANSACTION", transactionId);
+      } catch (error) {
+        console.error("Error deleting transaction:", error);
+      }
+    },
+    async updateProductStock({ commit, state }, { productId, quantity }) {
+      try {
+        const product = state.products.find((p) => p.id === productId);
+        if (product) {
+          const updatedStock = product.Stok - quantity;
+          await axios.patch(`http://localhost:3000/DataProduk/${productId}`, {
+            Stok: updatedStock,
+          });
+          commit("UPDATE_PRODUCT", {
+            ...product,
+            Stok: updatedStock,
+          });
+        }
+      } catch (error) {
+        console.error("Error updating product stock:", error);
+      }
     },
   },
   getters: {
-    cartItemCount: (state) => state.cart.length,
-    cartTotalPrice: (state) =>
-      state.cart.reduce((total, item) => total + item.price * item.quantity, 0),
-    orders: (state) => state.orders,
+    cartTotalPrice: (state) => {
+      return state.cart.reduce((total, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
+    },
   },
 });

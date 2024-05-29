@@ -73,7 +73,7 @@ export default {
     },
     async checkout() {
       const order = {
-        id: Date.now(),
+        id: `"${Date.now()}"`,
         items: this.cart.map((item) => ({
           id: item.id,
           name: item.name,
@@ -83,7 +83,6 @@ export default {
         total: this.cartTotalPrice,
       };
       await this.$store.dispatch("placeOrder", order);
-      await this.$store.dispatch("processTransaction");
       await this.$store.dispatch("clearCartOnServer");
       this.$store.dispatch("clearCart");
     },

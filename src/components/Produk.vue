@@ -15,6 +15,10 @@
         <div class="card-body">
           <h5 class="card-title">{{ product.Nama }}</h5>
           <p class="card-text">{{ product.Harga }}</p>
+          <p class="card-text">
+            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
+          </p>
+          <!-- Add this line -->
         </div>
       </div>
     </div>

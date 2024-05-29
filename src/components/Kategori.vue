@@ -1,23 +1,26 @@
 <template>
   <div>
     <UserHeader />
-    <div
-      class="category"
-      v-for="(category, index) in categories"
-      :key="index"
-      @click="goToCategoryPage(category.id)"
-    >
-      <font-awesome-icon
-        :icon="getCategoryIcon(category.Kategori)"
-        class="category-icon"
-      />
-      <h3>{{ category.Kategori }}</h3>
+    <div class="search-container">
+      <input type="text" v-model="searchQuery" placeholder="Cari Kategori..." />
+    </div>
+    <div class="categories-container">
+      <div
+        class="card"
+        v-for="(category, index) in filteredCategories"
+        :key="index"
+        @click="goToCategoryPage(category.id)"
+      >
+        <div class="card-body">
+          <h5 class="card-title">{{ category.Kategori }}</h5>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue"; // Assuming UserHeader.vue is in the same directory
+import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
@@ -27,6 +30,7 @@ export default {
   data() {
     return {
       categories: [],
+      searchQuery: "",
     };
   },
   methods: {
@@ -41,19 +45,12 @@ export default {
     goToCategoryPage(categoryId) {
       this.$router.push({ name: "DetilKategori", params: { id: categoryId } });
     },
-    getCategoryIcon(category) {
-      switch (category) {
-        case "makanan":
-          return ["fas", "utensils"];
-        case "minuman":
-          return ["fas", "glass-martini-alt"];
-        case "pakaian":
-          return ["fas", "tshirt"];
-        case "sembako":
-          return ["fas", "carrot"];
-        default:
-          return ["fas", "question-circle"]; // Default icon
-      }
+  },
+  computed: {
+    filteredCategories() {
+      return this.categories.filter((category) =>
+        category.Kategori.toLowerCase().includes(this.searchQuery.toLowerCase())
+      );
     },
   },
   mounted() {
@@ -63,17 +60,47 @@ export default {
 </script>
 
 <style scoped>
-.category {
-  border: 1px solid #ccc;
-  padding: 20px;
-  margin: 10px;
-  width: 200px;
-  display: inline-block;
-  cursor: pointer;
-  text-align: center;
+.search-container {
+  margin: 20px;
+  text-align: left;
 }
-.category-icon {
-  font-size: 2em;
-  margin-bottom: 10px;
+
+.search-container input {
+  padding: 10px;
+  font-size: 16px;
+  width: 100%;
+  max-width: 300px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.categories-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin: 10px;
+  cursor: pointer;
+  width: 200px;
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
 }
 </style>

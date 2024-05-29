@@ -54,12 +54,6 @@ export default createStore({
         product.Stok -= quantity;
       }
     },
-    INCREASE_PRODUCT_STOCK(state, { productId, quantity }) {
-      const product = state.products.find((p) => p.id === productId);
-      if (product) {
-        product.Stok += quantity;
-      }
-    },
     SET_TRANSACTIONS(state, transactions) {
       state.transactions = transactions;
     },
@@ -71,6 +65,22 @@ export default createStore({
         (transaction) => transaction.id !== transactionId
       );
     },
+    REMOVE_TRANSACTION_ITEM(state, { transactionId, itemId }) {
+      const transaction = state.transactions.find(
+        (t) => t.id === transactionId
+      );
+      if (transaction) {
+        transaction.items = transaction.items.filter(
+          (item) => item.id !== itemId
+        );
+      }
+    },
+    INCREASE_PRODUCT_STOCK(state, { productId, quantity }) {
+      const product = state.products.find((p) => p.id === productId);
+      if (product) {
+        product.Stok += quantity;
+      }
+    },
     UPDATE_PRODUCT(state, updatedProduct) {
       const index = state.products.findIndex(
         (product) => product.id === updatedProduct.id
@@ -81,12 +91,20 @@ export default createStore({
     },
   },
   actions: {
-    // existing actions...
-
     async fetchCart({ commit }) {
       try {
         const response = await axios.get("http://localhost:3000/Cart");
-        commit("SET_CART", response.data);
+        const cart = response.data.map(async (item) => {
+          const productResponse = await axios.get(
+            `http://localhost:3000/DataProduk/${item.id}`
+          );
+          const product = productResponse.data;
+          return {
+            ...item,
+            pedagang: product.Pedagang,
+          };
+        });
+        commit("SET_CART", await Promise.all(cart));
       } catch (error) {
         console.error("Error fetching cart:", error);
       }
@@ -212,6 +230,34 @@ export default createStore({
         console.error("Error deleting transaction:", error);
       }
     },
+    async deleteTransactionItemAction(
+      { commit, dispatch },
+      { transactionId, itemId }
+    ) {
+      try {
+        const transaction = (
+          await axios.get(`http://localhost:3000/Transactions/${transactionId}`)
+        ).data;
+        transaction.items = transaction.items.filter(
+          (item) => item.id !== itemId
+        );
+
+        if (transaction.items.length === 0) {
+          // If there are no items left, delete the transaction
+          await dispatch("deleteTransactionAction", transactionId);
+        } else {
+          // Otherwise, update the transaction with the remaining items
+          await axios.put(
+            `http://localhost:3000/Transactions/${transactionId}`,
+            transaction
+          );
+          commit("REMOVE_TRANSACTION_ITEM", { transactionId, itemId });
+        }
+      } catch (error) {
+        console.error("Error deleting transaction item:", error);
+      }
+    },
+
     async refundTransaction({ commit, state }, transaction) {
       try {
         // Loop through the transaction items and update the stock
@@ -234,6 +280,36 @@ export default createStore({
         commit("REMOVE_TRANSACTION", transaction.id);
       } catch (error) {
         console.error("Error refunding transaction:", error);
+        throw error;
+      }
+    },
+    async refundTransactionItemAction(
+      { commit, state },
+      { transaction, item }
+    ) {
+      try {
+        const product = state.products.find((p) => p.id === item.id);
+        if (product) {
+          await axios.patch(`http://localhost:3000/DataProduk/${item.id}`, {
+            Stok: product.Stok + item.quantity,
+          });
+          commit("INCREASE_PRODUCT_STOCK", {
+            productId: item.id,
+            quantity: item.quantity,
+          });
+        }
+
+        transaction.items = transaction.items.filter((i) => i.id !== item.id);
+        await axios.put(
+          `http://localhost:3000/Transactions/${transaction.id}`,
+          transaction
+        );
+        commit("REMOVE_TRANSACTION_ITEM", {
+          transactionId: transaction.id,
+          itemId: item.id,
+        });
+      } catch (error) {
+        console.error("Error refunding transaction item:", error);
         throw error;
       }
     },

@@ -19,13 +19,21 @@
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
                 {{ item.name }} ({{ item.quantity }})
+                <button @click="deleteTransactionItem(transaction.id, item.id)">
+                  Hapus Item
+                </button>
+                <button @click="refundTransactionItem(transaction, item)">
+                  Batalkan Item
+                </button>
               </li>
             </ul>
           </td>
           <td>
-            <button @click="deleteTransaction(transaction.id)">Hapus</button>
+            <button @click="deleteTransaction(transaction.id)">
+              Hapus Transaksi
+            </button>
             <button @click="handleRefundTransaction(transaction)">
-              Batalkan
+              Batalkan Transaksi
             </button>
           </td>
         </tr>
@@ -52,11 +60,13 @@ export default {
   methods: {
     ...mapActions([
       "fetchTransactions",
-      "deleteTransactionAction", // Change this to match the Vuex action name
+      "deleteTransactionAction",
+      "deleteTransactionItemAction",
       "refundTransaction",
+      "refundTransactionItemAction",
     ]),
     deleteTransaction(transactionId) {
-      this.deleteTransactionAction(transactionId) // Call the renamed action here
+      this.deleteTransactionAction(transactionId)
         .then(() => {
           console.log(`Transaction ${transactionId} deleted successfully`);
         })
@@ -71,6 +81,40 @@ export default {
         })
         .catch((error) => {
           console.error("Error refunding transaction:", error);
+        });
+    },
+    deleteTransactionItem(transactionId, itemId) {
+      this.deleteTransactionItemAction({ transactionId, itemId })
+        .then(() => {
+          const transaction = this.transactions.find(
+            (t) => t.id === transactionId
+          );
+          if (transaction && transaction.items.length === 0) {
+            this.deleteTransaction(transactionId);
+          }
+          console.log(
+            `Item ${itemId} from transaction ${transactionId} deleted successfully`
+          );
+        })
+        .catch((error) => {
+          console.error("Error deleting item:", error);
+        });
+    },
+    refundTransactionItem(transaction, item) {
+      this.refundTransactionItemAction({ transaction, item })
+        .then(() => {
+          const updatedTransaction = this.transactions.find(
+            (t) => t.id === transaction.id
+          );
+          if (updatedTransaction && updatedTransaction.items.length === 0) {
+            this.deleteTransaction(transaction.id);
+          }
+          console.log(
+            `Item ${item.id} from transaction ${transaction.id} refunded successfully`
+          );
+        })
+        .catch((error) => {
+          console.error("Error refunding item:", error);
         });
     },
   },

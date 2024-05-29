@@ -16,9 +16,8 @@
           <h5 class="card-title">{{ product.Nama }}</h5>
           <p class="card-text">{{ product.Harga }}</p>
           <p class="card-text">
-            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
+            {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
           </p>
-          <!-- Add this line -->
         </div>
       </div>
     </div>
@@ -87,8 +86,17 @@ export default {
   padding: 20px;
 }
 
-.card {
-  margin: 10px;
-  cursor: pointer;
+.card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
 }
 </style>

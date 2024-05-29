@@ -4,13 +4,17 @@
     <div class="search-container">
       <input type="text" v-model="searchQuery" placeholder="Cari Warung..." />
     </div>
-    <div
-      class="warung"
-      v-for="(user, index) in filteredUsers"
-      :key="index"
-      @click="goToWarungPage(user.id)"
-    >
-      <h3>{{ user.NamaWarung }}</h3>
+    <div class="categories-container">
+      <div
+        class="card"
+        v-for="(user, index) in filteredUsers"
+        :key="index"
+        @click="goToWarungPage(user.id)"
+      >
+        <div class="card-body">
+          <h5 class="card-title">{{ user.NamaWarung }}</h5>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -62,6 +66,7 @@ export default {
   margin: 20px;
   text-align: left;
 }
+
 .search-container input {
   padding: 10px;
   font-size: 16px;
@@ -70,12 +75,34 @@ export default {
   border: 1px solid #ccc;
   border-radius: 4px;
 }
-.warung {
-  border: 1px solid #ccc;
+
+.categories-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   padding: 20px;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 5px;
   margin: 10px;
-  width: 200px;
-  display: inline-block;
   cursor: pointer;
+  width: 200px;
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
 }
 </style>

@@ -6,15 +6,17 @@
       <table>
         <thead>
           <tr>
-            <th>Product Name</th>
-            <th>Price</th>
+            <th>Warung</th>
+            <th>Produk</th>
+            <th>Harga</th>
             <th>Quantity</th>
             <th>Subtotal</th>
-            <th>Actions</th>
+            <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in cart" :key="item.id">
+            <td>{{ item.pedagang }}</td>
             <td>{{ item.name }}</td>
             <td>{{ item.price }}</td>
             <td>
@@ -37,7 +39,7 @@
       <button @click="checkout">Checkout</button>
     </div>
     <div v-else>
-      <p>Your cart is empty.</p>
+      <p>Keranjang Kosong</p>
     </div>
   </div>
 </template>

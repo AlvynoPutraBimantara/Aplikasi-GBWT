@@ -33,7 +33,9 @@
           <button @click="addToCart" :disabled="isOwnProduct">
             Tambah ke Keranjang
           </button>
-          <p v-if="isOwnProduct">You cannot order your own product.</p>
+          <p v-if="isOwnProduct">
+            Anda tidak dapat memesan produk anda sendiri.
+          </p>
         </div>
       </div>
     </div>

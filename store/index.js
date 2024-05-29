@@ -202,7 +202,7 @@ export default createStore({
         console.error("Error fetching transactions:", error);
       }
     },
-    async deleteTransaction({ commit }, transactionId) {
+    async deleteTransactionAction({ commit }, transactionId) {
       try {
         await axios.delete(
           `http://localhost:3000/Transactions/${transactionId}`
@@ -228,7 +228,6 @@ export default createStore({
           }
         }
 
-        // Remove the transaction
         await axios.delete(
           `http://localhost:3000/Transactions/${transaction.id}`
         );

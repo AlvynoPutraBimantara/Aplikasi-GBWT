@@ -52,11 +52,11 @@ export default {
   methods: {
     ...mapActions([
       "fetchTransactions",
-      "deleteTransaction",
+      "deleteTransactionAction", // Change this to match the Vuex action name
       "refundTransaction",
     ]),
     deleteTransaction(transactionId) {
-      this.deleteTransaction(transactionId)
+      this.deleteTransactionAction(transactionId) // Call the renamed action here
         .then(() => {
           console.log(`Transaction ${transactionId} deleted successfully`);
         })

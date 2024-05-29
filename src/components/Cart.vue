@@ -3,18 +3,36 @@
     <UserHeader />
     <h2>Shopping Cart</h2>
     <div v-if="cart.length">
-      <div v-for="item in cart" :key="item.id">
-        <p>{{ item.name }} - {{ item.quantity }}</p>
-        <label for="quantity">Quantity:</label>
-        <input
-          type="number"
-          v-model.number="item.quantity"
-          @input="updateQuantity(item)"
-          :min="1"
-          :max="getProductStock(item.id)"
-        />
-        <button @click="removeFromCart(item.id)">Remove</button>
-      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Product Name</th>
+            <th>Price</th>
+            <th>Quantity</th>
+            <th>Subtotal</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in cart" :key="item.id">
+            <td>{{ item.name }}</td>
+            <td>{{ item.price }}</td>
+            <td>
+              <input
+                type="number"
+                v-model.number="item.quantity"
+                @input="updateQuantity(item)"
+                :min="1"
+                :max="getProductStock(item.id)"
+              />
+            </td>
+            <td>{{ item.price * item.quantity }}</td>
+            <td>
+              <button @click="removeFromCart(item.id)">Remove</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <p>Total: {{ cartTotalPrice }}</p>
       <button @click="checkout">Checkout</button>
     </div>
@@ -59,11 +77,13 @@ export default {
         items: this.cart.map((item) => ({
           id: item.id,
           name: item.name,
+          price: item.price,
           quantity: item.quantity,
         })),
         total: this.cartTotalPrice,
       };
       await this.$store.dispatch("placeOrder", order);
+      await this.$store.dispatch("processTransaction");
       await this.$store.dispatch("clearCartOnServer");
       this.$store.dispatch("clearCart");
     },
@@ -80,3 +100,25 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+th {
+  background-color: #f2f2f2;
+  text-align: left;
+}
+
+td input {
+  width: 50px;
+}
+</style>

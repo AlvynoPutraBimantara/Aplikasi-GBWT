@@ -107,3 +107,16 @@ app.get("/DataProduk", (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+
+app.post("/Transactions", (req, res) => {
+  const data = getData();
+  const newTransaction = req.body;
+  data.Transactions.push(newTransaction);
+  saveData(data);
+  res.status(201).json(newTransaction);
+});
+
+app.get("/Transactions", (req, res) => {
+  const data = getData();
+  res.json(data.Transactions);
+});

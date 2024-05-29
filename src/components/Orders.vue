@@ -18,7 +18,9 @@
             <td>
               <ul>
                 <li v-for="item in order.items" :key="item.id">
-                  {{ item.name }} - {{ item.quantity }}
+                  {{ item.name }} - {{ item.quantity }} <br />
+                  Pedagang: {{ item.pedagang }} <br />
+                  ID: {{ item.id }}
                 </li>
               </ul>
             </td>
@@ -55,10 +57,26 @@ export default {
 
   methods: {
     async deleteOrder(orderId) {
+      await this.$store.dispatch("processTransaction");
       await this.$store.dispatch("deleteOrder", orderId.toString());
     },
     async acceptOrder(order) {
+      await this.$store.dispatch("processTransaction");
       await this.$store.dispatch("acceptOrder", order);
+    },
+    createTransaction(order) {
+      const groupedItems = order.items.reduce((acc, item) => {
+        if (!acc[item.pedagang]) {
+          acc[item.pedagang] = [];
+        }
+        acc[item.pedagang].push({ name: item.name, quantity: item.quantity });
+        return acc;
+      }, {});
+
+      return {
+        id: Date.now().toString(),
+        itemsByPedagang: groupedItems,
+      };
     },
   },
 };

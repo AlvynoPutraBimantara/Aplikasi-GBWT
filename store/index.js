@@ -6,6 +6,7 @@ export default createStore({
     cart: [],
     orders: [],
     products: [],
+    transactions: [],
   },
   mutations: {
     SET_CART(state, cart) {
@@ -50,6 +51,12 @@ export default createStore({
       if (product) {
         product.Stok -= quantity;
       }
+    },
+    SET_TRANSACTIONS(state, transactions) {
+      state.transactions = transactions;
+    },
+    ADD_TRANSACTION(state, transaction) {
+      state.transactions.push(transaction);
     },
   },
   actions: {
@@ -185,9 +192,79 @@ export default createStore({
 
         await axios.delete(`http://localhost:3000/Orders/${order.id}`);
         commit("REMOVE_ORDER", order.id);
+
+        const transaction = {
+          id: Date.now().toString(),
+          pedagang: order.items.map((item) => item.pedagang), // Assuming `pedagang` is a property of items
+          items: order.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+          })),
+        };
+
+        const transactionResponse = await axios.post(
+          "http://localhost:3000/Transactions",
+          transaction
+        );
+        commit("ADD_TRANSACTION", transactionResponse.data);
       } catch (error) {
-        console.error("Error accepting order:", error.message);
+        console.error("Error accepting order:", error);
+        throw error;
       }
+    },
+    async saveTransaction({ commit }, transaction) {
+      try {
+        const response = await axios.post(
+          "http://localhost:3000/Transactions",
+          transaction
+        );
+        commit("ADD_TRANSACTION", response.data);
+      } catch (error) {
+        console.error("Error saving transaction:", error);
+        throw error;
+      }
+    },
+    async fetchTransactions({ commit }) {
+      try {
+        const response = await axios.get("http://localhost:3000/Transactions");
+        commit("SET_TRANSACTIONS", response.data);
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      }
+    },
+    async processTransaction({ commit, state }) {
+      const pedagangData = await axios.get("http://localhost:3000/DataProduk");
+      const orders = state.orders;
+      const transactions = [];
+
+      orders.forEach((order) => {
+        order.items.forEach((item) => {
+          const product = pedagangData.data.find((p) => p.id === item.id);
+          if (product) {
+            const pedagangTransaction = transactions.find(
+              (t) => t.Pedagang === product.Pedagang
+            );
+            if (pedagangTransaction) {
+              pedagangTransaction.items.push({
+                id: item.id,
+                name: item.name,
+                quantity: item.quantity,
+              });
+            } else {
+              transactions.push({
+                id: String(Date.now()),
+                Pedagang: product.Pedagang,
+                items: [
+                  { id: item.id, name: item.name, quantity: item.quantity },
+                ],
+              });
+            }
+          }
+        });
+      });
+
+      await axios.post("http://localhost:3000/Transactions", transactions);
+      commit("SET_TRANSACTIONS", transactions);
     },
   },
   getters: {

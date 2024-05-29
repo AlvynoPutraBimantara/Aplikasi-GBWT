@@ -7,8 +7,8 @@
         <tr>
           <th>ID</th>
           <th>Pedagang</th>
-          <th>Items</th>
-          <th>Actions</th>
+          <th>Produk</th>
+          <th>Aksi</th>
         </tr>
       </thead>
       <tbody>
@@ -23,8 +23,10 @@
             </ul>
           </td>
           <td>
-            <button @click="deleteTransaction(transaction.id)">Delete</button>
-            <button @click="refundTransaction(transaction)">Refund</button>
+            <button @click="deleteTransaction(transaction.id)">Hapus</button>
+            <button @click="handleRefundTransaction(transaction)">
+              Batalkan
+            </button>
           </td>
         </tr>
       </tbody>
@@ -33,16 +35,19 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
-import { mapState, mapActions } from "vuex";
+import { mapActions, mapState } from "vuex";
+import UserHeader from "@/components/UserHeader.vue";
 
 export default {
+  name: "Penjualan",
   components: {
     UserHeader,
   },
-  name: "Penjualan",
   computed: {
     ...mapState(["transactions"]),
+  },
+  created() {
+    this.fetchTransactions();
   },
   methods: {
     ...mapActions([
@@ -50,27 +55,28 @@ export default {
       "deleteTransaction",
       "refundTransaction",
     ]),
-  },
-  created() {
-    this.fetchTransactions();
+    deleteTransaction(transactionId) {
+      this.deleteTransaction(transactionId)
+        .then(() => {
+          console.log(`Transaction ${transactionId} deleted successfully`);
+        })
+        .catch((error) => {
+          console.error("Error deleting transaction:", error);
+        });
+    },
+    handleRefundTransaction(transaction) {
+      this.refundTransaction(transaction)
+        .then(() => {
+          console.log(`Transaction ${transaction.id} refunded successfully`);
+        })
+        .catch((error) => {
+          console.error("Error refunding transaction:", error);
+        });
+    },
   },
 };
 </script>
 
 <style scoped>
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th,
-td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-th {
-  background-color: #f2f2f2;
-  text-align: left;
-}
+/* Add your styles here */
 </style>

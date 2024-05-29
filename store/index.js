@@ -9,6 +9,8 @@ export default createStore({
     transactions: [],
   },
   mutations: {
+    // existing mutations...
+
     SET_CART(state, cart) {
       state.cart = cart;
     },
@@ -52,6 +54,12 @@ export default createStore({
         product.Stok -= quantity;
       }
     },
+    INCREASE_PRODUCT_STOCK(state, { productId, quantity }) {
+      const product = state.products.find((p) => p.id === productId);
+      if (product) {
+        product.Stok += quantity;
+      }
+    },
     SET_TRANSACTIONS(state, transactions) {
       state.transactions = transactions;
     },
@@ -73,6 +81,8 @@ export default createStore({
     },
   },
   actions: {
+    // existing actions...
+
     async fetchCart({ commit }) {
       try {
         const response = await axios.get("http://localhost:3000/Cart");
@@ -202,21 +212,30 @@ export default createStore({
         console.error("Error deleting transaction:", error);
       }
     },
-    async updateProductStock({ commit, state }, { productId, quantity }) {
+    async refundTransaction({ commit, state }, transaction) {
       try {
-        const product = state.products.find((p) => p.id === productId);
-        if (product) {
-          const updatedStock = product.Stok - quantity;
-          await axios.patch(`http://localhost:3000/DataProduk/${productId}`, {
-            Stok: updatedStock,
-          });
-          commit("UPDATE_PRODUCT", {
-            ...product,
-            Stok: updatedStock,
-          });
+        // Loop through the transaction items and update the stock
+        for (const item of transaction.items) {
+          const product = state.products.find((p) => p.id === item.id);
+          if (product) {
+            await axios.patch(`http://localhost:3000/DataProduk/${item.id}`, {
+              Stok: product.Stok + item.quantity,
+            });
+            commit("INCREASE_PRODUCT_STOCK", {
+              productId: item.id,
+              quantity: item.quantity,
+            });
+          }
         }
+
+        // Remove the transaction
+        await axios.delete(
+          `http://localhost:3000/Transactions/${transaction.id}`
+        );
+        commit("REMOVE_TRANSACTION", transaction.id);
       } catch (error) {
-        console.error("Error updating product stock:", error);
+        console.error("Error refunding transaction:", error);
+        throw error;
       }
     },
   },

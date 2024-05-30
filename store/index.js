@@ -9,8 +9,6 @@ export default createStore({
     transactions: [],
   },
   mutations: {
-    // existing mutations...
-
     SET_CART(state, cart) {
       state.cart = cart;
     },
@@ -111,7 +109,23 @@ export default createStore({
     },
     async addToCart({ commit }, item) {
       try {
-        const response = await axios.post("http://localhost:3000/Cart", item);
+        const productResponse = await axios.get(
+          `http://localhost:3000/DataProduk/${item.id}`
+        );
+        const product = productResponse.data;
+
+        const cartItem = {
+          id: product.id,
+          name: product.Nama,
+          price: parseFloat(product.Harga),
+          quantity: item.quantity,
+          pedagang: product.Pedagang,
+        };
+
+        const response = await axios.post(
+          "http://localhost:3000/Cart",
+          cartItem
+        );
         commit("ADD_TO_CART", response.data);
       } catch (error) {
         console.error("Error adding to cart:", error);
@@ -171,6 +185,7 @@ export default createStore({
     },
     async acceptOrder({ commit, state }, order) {
       try {
+        // Update product stock
         for (const item of order.items) {
           const product = state.products.find((p) => p.id === item.id);
           if (product && product.Stok >= item.quantity) {
@@ -186,15 +201,36 @@ export default createStore({
           }
         }
 
-        const transaction = {
-          id: `"${Date.now()}"`,
-          orderId: `"${order.id}"`,
-          items: order.items,
-          total: order.total,
-          timestamp: new Date().toISOString(),
-        };
-        await axios.post("http://localhost:3000/Transactions", transaction);
-        commit("ADD_TRANSACTION", transaction);
+        // Group items by pedagang
+        const itemsGroupedByPedagang = order.items.reduce((acc, item) => {
+          const product = state.products.find((p) => p.id === item.id);
+          const pedagang = product ? product.Pedagang : "Unknown";
+          if (!acc[pedagang]) {
+            acc[pedagang] = [];
+          }
+          acc[pedagang].push({ ...item, pedagang });
+          return acc;
+        }, {});
+
+        // Create a transaction for each pedagang
+        for (const [pedagang, items] of Object.entries(
+          itemsGroupedByPedagang
+        )) {
+          const total = items.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+          const transaction = {
+            id: `${Date.now()}-${pedagang}`,
+            orderId: `${order.id}`,
+            items,
+            total,
+            timestamp: new Date().toISOString(),
+          };
+
+          await axios.post("http://localhost:3000/Transactions", transaction);
+          commit("ADD_TRANSACTION", transaction);
+        }
 
         // Delete the order
         await axios.delete(`http://localhost:3000/Orders/${order.id}`);
@@ -204,6 +240,7 @@ export default createStore({
         throw error;
       }
     },
+
     async fetchProducts({ commit }) {
       try {
         const response = await axios.get("http://localhost:3000/DataProduk");

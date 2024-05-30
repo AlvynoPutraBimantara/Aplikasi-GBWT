@@ -79,6 +79,7 @@ export default {
         items: this.cart.map((item) => ({
           id: item.id,
           name: item.name,
+          pedagang: item.pedagang,
           price: item.price,
           quantity: item.quantity,
         })),

@@ -6,7 +6,6 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Pedagang</th>
           <th>Produk</th>
           <th>Aksi</th>
         </tr>
@@ -14,11 +13,10 @@
       <tbody>
         <tr v-for="transaction in transactions" :key="transaction.id">
           <td>{{ transaction.id }}</td>
-          <td>{{ transaction.pedagang }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
-                {{ item.name }} ({{ item.quantity }})
+                {{ item.name }} - {{ item.pedagang }} ({{ item.quantity }})
                 <button @click="deleteTransactionItem(transaction.id, item.id)">
                   Hapus Item
                 </button>

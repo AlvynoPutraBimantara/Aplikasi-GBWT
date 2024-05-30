@@ -116,9 +116,27 @@ app.post("/Transactions", (req, res) => {
   res.status(201).json(newTransaction);
 });
 
-app.get("/Transactions", (req, res) => {
+app.get("/Transactions", async (req, res) => {
   const data = getData();
-  res.json(data.Transactions);
+  const transactions = data.Transactions;
+  const products = data.DataProduk;
+
+  const transactionsWithPedagang = transactions.map((transaction) => {
+    const itemsWithPedagang = transaction.items.map((item) => {
+      const product = products.find((p) => p.id === item.id);
+      return {
+        ...item,
+        pedagang: product ? product.Pedagang : null,
+      };
+    });
+
+    return {
+      ...transaction,
+      items: itemsWithPedagang,
+    };
+  });
+
+  res.json(transactionsWithPedagang);
 });
 
 app.delete("/Transactions/:id", (req, res) => {

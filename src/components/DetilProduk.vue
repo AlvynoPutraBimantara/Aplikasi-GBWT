@@ -81,11 +81,15 @@ export default {
         !this.isOwnProduct
       ) {
         try {
+          const user = JSON.parse(localStorage.getItem("user-info"));
           await this.$store.dispatch("addToCart", {
-            id: this.product.id,
-            name: this.product.Nama,
-            price: parseFloat(this.product.Harga),
-            quantity: this.quantity,
+            item: {
+              id: this.product.id,
+              name: this.product.Nama,
+              price: parseFloat(this.product.Harga),
+              quantity: this.quantity,
+            },
+            user: user,
           });
           alert("Product successfully added to cart!");
         } catch (error) {

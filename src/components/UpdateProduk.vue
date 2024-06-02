@@ -2,7 +2,7 @@
   <div>
     <Header />
     <h1>Update Produk</h1>
-    <form class="update">
+    <form class="update" @submit.prevent="updateProduk">
       <input
         type="text"
         name="Nama"
@@ -47,7 +47,11 @@
         placeholder="Ubah Stok Produk"
         v-model="DataProduk.Stok"
       />
-      <button type="button" @click="UpdateProduk">Update Data Produk</button>
+      <input type="file" @change="onImageChange" />
+      <button type="submit">Update Data Produk</button>
+    </form>
+    <form class="delete">
+      <button class="delete-btn" @click="deleteProduk">Delete Produk</button>
     </form>
   </div>
 </template>
@@ -64,29 +68,44 @@ export default {
   data() {
     return {
       DataProduk: {
+        id: "",
         Nama: "",
         Harga: "",
         Kategori: "",
         Keterangan: "",
         Pedagang: "",
         Stok: "",
+        imageUrl: "",
       },
       kategoriList: [],
       warungList: [],
+      imageFile: null,
     };
   },
   methods: {
-    async UpdateProduk() {
+    async updateProduk() {
       try {
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+          const response = await axios.post(
+            "http://localhost:3001/uploads",
+            formData
+          );
+          this.DataProduk.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
+        }
         const result = await axios.put(
-          `http://localhost:3000/DataProduk/${this.$route.params.id}`,
+          `http://localhost:3000/DataProduk/${this.DataProduk.id}`,
           this.DataProduk
         );
         if (result.status === 200) {
-          this.$router.push({ name: "DataProduk" });
+          this.$router.push({ name: "Dagangan" });
         }
       } catch (error) {
         console.error("Error updating product:", error);
+        alert(
+          "An error occurred while updating the product. Please try again later."
+        );
       }
     },
     async fetchKategori() {
@@ -105,19 +124,40 @@ export default {
         console.error("Error fetching warungs:", error);
       }
     },
+    async fetchProduct() {
+      try {
+        const productId = this.$route.params.id;
+        const response = await axios.get(
+          `http://localhost:3000/DataProduk/${productId}`
+        );
+        this.DataProduk = response.data;
+      } catch (error) {
+        console.error("Error fetching product:", error);
+      }
+    },
+    onImageChange(event) {
+      this.imageFile = event.target.files[0];
+    },
+    async deleteProduk() {
+      try {
+        const result = await axios.delete(
+          `http://localhost:3000/DataProduk/${this.DataProduk.id}`
+        );
+        if (result.status === 204) {
+          this.$router.push({ name: "Dagangan" });
+        }
+      } catch (error) {
+        console.error("Error deleting product:", error);
+        alert(
+          "An error occurred while deleting the product. Please try again later."
+        );
+      }
+    },
   },
-  async mounted() {
-    let user = localStorage.getItem("user-info");
-    if (!user) {
-      this.$router.push({ name: "SignUp" });
-    } else {
-      this.fetchKategori();
-      this.fetchWarung();
-      const result = await axios.get(
-        `http://localhost:3000/DataProduk/${this.$route.params.id}`
-      );
-      this.DataProduk = result.data;
-    }
+  mounted() {
+    this.fetchKategori();
+    this.fetchWarung();
+    this.fetchProduct();
   },
 };
 </script>
@@ -157,5 +197,24 @@ export default {
 
 .update button:hover {
   background-color: #0056b3;
+}
+
+.delete {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.delete-btn {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.delete-btn:hover {
+  background-color: #c82333;
 }
 </style>

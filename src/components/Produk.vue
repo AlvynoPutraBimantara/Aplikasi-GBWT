@@ -13,6 +13,11 @@
         style="width: 15rem; cursor: pointer; margin: 10px"
       >
         <div class="card-body">
+          <img
+            :src="product.imageUrl"
+            alt="Product Image"
+            style="width: 100%; height: auto"
+          />
           <h5 class="card-title">{{ product.Nama }}</h5>
           <p class="card-text">{{ product.Harga }}</p>
           <p class="card-text">
@@ -98,5 +103,9 @@ export default {
   font-size: 24px;
   font-weight: bold;
   margin: 0;
+}
+
+.card-text {
+  margin: 5px 0;
 }
 </style>

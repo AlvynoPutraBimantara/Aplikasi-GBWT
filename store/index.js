@@ -91,23 +91,27 @@ export default createStore({
   actions: {
     async fetchCart({ commit }) {
       try {
+        const user = JSON.parse(localStorage.getItem("user-info"));
         const response = await axios.get("http://localhost:3000/Cart");
-        const cart = response.data.map(async (item) => {
-          const productResponse = await axios.get(
-            `http://localhost:3000/DataProduk/${item.id}`
-          );
-          const product = productResponse.data;
-          return {
-            ...item,
-            pedagang: product.Pedagang,
-          };
-        });
+        const cart = response.data
+          .filter((item) => item.user === user.Nama)
+          .map(async (item) => {
+            const productResponse = await axios.get(
+              `http://localhost:3000/DataProduk/${item.id}`
+            );
+            const product = productResponse.data;
+            return {
+              ...item,
+              pedagang: product.Pedagang,
+            };
+          });
         commit("SET_CART", await Promise.all(cart));
       } catch (error) {
         console.error("Error fetching cart:", error);
       }
     },
-    async addToCart({ commit }, item) {
+
+    async addToCart({ commit }, { item, user }) {
       try {
         const productResponse = await axios.get(
           `http://localhost:3000/DataProduk/${item.id}`
@@ -120,6 +124,7 @@ export default createStore({
           price: parseFloat(product.Harga),
           quantity: item.quantity,
           pedagang: product.Pedagang,
+          user: user.Nama,
         };
 
         const response = await axios.post(
@@ -158,12 +163,17 @@ export default createStore({
     },
     async fetchOrders({ commit }) {
       try {
+        const user = JSON.parse(localStorage.getItem("user-info"));
         const response = await axios.get("http://localhost:3000/Orders");
-        commit("SET_ORDERS", response.data);
+        const orders = response.data.filter(
+          (order) => order.user === user.Nama
+        );
+        commit("SET_ORDERS", orders);
       } catch (error) {
         console.error("Error fetching orders:", error);
       }
     },
+
     async placeOrder({ commit }, order) {
       try {
         const response = await axios.post(
@@ -175,6 +185,7 @@ export default createStore({
         console.error("Error placing order:", error);
       }
     },
+
     async deleteOrder({ commit }, orderId) {
       try {
         await axios.delete(`http://localhost:3000/Orders/${orderId}`);
@@ -185,7 +196,8 @@ export default createStore({
     },
     async acceptOrder({ commit, state }, order) {
       try {
-        // Update product stock
+        const user = JSON.parse(localStorage.getItem("user-info"));
+
         for (const item of order.items) {
           const product = state.products.find((p) => p.id === item.id);
           if (product && product.Stok >= item.quantity) {
@@ -201,7 +213,6 @@ export default createStore({
           }
         }
 
-        // Group items by pedagang
         const itemsGroupedByPedagang = order.items.reduce((acc, item) => {
           const product = state.products.find((p) => p.id === item.id);
           const pedagang = product ? product.Pedagang : "Unknown";
@@ -212,7 +223,6 @@ export default createStore({
           return acc;
         }, {});
 
-        // Create a transaction for each pedagang
         for (const [pedagang, items] of Object.entries(
           itemsGroupedByPedagang
         )) {
@@ -225,14 +235,14 @@ export default createStore({
             orderId: `${order.id}`,
             items,
             total,
-            timestamp: new Date().toISOString(),
+            user: user.Nama,
+            timestamp: new Date(),
           };
 
           await axios.post("http://localhost:3000/Transactions", transaction);
           commit("ADD_TRANSACTION", transaction);
         }
 
-        // Delete the order
         await axios.delete(`http://localhost:3000/Orders/${order.id}`);
         commit("REMOVE_ORDER", order.id);
       } catch (error) {
@@ -252,11 +262,33 @@ export default createStore({
     async fetchTransactions({ commit }) {
       try {
         const response = await axios.get("http://localhost:3000/Transactions");
-        commit("SET_TRANSACTIONS", response.data);
+        const transactions = response.data;
+        const productsResponse = await axios.get(
+          "http://localhost:3000/DataProduk"
+        );
+        const products = productsResponse.data;
+
+        const transactionsWithPedagang = transactions.map((transaction) => {
+          const itemsWithPedagang = transaction.items.map((item) => {
+            const product = products.find((p) => p.id === item.id);
+            return {
+              ...item,
+              pedagang: product ? product.Pedagang : null,
+            };
+          });
+
+          return {
+            ...transaction,
+            items: itemsWithPedagang,
+          };
+        });
+
+        commit("SET_TRANSACTIONS", transactionsWithPedagang);
       } catch (error) {
         console.error("Error fetching transactions:", error);
       }
     },
+
     async deleteTransactionAction({ commit }, transactionId) {
       try {
         await axios.delete(
@@ -280,10 +312,8 @@ export default createStore({
         );
 
         if (transaction.items.length === 0) {
-          // If there are no items left, delete the transaction
           await dispatch("deleteTransactionAction", transactionId);
         } else {
-          // Otherwise, update the transaction with the remaining items
           await axios.put(
             `http://localhost:3000/Transactions/${transactionId}`,
             transaction
@@ -297,7 +327,6 @@ export default createStore({
 
     async refundTransaction({ commit, state }, transaction) {
       try {
-        // Loop through the transaction items and update the stock
         for (const item of transaction.items) {
           const product = state.products.find((p) => p.id === item.id);
           if (product) {

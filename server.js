@@ -3,17 +3,98 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
+const multer = require("multer");
+
 const app = express();
 const port = 3001;
 
 app.use(cors());
 app.use(bodyParser.json());
 
+// Root route
+app.get("/", (req, res) => {
+  res.send("Welcome to my server!"); // Change this message to whatever you like
+});
+// Paths
 const dbFilePath = path.join(__dirname, "db.json");
-const getData = () => JSON.parse(fs.readFileSync(dbFilePath, "utf-8"));
+const imagesDir = path.join(__dirname, "images");
+
+// Ensure images directory exists
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir);
+}
+
+// Helper functions for reading and writing data
+const getData = () => {
+  if (!fs.existsSync(dbFilePath)) {
+    // Create initial data structure if file doesn't exist
+    const initialData = {
+      DataProduk: [],
+      Orders: [],
+      Cart: [],
+      Transactions: [],
+    };
+    fs.writeFileSync(dbFilePath, JSON.stringify(initialData, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(dbFilePath, "utf-8"));
+};
+
 const saveData = (data) =>
   fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2));
 
+// Set up Multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, imagesDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+const upload = multer({ storage });
+
+// Serve static files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/images", express.static(imagesDir));
+
+// File upload endpoint
+app.post("/uploads", upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send("No file uploaded.");
+  }
+  const imageUrl = `/images/${req.file.filename}`;
+  res.status(201).json({ imageUrl });
+});
+
+// Routes for DataProduk
+app.get("/DataProduk", (req, res) => {
+  const data = getData();
+  res.json(data.DataProduk);
+});
+
+app.post("/DataProduk", (req, res) => {
+  const data = getData();
+  const newProduct = req.body;
+  data.DataProduk.push(newProduct);
+  saveData(data);
+  res.status(201).json(newProduct);
+});
+
+app.put("/DataProduk/:id", (req, res) => {
+  const data = getData();
+  const productId = req.params.id;
+  const updatedProduct = req.body;
+  const productIndex = data.DataProduk.findIndex((p) => p.id === productId);
+  if (productIndex !== -1) {
+    data.DataProduk[productIndex] = updatedProduct;
+    saveData(data);
+    res.status(200).json(updatedProduct);
+  } else {
+    res.status(404).send("Product not found");
+  }
+});
+
+// Routes for Orders
 app.get("/Orders", (req, res) => {
   const data = getData();
   res.json(data.Orders);
@@ -23,13 +104,12 @@ app.post("/Orders", (req, res) => {
   const data = getData();
   const newOrder = req.body;
 
-  // Ensure the ID is a string
   if (typeof newOrder.id !== "string") {
     return res.status(400).send("Order ID must be a string");
   }
 
   data.Orders.push(newOrder);
-  data.Cart = []; // Clear cart on server
+  data.Cart = [];
   saveData(data);
   res.status(201).json(newOrder);
 });
@@ -37,22 +117,17 @@ app.post("/Orders", (req, res) => {
 app.delete("/Orders/:id", (req, res) => {
   const data = getData();
   const orderId = req.params.id;
-
-  // Log the order ID to debug
-  console.log(`Attempting to delete order with ID: ${orderId}`);
-
   const orderIndex = data.Orders.findIndex((order) => order.id === orderId);
-
   if (orderIndex !== -1) {
     data.Orders.splice(orderIndex, 1);
     saveData(data);
     res.status(204).end();
   } else {
-    console.log(`Order with ID: ${orderId} not found`);
     res.status(404).send("Order not found");
   }
 });
 
+// Routes for Cart
 app.get("/Cart", (req, res) => {
   const data = getData();
   res.json(data.Cart);
@@ -61,27 +136,10 @@ app.get("/Cart", (req, res) => {
 app.post("/Cart", (req, res) => {
   const data = getData();
   const newCartItem = req.body;
+
   data.Cart.push(newCartItem);
   saveData(data);
   res.status(201).json(newCartItem);
-});
-
-app.put("/DataProduk/:id", (req, res) => {
-  const data = getData();
-  const productId = req.params.id;
-  const updatedProduct = req.body;
-
-  const productIndex = data.DataProduk.findIndex((p) => p.id === productId);
-  if (productIndex !== -1) {
-    data.DataProduk[productIndex] = updatedProduct;
-    saveData(data);
-    console.log(
-      `Product ${updatedProduct.Nama} updated: new stock ${updatedProduct.Stok}`
-    );
-    res.status(200).json(updatedProduct);
-  } else {
-    res.status(404).send("Product not found");
-  }
 });
 
 app.delete("/Cart/:id", (req, res) => {
@@ -99,28 +157,15 @@ app.delete("/Cart", (req, res) => {
   res.status(204).end();
 });
 
-app.get("/DataProduk", (req, res) => {
-  const data = getData();
-  res.json(data.DataProduk);
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
-
-app.post("/Transactions", (req, res) => {
-  const data = getData();
-  const newTransaction = req.body;
-  data.Transactions.push(newTransaction);
-  saveData(data);
-  res.status(201).json(newTransaction);
-});
-
-app.get("/Transactions", async (req, res) => {
+// Routes for Transactions
+app.get("/Transactions", (req, res) => {
   const data = getData();
   const transactions = data.Transactions;
   const products = data.DataProduk;
-
+  const namaWarung = req.headers["nama-warung"];
+  if (!namaWarung) {
+    return res.status(400).send("NamaWarung header is missing");
+  }
   const transactionsWithPedagang = transactions.map((transaction) => {
     const itemsWithPedagang = transaction.items.map((item) => {
       const product = products.find((p) => p.id === item.id);
@@ -129,24 +174,32 @@ app.get("/Transactions", async (req, res) => {
         pedagang: product ? product.Pedagang : null,
       };
     });
-
     return {
       ...transaction,
       items: itemsWithPedagang,
     };
   });
+  const filteredTransactions = transactionsWithPedagang.filter((transaction) =>
+    transaction.items.some((item) => item.pedagang === namaWarung)
+  );
+  res.json(filteredTransactions);
+});
 
-  res.json(transactionsWithPedagang);
+app.post("/Transactions", (req, res) => {
+  const data = getData();
+  const newTransaction = req.body;
+  console.log(`Transaction by user ${newTransaction.user} is being processed`);
+  data.Transactions.push(newTransaction);
+  saveData(data);
+  res.status(201).json(newTransaction);
 });
 
 app.delete("/Transactions/:id", (req, res) => {
   const data = getData();
   const transactionId = req.params.id;
-
   const transactionIndex = data.Transactions.findIndex(
     (transaction) => transaction.id === transactionId
   );
-
   if (transactionIndex !== -1) {
     data.Transactions.splice(transactionIndex, 1);
     saveData(data);
@@ -154,4 +207,8 @@ app.delete("/Transactions/:id", (req, res) => {
   } else {
     res.status(404).send("Transaction not found");
   }
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });

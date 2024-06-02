@@ -6,13 +6,15 @@
       <thead>
         <tr>
           <th>ID</th>
+          <th>User</th>
           <th>Produk</th>
           <th>Aksi</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="transaction in transactions" :key="transaction.id">
+        <tr v-for="transaction in filteredTransactions" :key="transaction.id">
           <td>{{ transaction.id }}</td>
+          <td>{{ transaction.user }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
@@ -51,6 +53,12 @@ export default {
   },
   computed: {
     ...mapState(["transactions"]),
+    filteredTransactions() {
+      const user = JSON.parse(localStorage.getItem("user-info"));
+      return this.transactions.filter((transaction) =>
+        transaction.items.some((item) => item.pedagang === user.NamaWarung)
+      );
+    },
   },
   created() {
     this.fetchTransactions();
@@ -118,7 +126,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-/* Add your styles here */
-</style>

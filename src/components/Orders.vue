@@ -7,6 +7,7 @@
         <thead>
           <tr>
             <th>Order ID</th>
+            <th>User</th>
             <th>Items</th>
             <th>Total</th>
             <th>Actions</th>
@@ -15,6 +16,7 @@
         <tbody>
           <tr v-for="order in orders" :key="order.id">
             <td>{{ order.id }}</td>
+            <td>{{ order.user }}</td>
             <td>
               <ul>
                 <li v-for="item in order.items" :key="item.id">
@@ -59,12 +61,8 @@ export default {
       await this.$store.dispatch("deleteOrder", orderId.toString());
     },
     async acceptOrder(order) {
-      try {
-        await this.$store.dispatch("acceptOrder", order);
-        console.log("Order accepted and transaction created successfully.");
-      } catch (error) {
-        console.error("Error accepting order:", error);
-      }
+      const user = JSON.parse(localStorage.getItem("user-info"));
+      await this.$store.dispatch("acceptOrder", { ...order, user });
     },
   },
 };

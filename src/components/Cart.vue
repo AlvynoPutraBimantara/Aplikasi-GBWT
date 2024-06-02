@@ -1,3 +1,4 @@
+// Cart.vue
 <template>
   <div>
     <UserHeader />
@@ -74,8 +75,9 @@ export default {
       this.$store.dispatch("removeFromCart", itemId);
     },
     async checkout() {
+      const user = JSON.parse(localStorage.getItem("user-info"));
       const order = {
-        id: `"${Date.now()}"`,
+        id: `${Date.now()}`,
         items: this.cart.map((item) => ({
           id: item.id,
           name: item.name,
@@ -84,6 +86,7 @@ export default {
           quantity: item.quantity,
         })),
         total: this.cartTotalPrice,
+        user: user.Nama,
       };
       await this.$store.dispatch("placeOrder", order);
       await this.$store.dispatch("clearCartOnServer");
@@ -98,7 +101,7 @@ export default {
   },
   async mounted() {
     await this.$store.dispatch("fetchCart");
-    await this.$store.dispatch("fetchProducts"); // Ensure products are fetched
+    await this.$store.dispatch("fetchProducts");
   },
 };
 </script>

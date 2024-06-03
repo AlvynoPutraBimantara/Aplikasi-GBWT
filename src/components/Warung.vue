@@ -10,8 +10,14 @@
         v-for="(user, index) in filteredUsers"
         :key="index"
         @click="goToWarungPage(user.id)"
+        style="width: 15rem; cursor: pointer; margin: 10px"
       >
         <div class="card-body">
+          <img
+            :src="user.imageUrl"
+            alt="Warung Image"
+            style="width: 100%; height: auto"
+          />
           <h5 class="card-title">{{ user.NamaWarung }}</h5>
         </div>
       </div>
@@ -88,7 +94,7 @@ export default {
   border-radius: 5px;
   margin: 10px;
   cursor: pointer;
-  width: 200px;
+  width: 15rem;
   transition: box-shadow 0.3s ease;
 }
 
@@ -101,6 +107,7 @@ export default {
 }
 
 .card-title {
+  padding-top: 20px;
   font-size: 24px;
   font-weight: bold;
   margin: 0;

@@ -7,6 +7,7 @@
         <thead>
           <tr>
             <th>Id</th>
+            <th>Gambar</th>
             <th>Nama</th>
             <th>Harga</th>
             <th>Kategori</th>
@@ -19,7 +20,16 @@
         <tbody>
           <tr v-for="item in DataProduk" :key="item.id">
             <td>{{ item.id }}</td>
-            <td>{{ item.Nama }}</td>
+            <td>
+              <img
+                :src="item.imageUrl"
+                alt="Product Image"
+                class="product-image"
+              />
+            </td>
+            <td>
+              {{ item.Nama }}
+            </td>
             <td>{{ item.Harga }}</td>
             <td>{{ item.Kategori }}</td>
             <td>{{ item.Keterangan }}</td>
@@ -107,9 +117,15 @@ table {
 
 th,
 td {
-  width: 800px;
-  height: 50px;
   text-align: center;
+  padding: 10px;
+}
+
+.product-image {
+  width: 100px;
+  height: auto;
+  display: block;
+  margin: 0 auto 10px;
 }
 
 button {

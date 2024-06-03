@@ -3,6 +3,11 @@
     <UserHeader />
     <div class="container">
       <div class="product-details">
+        <img
+          :src="product.imageUrl"
+          alt="Product Image"
+          class="product-image"
+        />
         <div class="detail-item">
           <h1>{{ product.Nama }}</h1>
         </div>
@@ -118,6 +123,12 @@ export default {
   padding: 20px;
 }
 
+.product-image {
+  width: 50%;
+  height: auto;
+  margin-bottom: 20px;
+}
+
 .detail-item {
   padding: 10px;
   background-color: #f0f0f0;
@@ -146,7 +157,7 @@ export default {
   margin-right: 10px;
 }
 
-quantity-form input {
+.quantity-form input {
   width: 60px;
   padding: 5px;
   border: 1px solid #ddd;

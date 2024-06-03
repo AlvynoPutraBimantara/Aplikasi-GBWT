@@ -13,8 +13,9 @@ app.use(bodyParser.json());
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("Welcome to my server!"); // Change this message to whatever you like
+  res.send("Welcome to my server!");
 });
+
 // Paths
 const dbFilePath = path.join(__dirname, "db.json");
 const imagesDir = path.join(__dirname, "images");
@@ -33,6 +34,7 @@ const getData = () => {
       Orders: [],
       Cart: [],
       Transactions: [],
+      User: [], // Ensure User array is present
     };
     fs.writeFileSync(dbFilePath, JSON.stringify(initialData, null, 2));
   }
@@ -64,6 +66,34 @@ app.post("/uploads", upload.single("image"), (req, res) => {
   }
   const imageUrl = `/images/${req.file.filename}`;
   res.status(201).json({ imageUrl });
+});
+
+// Routes for User
+app.get("/User", (req, res) => {
+  const data = getData();
+  res.json(data.User);
+});
+
+app.get("/User/:id", (req, res) => {
+  const data = getData();
+  const user = data.User.find((u) => u.id === req.params.id);
+  if (user) {
+    res.json(user);
+  } else {
+    res.status(404).send("User not found");
+  }
+});
+
+app.put("/User/:id", (req, res) => {
+  const data = getData();
+  const userIndex = data.User.findIndex((u) => u.id === req.params.id);
+  if (userIndex !== -1) {
+    data.User[userIndex] = req.body;
+    saveData(data);
+    res.status(200).json(data.User[userIndex]);
+  } else {
+    res.status(404).send("User not found");
+  }
 });
 
 // Routes for DataProduk
@@ -211,4 +241,21 @@ app.delete("/Transactions/:id", (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
+});
+
+app.put("/DataKategori/:id", (req, res) => {
+  const data = getData();
+  const kategoriId = req.params.id;
+  const updatedKategori = req.body;
+  const kategoriIndex = data.DataKategori.findIndex((k) => k.id === kategoriId);
+  if (kategoriIndex !== -1) {
+    data.DataKategori[kategoriIndex] = {
+      ...data.DataKategori[kategoriIndex],
+      ...updatedKategori,
+    };
+    saveData(data);
+    res.status(200).json(updatedKategori);
+  } else {
+    res.status(404).send("Kategori not found");
+  }
 });

@@ -1,8 +1,7 @@
-// Profil.vue
 <template>
   <Header />
   <h1>Profil</h1>
-  <form class="update">
+  <form class="update" @submit.prevent="UpdateProfil">
     <input
       type="text"
       name="NamaWarung"
@@ -28,12 +27,13 @@
       v-model="User.Alamat"
     />
     <input
-      type="text"
+      type="password"
       name="Password"
       placeholder="Ubah Password"
       v-model="User.Password"
     />
-    <button type="button" v-on:click="UpdateProfil">Update Data User</button>
+    <input type="file" @change="onImageChange" />
+    <button type="submit">Update Data User</button>
   </form>
 </template>
 
@@ -54,26 +54,45 @@ export default {
         Telp: "",
         Alamat: "",
         Password: "",
+        imageUrl: "",
       },
+      imageFile: null,
     };
   },
   methods: {
     async UpdateProfil() {
-      console.warn(this.User);
-      const result = await axios.put(
-        "http://localhost:3000/User/" + this.$route.params.id,
-        {
-          NamaWarung: this.User.NamaWarung,
-          Nama: this.User.Nama,
-          Telp: this.User.Telp,
-          Alamat: this.User.Alamat,
-          Password: this.User.Password,
+      try {
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+          const response = await axios.post(
+            "http://localhost:3001/uploads",
+            formData
+          );
+          this.User.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
         }
-      );
-      if (result.status === 200) {
-        this.$router.push({ name: "DataUser" });
+        const result = await axios.put(
+          `http://localhost:3000/User/${this.$route.params.id}`,
+          this.User
+        );
+        if (result.status === 200) {
+          this.$router.push({ name: "DataUser" });
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        alert(
+          "An error occurred while updating the profile. Please try again later."
+        );
       }
-      console.warn("result", result);
+    },
+    onImageChange(event) {
+      this.imageFile = event.target.files[0];
+    },
+    async fetchUser() {
+      const result = await axios.get(
+        `http://localhost:3000/User/${this.$route.params.id}`
+      );
+      this.User = result.data;
     },
     logout() {
       localStorage.clear();
@@ -85,11 +104,7 @@ export default {
     if (!user) {
       this.$router.push({ name: "SignUp" });
     }
-    const result = await axios.get(
-      "http://localhost:3000/User/" + this.$route.params.id
-    );
-    console.warn(result.data);
-    this.User = result.data;
+    await this.fetchUser();
   },
 };
 </script>

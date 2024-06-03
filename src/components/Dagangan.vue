@@ -10,12 +10,20 @@
         v-for="(product, index) in filteredProducts"
         :key="index"
         @click="goToProductPage(product.id)"
+        style="width: 15rem; cursor: pointer; margin: 10px"
       >
-        <h3>{{ product.Nama }}</h3>
-        <p>Harga: {{ product.Harga }}</p>
-        <p>Kategori: {{ product.Kategori }}</p>
-        <p>Keterangan: {{ product.Keterangan }}</p>
-        <p>Stok: {{ product.Stok }}</p>
+        <div class="card-body">
+          <img
+            :src="product.imageUrl"
+            alt="Product Image"
+            style="width: 100%; height: auto"
+          />
+          <h5 class="card-title">{{ product.Nama }}</h5>
+          <p class="card-text">Harga: {{ product.Harga }}</p>
+          <p class="card-text">Kategori: {{ product.Kategori }}</p>
+          <p class="card-text">Keterangan: {{ product.Keterangan }}</p>
+          <p class="card-text">Stok: {{ product.Stok }}</p>
+        </div>
       </div>
     </div>
     <div class="button-container">
@@ -97,10 +105,34 @@ export default {
 
 .product-card {
   border: 1px solid #ccc;
-  padding: 20px;
+  padding: 0;
   margin: 10px;
-  width: 300px;
+  width: 200px;
+  display: inline-block;
   cursor: pointer;
+}
+
+.product-card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 10px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.card-text {
+  margin: 5px 0;
+}
+
+.product-card img {
+  width: 100%;
+  height: auto;
 }
 
 .button-container {

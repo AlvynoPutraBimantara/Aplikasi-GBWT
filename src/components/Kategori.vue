@@ -10,8 +10,14 @@
         v-for="(category, index) in filteredCategories"
         :key="index"
         @click="goToCategoryPage(category.id)"
+        style="width: 15rem; cursor: pointer; margin: 10px"
       >
         <div class="card-body">
+          <img
+            :src="category.imageUrl"
+            alt="Category Image"
+            class="category-image"
+          />
           <h5 class="card-title">{{ category.Kategori }}</h5>
         </div>
       </div>
@@ -86,7 +92,7 @@ export default {
   border-radius: 5px;
   margin: 10px;
   cursor: pointer;
-  width: 200px;
+  width: 15rem;
   transition: box-shadow 0.3s ease;
 }
 
@@ -98,9 +104,17 @@ export default {
   padding: 20px;
 }
 
+.category-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
 .card-title {
-  font-size: 24px;
+  padding-top: 10px;
+  font-size: 20px;
   font-weight: bold;
-  margin: 0;
+  text-align: center;
 }
 </style>

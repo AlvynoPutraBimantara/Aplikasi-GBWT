@@ -7,6 +7,7 @@
         <thead>
           <tr>
             <th>Id</th>
+            <th>Gambar</th>
             <th>Nama Kategori</th>
             <th>Actions</th>
           </tr>
@@ -14,6 +15,13 @@
         <tbody>
           <tr v-for="item in DataKategori" :key="item.id">
             <td>{{ item.id }}</td>
+            <td>
+              <img
+                :src="item.imageUrl"
+                alt="Category Image"
+                class="category-image"
+              />
+            </td>
             <td>{{ item.Kategori }}</td>
             <td>
               <button @click="UpdateKategori(item.id)">Update</button>
@@ -102,6 +110,13 @@ td {
   text-align: center;
   padding: 8px;
   border: 1px solid black;
+}
+
+.category-image {
+  width: 100px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
 }
 
 .button-container {

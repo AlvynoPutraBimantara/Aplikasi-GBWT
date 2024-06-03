@@ -8,6 +8,7 @@
         <thead>
           <tr>
             <th>Id</th>
+            <th>Gambar</th>
             <th>Nama Warung</th>
             <th>Nama</th>
             <th>Telp</th>
@@ -19,11 +20,15 @@
         <tbody>
           <tr v-for="item in User" :key="item.id">
             <td>{{ item.id }}</td>
+            <td>
+              <img :src="item.imageUrl" alt="User Image" class="user-image" />
+            </td>
             <td>{{ item.NamaWarung }}</td>
             <td>{{ item.Nama }}</td>
             <td>{{ item.Telp }}</td>
             <td>{{ item.Alamat }}</td>
             <td>{{ item.Password }}</td>
+
             <td>
               <button @click="UpdateUser(item.id)">Edit</button>
               <button @click="confirmDelete(item.id)">Hapus</button>
@@ -102,5 +107,12 @@ td {
   text-align: center;
   padding: 8px;
   border: 1px solid black;
+}
+
+.user-image {
+  width: 100px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
 }
 </style>

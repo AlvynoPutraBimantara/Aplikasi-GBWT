@@ -1,14 +1,15 @@
 <template>
   <Header />
   <h1>Update Kategori</h1>
-  <form class="update">
+  <form class="update" @submit.prevent="updateKategori">
     <input
       type="text"
       name="Kategori"
       placeholder="Ubah Nama Kategori"
       v-model="datakategori"
     />
-    <button type="button" @click="updateKategori">Update Data Kategori</button>
+    <input type="file" @change="onImageChange" />
+    <button type="submit">Update Data Kategori</button>
   </form>
 </template>
 
@@ -24,15 +25,30 @@ export default {
   data() {
     return {
       datakategori: "",
+      imageFile: null,
     };
   },
   methods: {
+    onImageChange(event) {
+      this.imageFile = event.target.files[0];
+    },
     async updateKategori() {
       try {
+        let imageUrl = "";
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+          const response = await axios.post(
+            "http://localhost:3001/uploads",
+            formData
+          );
+          imageUrl = `http://localhost:3001${response.data.imageUrl}`;
+        }
         const result = await axios.put(
           `http://localhost:3000/DataKategori/${this.$route.params.id}`,
           {
             Kategori: this.datakategori,
+            imageUrl: imageUrl,
           }
         );
         if (result.status === 200) {

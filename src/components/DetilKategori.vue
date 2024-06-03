@@ -5,13 +5,24 @@
       <h1>{{ categoryName }}</h1>
       <div class="products-container">
         <div
-          class="product"
+          class="card"
           v-for="(product, index) in products"
           :key="index"
           @click="goToProductPage(product.id)"
+          style="width: 15rem; cursor: pointer; margin: 10px"
         >
-          <h3>{{ product.Nama }}</h3>
-          <p>{{ product.Harga }}</p>
+          <div class="card-body">
+            <img
+              :src="product.imageUrl"
+              alt="Product Image"
+              style="width: 100%; height: auto"
+            />
+            <h5 class="card-title">{{ product.Nama }}</h5>
+            <p class="card-text">{{ product.Harga }}</p>
+            <p class="card-text">
+              {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -68,18 +79,43 @@ export default {
 .category-details {
   padding: 20px;
 }
+
 .products-container {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   padding: 20px;
 }
-.product {
+
+.card {
   border: 1px solid #ccc;
-  padding: 20px;
+  padding: 0;
   margin: 10px;
   width: 200px;
   display: inline-block;
   cursor: pointer;
+}
+
+.card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 10px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.card-text {
+  margin: 5px 0;
+}
+
+.card img {
+  width: 100%;
+  height: auto;
 }
 </style>

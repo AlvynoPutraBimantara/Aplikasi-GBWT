@@ -1,10 +1,12 @@
 <template>
-  <div class="landing-page">
-    <h1 class="title">Selamat Datang di-Aplikasi GBWT</h1>
-    <p class="subtitle">(Gerakan Belanja di Warung Tetangga)</p>
-    <div class="button-container">
-      <button class="button" @click="guestSignIn">Guest Sign In</button>
-      <button class="button" @click="goToLogin">Login</button>
+  <div class="landing-container">
+    <div class="landing-content">
+      <h1 class="title">Selamat Datang di-Aplikasi GBWT</h1>
+      <p class="subtitle">(Gerakan Belanja di Warung Tetangga)</p>
+      <div class="button-container">
+        <button class="button" @click="guestSignIn">Masuk</button>
+        <button class="button" @click="goToLogin">Login</button>
+      </div>
     </div>
   </div>
 </template>
@@ -25,18 +27,21 @@ export default {
 </script>
 
 <style scoped>
-.landing-page {
+.landing-container {
+  background-image: url("@/assets/images/warung.jpg");
+  background-size: cover;
+  background-position: center;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  background-color: #f8f9fa;
+  color: black;
 }
 
 .title {
   font-size: xxx-large;
-  margin: 0;
+  margin: 0 0 30px 0;
 }
 
 .subtitle {
@@ -61,5 +66,14 @@ export default {
 
 .button:hover {
   background-color: navy;
+}
+
+.landing-content {
+  font-size: 20px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);
+  margin-bottom: 30px;
 }
 </style>

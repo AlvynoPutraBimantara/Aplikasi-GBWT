@@ -32,6 +32,11 @@ import GuestSidebar from "./components/GuestSidebar.vue";
 
 const routes = [
   {
+    path: "/",
+    name: "LandingPage",
+    component: LandingPage,
+  },
+  {
     name: "Dashboard",
     component: Dashboard,
     path: "/Dashboard",
@@ -177,11 +182,6 @@ const routes = [
     path: "/Informasi",
   },
   {
-    name: "LandingPage",
-    component: LandingPage,
-    path: "/",
-  },
-  {
     name: "GuestSidebar",
     component: GuestSidebar,
     path: "/GuestSidebar",
@@ -203,8 +203,14 @@ router.beforeEach((to, from, next) => {
     } else {
       next({ name: "Dashboard" });
     }
-  } else if (to.name !== "Login" && to.name !== "SignUp" && !user && !isGuest) {
-    next({ name: "Login" });
+  } else if (
+    to.name !== "LandingPage" &&
+    to.name !== "Login" &&
+    to.name !== "SignUp" &&
+    !user &&
+    !isGuest
+  ) {
+    next({ name: "LandingPage" });
   } else {
     next();
   }

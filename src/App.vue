@@ -3,7 +3,7 @@
     <!-- Sidebar -->
     <Sidebar v-if="isAdmin" @logout="logout" />
     <UserSidebar v-if="isUser" @logout="logout" />
-    <GuestSidebar v-if="isGuest" @logout="logout" />
+    <GuestSidebar v-if="isGuest && !isLoggedIn" @logout="logout" />
     <!-- /#sidebar-wrapper -->
 
     <!-- Page Content -->
@@ -48,18 +48,21 @@ export default {
       return user && user.role !== "admin";
     },
     isGuest() {
-      return !localStorage.getItem("user-info");
+      return (
+        !localStorage.getItem("user-info") &&
+        localStorage.getItem("guest") === "true"
+      );
     },
   },
   methods: {
     logout() {
       localStorage.clear();
-      this.$router.push({ name: "Login" });
+      this.$router.push({ name: "LandingPage" });
     },
   },
   mounted() {
-    if (!this.isLoggedIn) {
-      this.$router.push({ name: "Login" });
+    if (!this.isLoggedIn && !this.isGuest) {
+      this.$router.push({ name: "LandingPage" });
     }
   },
 };

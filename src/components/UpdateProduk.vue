@@ -2,57 +2,65 @@
   <div>
     <Header />
     <h1>Update Produk</h1>
-    <form class="update" @submit.prevent="updateProduk">
-      <input
-        type="text"
-        name="Nama"
-        placeholder="Ubah Nama Produk"
-        v-model="DataProduk.Nama"
+    <div class="update-container">
+      <img
+        v-if="DataProduk.imageUrl"
+        :src="DataProduk.imageUrl"
+        alt="Product Image"
+        class="product-image"
       />
-      <input
-        type="text"
-        name="Harga"
-        placeholder="Ubah Harga Produk"
-        v-model="DataProduk.Harga"
-      />
-      <select v-model="DataProduk.Kategori">
-        <option disabled value="">Pilih Kategori</option>
-        <option
-          v-for="kategori in kategoriList"
-          :key="kategori.id"
-          :value="kategori.Kategori"
-        >
-          {{ kategori.Kategori }}
-        </option>
-      </select>
-      <input
-        type="text"
-        name="Keterangan"
-        placeholder="Ubah Keterangan Produk"
-        v-model="DataProduk.Keterangan"
-      />
-      <select v-model="DataProduk.Pedagang">
-        <option disabled value="">Pilih Pedagang</option>
-        <option
-          v-for="warung in warungList"
-          :key="warung.id"
-          :value="warung.NamaWarung"
-        >
-          {{ warung.NamaWarung }}
-        </option>
-      </select>
-      <input
-        type="text"
-        name="Stok"
-        placeholder="Ubah Stok Produk"
-        v-model="DataProduk.Stok"
-      />
-      <input type="file" @change="onImageChange" />
-      <button type="submit">Update Data Produk</button>
-    </form>
-    <form class="delete">
-      <button class="delete-btn" @click="deleteProduk">Hapus Produk</button>
-    </form>
+      <form class="update" @submit.prevent="updateProduk">
+        <input
+          type="text"
+          name="Nama"
+          placeholder="Ubah Nama Produk"
+          v-model="DataProduk.Nama"
+        />
+        <input
+          type="text"
+          name="Harga"
+          placeholder="Ubah Harga Produk"
+          v-model="DataProduk.Harga"
+        />
+        <select v-model="DataProduk.Kategori">
+          <option disabled value="">Pilih Kategori</option>
+          <option
+            v-for="kategori in kategoriList"
+            :key="kategori.id"
+            :value="kategori.Kategori"
+          >
+            {{ kategori.Kategori }}
+          </option>
+        </select>
+        <input
+          type="text"
+          name="Keterangan"
+          placeholder="Ubah Keterangan Produk"
+          v-model="DataProduk.Keterangan"
+        />
+        <select v-model="DataProduk.Pedagang">
+          <option disabled value="">Pilih Pedagang</option>
+          <option
+            v-for="warung in warungList"
+            :key="warung.id"
+            :value="warung.NamaWarung"
+          >
+            {{ warung.NamaWarung }}
+          </option>
+        </select>
+        <input
+          type="text"
+          name="Stok"
+          placeholder="Ubah Stok Produk"
+          v-model="DataProduk.Stok"
+        />
+        <input type="file" @change="onImageChange" />
+        <button type="submit">Update Data Produk</button>
+      </form>
+      <form class="delete">
+        <button class="delete-btn" @click="deleteProduk">Hapus Produk</button>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -163,6 +171,24 @@ export default {
 </script>
 
 <style scoped>
+.update-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.product-image {
+  width: 50%;
+  height: auto;
+  margin-bottom: 20px;
+}
+
 .update {
   display: flex;
   flex-direction: column;

@@ -1,16 +1,26 @@
 <template>
-  <Header />
-  <h1>Update Kategori</h1>
-  <form class="update" @submit.prevent="updateKategori">
-    <input
-      type="text"
-      name="Kategori"
-      placeholder="Ubah Nama Kategori"
-      v-model="datakategori"
-    />
-    <input type="file" @change="onImageChange" />
-    <button type="submit">Update Data Kategori</button>
-  </form>
+  <div>
+    <Header />
+    <h1>Update Kategori</h1>
+    <div class="update-container">
+      <img
+        v-if="DataKategori.imageUrl"
+        :src="DataKategori.imageUrl"
+        alt="Category Image"
+        class="category-image"
+      />
+      <form class="update" @submit.prevent="updateKategori">
+        <input
+          type="text"
+          name="Kategori"
+          placeholder="Ubah Nama Kategori"
+          v-model="DataKategori.Kategori"
+        />
+        <input type="file" @change="onImageChange" />
+        <button type="submit">Update Data Kategori</button>
+      </form>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -24,7 +34,10 @@ export default {
   },
   data() {
     return {
-      datakategori: "",
+      DataKategori: {
+        Kategori: "",
+        imageUrl: "",
+      },
       imageFile: null,
     };
   },
@@ -34,7 +47,6 @@ export default {
     },
     async updateKategori() {
       try {
-        let imageUrl = "";
         if (this.imageFile) {
           const formData = new FormData();
           formData.append("image", this.imageFile);
@@ -42,20 +54,17 @@ export default {
             "http://localhost:3001/uploads",
             formData
           );
-          imageUrl = `http://localhost:3001${response.data.imageUrl}`;
+          this.DataKategori.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
         }
         const result = await axios.put(
           `http://localhost:3000/DataKategori/${this.$route.params.id}`,
-          {
-            Kategori: this.datakategori,
-            imageUrl: imageUrl,
-          }
+          this.DataKategori
         );
         if (result.status === 200) {
           this.$router.push({ name: "DataKategori" });
         }
       } catch (error) {
-        console.error("Error updating kategori:", error);
+        console.error("Error updating category:", error);
       }
     },
   },
@@ -68,9 +77,9 @@ export default {
         const result = await axios.get(
           `http://localhost:3000/DataKategori/${this.$route.params.id}`
         );
-        this.datakategori = result.data.Kategori;
+        this.DataKategori = result.data;
       } catch (error) {
-        console.error("Error fetching kategori data:", error);
+        console.error("Error fetching category data:", error);
       }
     }
   },
@@ -78,6 +87,24 @@ export default {
 </script>
 
 <style scoped>
+.update-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.category-image {
+  width: 50%;
+  height: auto;
+  margin-bottom: 20px;
+}
+
 .update {
   display: flex;
   flex-direction: column;
@@ -91,7 +118,7 @@ export default {
   display: block;
   margin-bottom: 10px;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;

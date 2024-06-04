@@ -1,6 +1,13 @@
 <template>
   <Header />
-  <h1>Profil</h1>
+  <h1>Data User</h1>
+  <div v-if="User.imageUrl">
+    <img
+      :src="User.imageUrl"
+      alt="Profile Image"
+      style="width: 400px; height: auto; margin-bottom: 10px"
+    />
+  </div>
   <form class="update" @submit.prevent="UpdateProfil">
     <input
       type="text"

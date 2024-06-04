@@ -35,10 +35,10 @@
             min="1"
             :max="product.Stok"
           />
-          <button @click="addToCart" :disabled="isOwnProduct">
+          <button @click="addToCart" :disabled="isOwnProduct && user">
             Tambah ke Keranjang
           </button>
-          <p v-if="isOwnProduct">
+          <p v-if="isOwnProduct && user">
             Anda tidak dapat memesan produk anda sendiri.
           </p>
         </div>
@@ -64,7 +64,7 @@ export default {
   },
   computed: {
     isOwnProduct() {
-      return this.product.Pedagang === this.user.NamaWarung;
+      return this.user && this.product.Pedagang === this.user.NamaWarung;
     },
   },
   async mounted() {
@@ -83,10 +83,13 @@ export default {
       if (
         this.quantity > 0 &&
         this.quantity <= this.product.Stok &&
-        !this.isOwnProduct
+        !(this.isOwnProduct && this.user)
       ) {
         try {
-          const user = JSON.parse(localStorage.getItem("user-info"));
+          let user = JSON.parse(localStorage.getItem("user-info"));
+          if (!user) {
+            user = { Nama: "Guest" }; // Default guest user
+          }
           await this.$store.dispatch("addToCart", {
             item: {
               id: this.product.id,
@@ -157,7 +160,7 @@ export default {
   margin-right: 10px;
 }
 
-.quantity-form input {
+quantity-form input {
   width: 60px;
   padding: 5px;
   border: 1px solid #ddd;

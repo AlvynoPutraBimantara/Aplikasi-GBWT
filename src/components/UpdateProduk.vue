@@ -51,7 +51,7 @@
       <button type="submit">Update Data Produk</button>
     </form>
     <form class="delete">
-      <button class="delete-btn" @click="deleteProduk">Delete Produk</button>
+      <button class="delete-btn" @click="deleteProduk">Hapus Produk</button>
     </form>
   </div>
 </template>
@@ -176,7 +176,7 @@ export default {
   display: block;
   margin-bottom: 10px;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -206,12 +206,14 @@ export default {
 }
 
 .delete-btn {
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  cursor: pointer;
+  background-color: red;
+  display: block;
+  padding: 10px;
+  width: 400px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
   border-radius: 4px;
+  font-size: 16px;
 }
 
 .delete-btn:hover {

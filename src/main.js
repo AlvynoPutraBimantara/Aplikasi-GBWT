@@ -3,16 +3,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import store from "../store";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { library } from "@fortawesome/fontawesome-svg-core";
-import {
-  faUtensils,
-  faGlassMartiniAlt,
-  faTshirt,
-  faCarrot,
-} from "@fortawesome/free-solid-svg-icons";
-
-library.add(faUtensils, faGlassMartiniAlt, faTshirt, faCarrot);
+import FontAwesomeIcon from "./fontawesome";
 
 const app = createApp(App);
 

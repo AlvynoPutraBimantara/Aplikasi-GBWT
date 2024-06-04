@@ -27,13 +27,16 @@
       v-model="User.Alamat"
     />
     <input
-      type="password"
+      type="text"
       name="Password"
       placeholder="Ubah Password"
       v-model="User.Password"
     />
     <input type="file" @change="onImageChange" />
     <button type="submit">Update Data User</button>
+  </form>
+  <form class="logout">
+    <button class="logout-btn" v-on:click="logout">Logout</button>
   </form>
 </template>
 
@@ -123,11 +126,11 @@ export default {
   display: block;
   margin-bottom: 10px;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .update input::placeholder,
@@ -145,10 +148,26 @@ export default {
 .update button:hover {
   background-color: #0056b3;
 }
+
+.image-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
 .logout {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.logout-btn {
+  background-color: red;
+  display: block;
+  padding: 10px;
+  width: 400px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
 }
 
 .logout-btn:hover {

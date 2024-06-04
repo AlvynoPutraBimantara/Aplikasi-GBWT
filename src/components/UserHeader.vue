@@ -1,12 +1,24 @@
-// UserHeader.vue
 <template>
   <div class="nav">
-    <button class="btn btn-primary" id="menu-toggle">Menu</button>
-    <router-link to="/Dashboard">Dashboard</router-link>
-    <router-link to="/Warung">Warung</router-link>
-    <router-link to="/Produk">Produk</router-link>
-    <router-link to="/Kategori">Kategori</router-link>
-    <router-link to="/Orders">STRUK</router-link>
+    <button class="btn btn-primary" id="menu-toggle">
+      <font-awesome-icon :icon="['fas', 'home']" />
+    </button>
+    <router-link
+      v-for="route in routes"
+      :key="route.path"
+      :to="route.path"
+      :class="{ active: isActive(route.path) }"
+    >
+      <font-awesome-icon
+        v-if="route.name === 'Cart'"
+        :icon="['fas', 'shopping-cart']"
+      />
+      <font-awesome-icon
+        v-else-if="route.name === 'STRUK'"
+        :icon="['fas', 'receipt']"
+      />
+      <span v-else>{{ route.name }}</span>
+    </router-link>
     <a v-on:click="logout" href="#">Logout</a>
   </div>
 </template>
@@ -19,6 +31,14 @@ export default {
   data() {
     return {
       userId: null,
+      routes: [
+        { name: "Dashboard", path: "/Dashboard" },
+        { name: "Warung", path: "/Warung" },
+        { name: "Produk", path: "/Produk" },
+        { name: "Kategori", path: "/Kategori" },
+        { name: "STRUK", path: "/Orders" },
+        { name: "Cart", path: "/Cart" },
+      ],
     };
   },
   mounted() {
@@ -36,6 +56,9 @@ export default {
       localStorage.clear();
       this.$router.push({ name: "Login" });
     },
+    isActive(route) {
+      return this.$route.path === route;
+    },
   },
 };
 </script>
@@ -48,7 +71,7 @@ export default {
   align-items: center;
   padding: 0;
   margin: 0;
-  width: 100vw; /* Set width to full viewport width */
+  width: 100vw;
 }
 .nav a,
 .nav button {
@@ -60,7 +83,8 @@ export default {
   margin-right: 5px;
 }
 .nav a:hover,
-.nav button:hover {
+.nav button:hover,
+.nav a.active {
   background: #ddd;
   color: #333;
 }

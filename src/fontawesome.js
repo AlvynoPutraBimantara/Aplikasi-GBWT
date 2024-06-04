@@ -1,13 +1,13 @@
-// src/fontawesome.js
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import {
-  faUtensils,
-  faGlassMartiniAlt,
-  faTshirt,
-  faCarrot,
+  faHome,
+  faShoppingCart,
+  faReceipt,
+  faCircleInfo,
 } from "@fortawesome/free-solid-svg-icons";
+import { faWhatsapp } from "@fortawesome/free-brands-svg-icons"; // Add this import
 
-library.add(faUtensils, faGlassMartiniAlt, faTshirt, faCarrot);
+library.add(faHome, faShoppingCart, faWhatsapp, faReceipt, faCircleInfo);
 
-export { FontAwesomeIcon };
+export default FontAwesomeIcon;

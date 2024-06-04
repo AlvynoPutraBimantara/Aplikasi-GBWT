@@ -133,13 +133,8 @@ app.get("/Orders", (req, res) => {
 app.post("/Orders", (req, res) => {
   const data = getData();
   const newOrder = req.body;
-
-  if (typeof newOrder.id !== "string") {
-    return res.status(400).send("Order ID must be a string");
-  }
-
+  newOrder.timestamp = new Date().toISOString(); // Add timestamp
   data.Orders.push(newOrder);
-  data.Cart = [];
   saveData(data);
   res.status(201).json(newOrder);
 });
@@ -218,6 +213,7 @@ app.get("/Transactions", (req, res) => {
 app.post("/Transactions", (req, res) => {
   const data = getData();
   const newTransaction = req.body;
+  newTransaction.timestamp = new Date().toISOString(); // Add timestamp
   console.log(`Transaction by user ${newTransaction.user} is being processed`);
   data.Transactions.push(newTransaction);
   saveData(data);

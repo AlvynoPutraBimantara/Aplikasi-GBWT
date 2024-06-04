@@ -1,4 +1,3 @@
-// Cart.vue
 <template>
   <div>
     <UserHeader />
@@ -10,7 +9,7 @@
             <th>Warung</th>
             <th>Produk</th>
             <th>Harga</th>
-            <th>Quantity</th>
+            <th>Jumlah</th>
             <th>Subtotal</th>
             <th>Aksi</th>
           </tr>
@@ -31,7 +30,7 @@
             </td>
             <td>{{ item.price * item.quantity }}</td>
             <td>
-              <button @click="removeFromCart(item.id)">Remove</button>
+              <button @click="removeFromCart(item.id)">Hapus</button>
             </td>
           </tr>
         </tbody>
@@ -75,7 +74,15 @@ export default {
       this.$store.dispatch("removeFromCart", itemId);
     },
     async checkout() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
+      let user = JSON.parse(localStorage.getItem("user-info"));
+      if (!user) {
+        const userName = prompt("Please enter your name for checkout:");
+        if (!userName) {
+          alert("Checkout requires a name.");
+          return;
+        }
+        user = { Nama: userName };
+      }
       const order = {
         id: `${Date.now()}`,
         items: this.cart.map((item) => ({
@@ -84,6 +91,7 @@ export default {
           pedagang: item.pedagang,
           price: item.price,
           quantity: item.quantity,
+          timestamp: new Date(),
         })),
         total: this.cartTotalPrice,
         user: user.Nama,

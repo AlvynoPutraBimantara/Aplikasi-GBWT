@@ -6,8 +6,10 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>User</th>
+          <th>Pemesan</th>
+          <th>Alamat</th>
           <th>Produk</th>
+          <th>Timestamp</th>
           <th>Aksi</th>
         </tr>
       </thead>
@@ -15,6 +17,7 @@
         <tr v-for="transaction in filteredTransactions" :key="transaction.id">
           <td>{{ transaction.id }}</td>
           <td>{{ transaction.user }}</td>
+          <td>{{ getUserAddress(transaction.user) }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
@@ -28,6 +31,7 @@
               </li>
             </ul>
           </td>
+          <td>{{ new Date(transaction.timestamp).toLocaleString() }}</td>
           <td>
             <button @click="deleteTransaction(transaction.id)">
               Hapus Transaksi
@@ -43,6 +47,7 @@
 </template>
 
 <script>
+import axios from "axios";
 import { mapActions, mapState } from "vuex";
 import UserHeader from "@/components/UserHeader.vue";
 
@@ -50,6 +55,11 @@ export default {
   name: "Penjualan",
   components: {
     UserHeader,
+  },
+  data() {
+    return {
+      userData: {},
+    };
   },
   computed: {
     ...mapState(["transactions"]),
@@ -62,6 +72,7 @@ export default {
   },
   created() {
     this.fetchTransactions();
+    this.fetchUserData();
   },
   methods: {
     ...mapActions([
@@ -71,6 +82,22 @@ export default {
       "refundTransaction",
       "refundTransactionItemAction",
     ]),
+    fetchUserData() {
+      axios
+        .get("http://localhost:3000/User")
+        .then((response) => {
+          this.userData = response.data.reduce((acc, user) => {
+            acc[user.Nama] = user.Alamat;
+            return acc;
+          }, {});
+        })
+        .catch((error) => {
+          console.error("Error fetching user data:", error);
+        });
+    },
+    getUserAddress(userName) {
+      return this.userData[userName] || "Unknown Address";
+    },
     deleteTransaction(transactionId) {
       this.deleteTransactionAction(transactionId)
         .then(() => {

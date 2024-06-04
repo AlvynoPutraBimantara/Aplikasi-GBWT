@@ -3,6 +3,7 @@
     <!-- Sidebar -->
     <Sidebar v-if="isAdmin" @logout="logout" />
     <UserSidebar v-if="isUser" @logout="logout" />
+    <GuestSidebar v-if="isGuest" @logout="logout" />
     <!-- /#sidebar-wrapper -->
 
     <!-- Page Content -->
@@ -25,12 +26,14 @@ import "jquery/dist/jquery.min.js";
 import "./App.css";
 import Sidebar from "./components/Sidebar.vue";
 import UserSidebar from "./components/UserSidebar.vue";
+import GuestSidebar from "./components/GuestSidebar.vue";
 
 export default {
   name: "App",
   components: {
     Sidebar,
     UserSidebar,
+    GuestSidebar,
   },
   computed: {
     isLoggedIn() {
@@ -44,12 +47,20 @@ export default {
       const user = JSON.parse(localStorage.getItem("user-info"));
       return user && user.role !== "admin";
     },
+    isGuest() {
+      return !localStorage.getItem("user-info");
+    },
   },
   methods: {
     logout() {
       localStorage.clear();
       this.$router.push({ name: "Login" });
     },
+  },
+  mounted() {
+    if (!this.isLoggedIn) {
+      this.$router.push({ name: "Login" });
+    }
   },
 };
 </script>

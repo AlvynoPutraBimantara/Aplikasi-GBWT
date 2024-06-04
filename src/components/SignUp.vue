@@ -12,7 +12,11 @@
   </h1>
   <div class="register">
     <input type="text" v-model="Nama" placeholder="Masukan nama" />
-    <input type="text" v-model="Telp" placeholder="Masukan No.telp" />
+    <input
+      type="text"
+      v-model="Telp"
+      placeholder="Masukan No.telp (+62-812345678910)"
+    />
     <input type="password" v-model="Password" placeholder="Masukan Password" />
     <button v-on:click="SignUp">Daftar</button>
     <p>

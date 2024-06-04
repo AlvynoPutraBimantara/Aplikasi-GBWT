@@ -94,7 +94,9 @@ export default createStore({
         const user = JSON.parse(localStorage.getItem("user-info"));
         const response = await axios.get("http://localhost:3000/Cart");
         const cart = response.data
-          .filter((item) => item.user === user.Nama)
+          .filter((item) =>
+            user ? item.user === user.Nama : item.user === "Guest"
+          )
           .map(async (item) => {
             const productResponse = await axios.get(
               `http://localhost:3000/DataProduk/${item.id}`
@@ -124,7 +126,7 @@ export default createStore({
           price: parseFloat(product.Harga),
           quantity: item.quantity,
           pedagang: product.Pedagang,
-          user: user.Nama,
+          user: user.Nama || "Guest",
         };
 
         const response = await axios.post(
@@ -161,6 +163,7 @@ export default createStore({
         console.error("Error clearing cart on server:", error);
       }
     },
+
     async fetchOrders({ commit }) {
       try {
         const user = JSON.parse(localStorage.getItem("user-info"));
@@ -176,11 +179,8 @@ export default createStore({
 
     async placeOrder({ commit }, order) {
       try {
-        const response = await axios.post(
-          "http://localhost:3000/Orders",
-          order
-        );
-        commit("ADD_ORDER", response.data);
+        await axios.post("http://localhost:3000/Orders", order);
+        commit("ADD_ORDER", order);
       } catch (error) {
         console.error("Error placing order:", error);
       }

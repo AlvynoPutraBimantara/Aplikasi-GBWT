@@ -3,9 +3,27 @@
     <button class="btn btn-primary" @click="toggleMenu" id="menu-toggle">
       Menu
     </button>
-    <router-link v-if="isAdmin" to="/DataUser">Data User</router-link>
-    <router-link v-if="isAdmin" to="/DataProduk">Data Produk</router-link>
-    <router-link v-if="isAdmin" to="/DataKategori">Data Kategori</router-link>
+    <router-link
+      v-if="isAdmin"
+      to="/DataUser"
+      :class="{ active: isActive('/DataUser') }"
+    >
+      Data User
+    </router-link>
+    <router-link
+      v-if="isAdmin"
+      to="/DataProduk"
+      :class="{ active: isActive('/DataProduk') }"
+    >
+      Data Produk
+    </router-link>
+    <router-link
+      v-if="isAdmin"
+      to="/DataKategori"
+      :class="{ active: isActive('/DataKategori') }"
+    >
+      Data Kategori
+    </router-link>
     <a @click.prevent="logout" href="#">Logout</a>
   </nav>
 </template>
@@ -26,6 +44,9 @@ export default {
     logout() {
       localStorage.clear();
       this.$router.push({ name: "Login" });
+    },
+    isActive(route) {
+      return this.$route.path === route;
     },
   },
 };
@@ -53,7 +74,8 @@ export default {
 }
 
 .nav a:hover,
-.nav button:hover {
+.nav button:hover,
+.nav a.active {
   background: #ddd;
   color: #333;
 }

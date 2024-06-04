@@ -23,7 +23,13 @@ body {
 }
 
 #sidebar-wrapper .sidebar-heading {
-  padding: 0.875rem 1.25rem;
+  padding: 2rem 2rem;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+#sidebar-wrapper .sidebar-footer {
+  padding: 2rem 2rem;
 }
 
 #sidebar-wrapper .list-group {

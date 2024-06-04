@@ -1,43 +1,53 @@
-// Profil.vue
 <template>
-  <UserHeader />
-  <h1>Profil</h1>
-  <form class="update">
-    <input
-      type="text"
-      name="NamaWarung"
-      placeholder="Ubah Nama Warung"
-      v-model="User.NamaWarung"
-    />
-    <input
-      type="text"
-      name="Nama"
-      placeholder="Ubah Nama"
-      v-model="User.Nama"
-    />
-    <input
-      type="text"
-      name="Telp"
-      placeholder="Ubah No. Telp"
-      v-model="User.Telp"
-    />
-    <input
-      type="text"
-      name="Alamat"
-      placeholder="Ubah Alamat"
-      v-model="User.Alamat"
-    />
-    <input
-      type="text"
-      name="Password"
-      placeholder="Ubah Password"
-      v-model="User.Password"
-    />
-    <button type="button" v-on:click="UpdateProfil">Update Data Profil</button>
-  </form>
-  <form class="logout">
-    <button class="logout-btn" v-on:click="logout">Logout</button>
-  </form>
+  <div>
+    <UserHeader />
+    <h1>Profil</h1>
+    <div v-if="User.imageUrl">
+      <img
+        :src="User.imageUrl"
+        alt="Profile Image"
+        style="width: 400px; height: auto; margin-bottom: 10px"
+      />
+    </div>
+    <form class="update" @submit.prevent="UpdateProfil">
+      <input
+        type="text"
+        name="NamaWarung"
+        placeholder="Ubah Nama Warung"
+        v-model="User.NamaWarung"
+      />
+      <input
+        type="text"
+        name="Nama"
+        placeholder="Ubah Nama"
+        v-model="User.Nama"
+      />
+      <input
+        type="text"
+        name="Telp"
+        placeholder="Ubah No. Telp"
+        v-model="User.Telp"
+      />
+      <input
+        type="text"
+        name="Alamat"
+        placeholder="Ubah Alamat"
+        v-model="User.Alamat"
+      />
+      <input
+        type="text"
+        name="Password"
+        placeholder="Ubah Password"
+        v-model="User.Password"
+      />
+      <input type="file" @change="onImageChange" />
+
+      <button type="submit">Update Data User</button>
+    </form>
+    <form class="logout">
+      <button class="logout-btn" v-on:click="logout">Logout</button>
+    </form>
+  </div>
 </template>
 
 <script>
@@ -57,26 +67,45 @@ export default {
         Telp: "",
         Alamat: "",
         Password: "",
+        imageUrl: "", // Initialize imageUrl
       },
+      imageFile: null,
     };
   },
   methods: {
     async UpdateProfil() {
-      console.warn(this.User);
-      const result = await axios.put(
-        "http://localhost:3000/User/" + this.$route.params.id,
-        {
-          NamaWarung: this.User.NamaWarung,
-          Nama: this.User.Nama,
-          Telp: this.User.Telp,
-          Alamat: this.User.Alamat,
-          Password: this.User.Password,
+      try {
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+          const response = await axios.post(
+            "http://localhost:3001/uploads",
+            formData
+          );
+          this.User.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
         }
-      );
-      if (result.status === 200) {
-        this.$router.push({ name: "Dashboard" });
+        const result = await axios.put(
+          `http://localhost:3000/User/${this.$route.params.id}`,
+          this.User
+        );
+        if (result.status === 200) {
+          this.$router.push({ name: "Dashboard" });
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        alert(
+          "An error occurred while updating the profile. Please try again later."
+        );
       }
-      console.warn("result", result);
+    },
+    onImageChange(event) {
+      this.imageFile = event.target.files[0];
+    },
+    async fetchUser() {
+      const result = await axios.get(
+        `http://localhost:3000/User/${this.$route.params.id}`
+      );
+      this.User = result.data;
     },
     logout() {
       localStorage.clear();
@@ -88,11 +117,7 @@ export default {
     if (!user) {
       this.$router.push({ name: "SignUp" });
     }
-    const result = await axios.get(
-      "http://localhost:3000/User/" + this.$route.params.id
-    );
-    console.warn(result.data);
-    this.User = result.data;
+    await this.fetchUser();
   },
 };
 </script>
@@ -111,11 +136,11 @@ export default {
   display: block;
   margin-bottom: 10px;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .update input::placeholder,
@@ -133,6 +158,12 @@ export default {
 .update button:hover {
   background-color: #0056b3;
 }
+
+.image-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
 .logout {
   display: flex;
   flex-direction: column;
@@ -142,7 +173,7 @@ export default {
   background-color: red;
   display: block;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;

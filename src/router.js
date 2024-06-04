@@ -26,6 +26,9 @@ import TambahDagangan from "./components/TambahDagangan.vue";
 import Cart from "./components/Cart.vue";
 import Orders from "./components/Orders.vue";
 import ProfilAdmin from "./components/ProfilAdmin.vue";
+import Informasi from "./components/Informasi.vue";
+import LandingPage from "./components/LandingPage.vue";
+import GuestSidebar from "./components/GuestSidebar.vue";
 
 const routes = [
   {
@@ -168,6 +171,21 @@ const routes = [
     component: Orders,
     path: "/Orders",
   },
+  {
+    name: "Informasi",
+    component: Informasi,
+    path: "/Informasi",
+  },
+  {
+    name: "LandingPage",
+    component: LandingPage,
+    path: "/",
+  },
+  {
+    name: "GuestSidebar",
+    component: GuestSidebar,
+    path: "/GuestSidebar",
+  },
 ];
 
 const router = createRouter({
@@ -177,12 +195,16 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem("user-info"));
+  const isGuest = localStorage.getItem("guest") === "true";
+
   if (to.matched.some((record) => record.meta.requiresAdmin)) {
     if (user && user.role === "admin") {
       next();
     } else {
       next({ name: "Dashboard" });
     }
+  } else if (to.name !== "Login" && to.name !== "SignUp" && !user && !isGuest) {
+    next({ name: "Login" });
   } else {
     next();
   }

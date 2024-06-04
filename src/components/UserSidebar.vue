@@ -22,17 +22,12 @@
         class="list-group-item list-group-item-action bg-light"
         >Penjualan</router-link
       >
+
       <router-link
-        to="/Cart"
-        class="list-group-item list-group-item-action bg-light"
-        >Keranjang</router-link
-      >
-      <a
-        v-on:click="logout"
-        href="#"
-        class="list-group-item list-group-item-action bg-light"
-        >Logout</a
-      >
+        to="/Informasi"
+        class="list-group-item sidebar-footer bg-light"
+        ><font-awesome-icon :icon="['fas', 'circle-info']" />
+      </router-link>
     </div>
   </div>
 </template>

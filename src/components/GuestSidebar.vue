@@ -1,64 +1,66 @@
 <template>
-  <div class="sidebar">
-    <ul class="list-unstyled">
-      <li>
-        <router-link to="/Dashboard">Dashboard</router-link>
-      </li>
-      <li>
-        <router-link to="/Produk">Produk</router-link>
-      </li>
-      <li>
-        <router-link to="/Kategori">Kategori</router-link>
-      </li>
-      <li>
-        <router-link to="/Warung">Warung</router-link>
-      </li>
-      <li>
-        <router-link to="/Cart">Cart</router-link>
-      </li>
-      <li>
-        <button @click="$emit('logout')">Logout</button>
-      </li>
-    </ul>
+  <div class="bg-light border-right" id="sidebar-wrapper">
+    <div class="sidebar-heading">Aplikasi GBWT</div>
+    <div class="list-group list-group-flush">
+      <router-link
+        to="/Dashboard"
+        class="list-group-item list-group-item-action bg-light"
+        >Dashboard</router-link
+      >
+      <router-link
+        to="/Produk"
+        class="list-group-item list-group-item-action bg-light"
+        >Produk</router-link
+      >
+      <router-link
+        to="/Kategori"
+        class="list-group-item list-group-item-action bg-light"
+        >Kategori</router-link
+      >
+      <router-link
+        to="/Warung"
+        class="list-group-item list-group-item-action bg-light"
+        >Warung</router-link
+      >
+      <router-link
+        to="/Orders"
+        class="list-group-item list-group-item-action bg-light"
+        ><font-awesome-icon :icon="['fas', 'receipt']"
+      /></router-link>
+      <router-link
+        to="/Cart"
+        class="list-group-item list-group-item-action bg-light"
+        ><font-awesome-icon :icon="['fas', 'shopping-cart']"
+      /></router-link>
+      <button @click="logout">Logout</button>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
   name: "GuestSidebar",
+  methods: {
+    logout() {
+      this.$emit("logout");
+    },
+  },
 };
 </script>
 
 <style scoped>
-.sidebar {
-  width: 250px;
-  background-color: #f8f9fa;
-  padding: 20px;
+.list-group-item-action {
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.sidebar ul {
-  list-style: none;
-  padding: 0;
-}
-
-.sidebar li {
-  margin: 10px 0;
-}
-
-.sidebar a {
-  text-decoration: none;
-  color: #333;
-}
-
-.sidebar button {
+.list-group-item-action:hover {
   background-color: darkblue;
   color: white;
-  border: none;
-  padding: 10px;
-  cursor: pointer;
 }
 
-.sidebar button:hover {
-  background-color: navy;
+.sidebar-heading {
+  padding: 2rem 2rem;
+  font-size: 24px;
+  font-weight: bold;
 }
 </style>

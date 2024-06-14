@@ -76,10 +76,12 @@ export default {
   text-align: center;
   color: #2c3e50;
 }
+
 body {
   padding: 0;
   margin: 0;
 }
+
 .register input,
 .login input,
 .tambah input {
@@ -91,6 +93,7 @@ body {
   margin-left: auto;
   border: 1px solid skyblue;
 }
+
 .register button,
 .login button,
 .tambah button {

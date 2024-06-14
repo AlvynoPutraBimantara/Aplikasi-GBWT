@@ -17,7 +17,7 @@
         <tr v-for="transaction in filteredTransactions" :key="transaction.id">
           <td>{{ transaction.id }}</td>
           <td>{{ transaction.user }}</td>
-          <td>{{ getUserAddress(transaction.user) }}</td>
+          <td>{{ transaction.address || getUserAddress(transaction.user) }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">

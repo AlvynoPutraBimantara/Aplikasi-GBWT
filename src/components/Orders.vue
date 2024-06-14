@@ -19,7 +19,7 @@
           <tr v-for="order in orders" :key="order.id">
             <td>{{ order.id }}</td>
             <td>{{ order.user }}</td>
-            <td>{{ getUserAddress(order.user) }}</td>
+            <td>{{ order.address || getUserAddress(order.user) }}</td>
             <td>
               <ul>
                 <li v-for="item in order.items" :key="item.id">
@@ -97,7 +97,10 @@ export default {
       const user = JSON.parse(localStorage.getItem("user-info")) || {
         Nama: "Guest",
       };
-      await this.$store.dispatch("acceptOrder", { ...order, user });
+      if (!order.user) {
+        order.user = user.Nama;
+      }
+      await this.$store.dispatch("acceptOrder", order);
     },
   },
 };

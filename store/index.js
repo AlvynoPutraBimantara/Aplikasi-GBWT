@@ -235,8 +235,9 @@ export default createStore({
             orderId: `${order.id}`,
             items,
             total,
-            user: user.Nama,
+            user: order.user || user.Nama,
             timestamp: new Date(),
+            address: order.address,
           };
 
           await axios.post("http://localhost:3000/Transactions", transaction);

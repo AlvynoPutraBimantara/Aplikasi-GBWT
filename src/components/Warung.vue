@@ -43,8 +43,12 @@ export default {
     filteredUsers() {
       return this.users
         .filter((user) => user.role !== "admin")
-        .filter((user) =>
-          user.NamaWarung.toLowerCase().includes(this.searchQuery.toLowerCase())
+        .filter(
+          (user) =>
+            user.NamaWarung &&
+            user.NamaWarung.toLowerCase().includes(
+              this.searchQuery.toLowerCase()
+            )
         );
     },
   },

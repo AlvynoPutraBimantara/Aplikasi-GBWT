@@ -9,6 +9,7 @@
           v-model="Telp"
           placeholder="Masukan No.telp (+62-812345678910)"
         />
+        <input type="text" v-model="Alamat" placeholder="Masukan Alamat" />
         <input
           type="password"
           v-model="Password"
@@ -31,12 +32,18 @@ export default {
     return {
       Nama: "",
       Telp: "",
+      Alamat: "", // Initialize Alamat
       Password: "",
     };
   },
   methods: {
     async SignUp() {
-      if (this.Nama === "" || this.Telp === "" || this.Password === "") {
+      if (
+        this.Nama === "" ||
+        this.Telp === "" ||
+        this.Password === "" ||
+        this.Alamat === ""
+      ) {
         alert("All fields are required.");
         return;
       }
@@ -50,6 +57,7 @@ export default {
         let result = await axios.post("http://localhost:3000/User", {
           Nama: this.Nama,
           Telp: this.Telp,
+          Alamat: this.Alamat, // Include Alamat
           Password: this.Password,
           role: "user",
         });

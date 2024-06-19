@@ -99,7 +99,7 @@ export default {
             },
             user: user,
           });
-          alert("Product successfully added to cart!");
+          alert("Pesanan berhasil dimasukan dalam keranjang!");
         } catch (error) {
           console.error("Error adding to cart:", error);
           alert("Failed to add product to cart. Please try again.");

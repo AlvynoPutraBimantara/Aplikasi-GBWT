@@ -168,8 +168,10 @@ export default createStore({
       try {
         const user = JSON.parse(localStorage.getItem("user-info"));
         const response = await axios.get("http://localhost:3000/Orders");
+
+        // Ensure orders are fetched correctly even if user is null
         const orders = response.data.filter(
-          (order) => order.user === user.Nama
+          (order) => !user || order.user === user?.Nama
         );
         commit("SET_ORDERS", orders);
       } catch (error) {

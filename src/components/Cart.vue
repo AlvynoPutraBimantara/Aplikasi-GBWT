@@ -75,19 +75,21 @@ export default {
     },
     async checkout() {
       let user = JSON.parse(localStorage.getItem("user-info"));
-      if (!user) {
+      if (!user || !user.Nama || !user.Alamat) {
         const userName = prompt("Masukan nama sebelum checkout:");
         if (!userName) {
-          alert("Checkout requires a name.");
+          alert("Masukan nama sebelum checkout");
           return;
         }
-        const userAddress = prompt("Masukan nama sebelum checkout:");
+        const userAddress = prompt("Masukan Alamat sebelum checkout:");
         if (!userAddress) {
-          alert("Checkout requires an address.");
+          alert("Masukan Alamat sebelum checkout");
           return;
         }
         user = { Nama: userName, Alamat: userAddress };
+        localStorage.setItem("user-info", JSON.stringify(user));
       }
+
       const order = {
         id: `${Date.now()}`,
         items: this.cart.map((item) => ({
@@ -102,6 +104,7 @@ export default {
         user: user.Nama,
         address: user.Alamat,
       };
+
       await this.$store.dispatch("placeOrder", order);
       await this.$store.dispatch("clearCartOnServer");
       this.$store.dispatch("clearCart");

@@ -94,12 +94,13 @@ export default {
       await this.$store.dispatch("deleteOrder", orderId.toString());
     },
     async acceptOrder(order) {
-      const user = JSON.parse(localStorage.getItem("user-info")) || {
+      let user = JSON.parse(localStorage.getItem("user-info")) || {
         Nama: "Guest",
       };
-      if (!order.user) {
-        order.user = user.Nama;
+      if (!user.Nama) {
+        user = { Nama: "Guest" };
       }
+      order.user = user.Nama;
       await this.$store.dispatch("acceptOrder", order);
     },
   },

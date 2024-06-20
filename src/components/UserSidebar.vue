@@ -23,9 +23,7 @@
         >Penjualan</router-link
       >
 
-      <router-link
-        to="/Informasi"
-        class="list-group-item sidebar-footer bg-light"
+      <router-link to="/Informasi" class="list-group-item infouser bg-light"
         ><font-awesome-icon :icon="['fas', 'circle-info']" />
       </router-link>
     </div>
@@ -57,5 +55,9 @@ export default {
 .list-group-item-action:hover {
   background-color: darkblue;
   color: white;
+}
+
+.infouser {
+  padding-top: 300px;
 }
 </style>

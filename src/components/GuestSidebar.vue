@@ -32,7 +32,12 @@
         class="list-group-item list-group-item-action bg-light"
         ><font-awesome-icon :icon="['fas', 'shopping-cart']"
       /></router-link>
+
       <button @click="goToLogin">Login</button>
+
+      <router-link to="/Informasi" class="list-group-item bg-light info"
+        ><font-awesome-icon :icon="['fas', 'circle-info']" />
+      </router-link>
     </div>
   </div>
 </template>
@@ -64,5 +69,9 @@ export default {
   padding: 2rem 2rem;
   font-size: 24px;
   font-weight: bold;
+}
+
+.info {
+  padding-top: 200px;
 }
 </style>

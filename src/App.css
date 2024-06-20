@@ -59,7 +59,10 @@ body {
   background-color: rgb(216, 233, 238);
 }
 
-/* Button styles with hover effects */
+.info {
+  padding-top: 200px;
+}
+
 .register input,
 .login input,
 .tambah input {

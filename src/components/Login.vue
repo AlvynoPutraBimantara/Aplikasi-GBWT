@@ -49,6 +49,8 @@ export default {
           } else {
             this.$router.push({ name: "Dashboard" });
           }
+          // Automatically reload the page
+          window.location.reload();
         } else {
           alert("Invalid credentials");
         }

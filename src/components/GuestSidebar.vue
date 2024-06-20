@@ -32,7 +32,7 @@
         class="list-group-item list-group-item-action bg-light"
         ><font-awesome-icon :icon="['fas', 'shopping-cart']"
       /></router-link>
-      <button @click="logout">Logout</button>
+      <button @click="goToLogin">Login</button>
     </div>
   </div>
 </template>
@@ -41,8 +41,10 @@
 export default {
   name: "GuestSidebar",
   methods: {
-    logout() {
-      this.$emit("logout");
+    goToLogin() {
+      this.$router.push({ name: "Login" }).then(() => {
+        window.location.reload();
+      });
     },
   },
 };

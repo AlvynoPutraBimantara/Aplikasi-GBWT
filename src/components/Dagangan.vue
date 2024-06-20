@@ -65,7 +65,7 @@ export default {
       }
     },
     goToProductPage(productId) {
-      this.$router.push({ name: "UpdateProduk", params: { id: productId } });
+      this.$router.push({ name: "UserUpdateProduk", params: { id: productId } });
     },
   },
   computed: {

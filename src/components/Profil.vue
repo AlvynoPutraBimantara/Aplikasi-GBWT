@@ -69,12 +69,21 @@ export default {
         Password: "",
         imageUrl: "", // Initialize imageUrl
       },
+      DataProduk: {
+        Nama: "",
+        Harga: "",
+        Kategori: "",
+        Keterangan: "",
+        Pedagang: "",
+        Stok: "",
+      },
       imageFile: null,
     };
   },
   methods: {
     async UpdateProfil() {
       try {
+        // Handle image upload if imageFile is set
         if (this.imageFile) {
           const formData = new FormData();
           formData.append("image", this.imageFile);
@@ -84,11 +93,31 @@ export default {
           );
           this.User.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
         }
-        const result = await axios.put(
+
+        // Update User data
+        const userUpdateResult = await axios.put(
           `http://localhost:3000/User/${this.$route.params.id}`,
           this.User
         );
-        if (result.status === 200) {
+
+        if (userUpdateResult.status === 200) {
+          // Fetch all products to update the Pedagang field
+          const productsResult = await axios.get("http://localhost:3000/DataProduk");
+          const products = productsResult.data;
+
+          // Update each product where Pedagang matches the old NamaWarung
+          const updatePromises = products.map(async (product) => {
+            if (product.Pedagang === this.oldNamaWarung) {
+              return axios.put(`http://localhost:3000/DataProduk/${product.id}`, {
+                ...product,
+                Pedagang: this.User.NamaWarung,
+              });
+            }
+          });
+
+          await Promise.all(updatePromises);
+
+          // Navigate to Dashboard after successful update
           this.$router.push({ name: "Dashboard" });
         }
       } catch (error) {
@@ -106,10 +135,13 @@ export default {
         `http://localhost:3000/User/${this.$route.params.id}`
       );
       this.User = result.data;
+      this.oldNamaWarung = this.User.NamaWarung; // Store the old NamaWarung for reference
     },
     logout() {
       localStorage.clear();
-      this.$router.push({ name: "Login" });
+      this.$router.push({ name: "Login" }).then(() => {
+        window.location.reload();
+      });
     },
   },
   async mounted() {

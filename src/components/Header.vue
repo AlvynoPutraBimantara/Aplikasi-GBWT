@@ -43,7 +43,9 @@ export default {
     },
     logout() {
       localStorage.clear();
-      this.$router.push({ name: "LandingPage" });
+      this.$router.push({ name: "LandingPage" }).then(() => {
+        window.location.reload();
+      });
     },
     isActive(route) {
       return this.$route.path === route;

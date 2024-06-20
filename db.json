@@ -1,5 +1,322 @@
 {
-  "DataProduk": [],
+  "User": [
+    {
+      "NamaWarung": "",
+      "Nama": "asd",
+      "Telp": "6287857909820",
+      "Alamat": "",
+      "Password": "asd",
+      "id": "4e50",
+      "role": "admin"
+    },
+    {
+      "NamaWarung": "Toko Wibowo",
+      "Nama": "Bu Arifin",
+      "Telp": "6285755783882",
+      "Alamat": "Sambirogo K11",
+      "Password": "aaa",
+      "id": "1058",
+      "imageUrl": "http://localhost:3001/images/1717433599609-wibowo.PNG"
+    },
+    {
+      "NamaWarung": "Tiga Putra",
+      "Nama": "Bu Elvy",
+      "Telp": "6287857909824",
+      "Alamat": "Sambiroto E30",
+      "Password": "aaa",
+      "id": "16d3",
+      "imageUrl": "http://localhost:3001/images/1717398615303-Tiga Putra.PNG"
+    },
+    {
+      "NamaWarung": "Butik Singgih",
+      "Nama": "Bu Singgih",
+      "Telp": "6287857909824",
+      "Alamat": "Sambiroto J14",
+      "Password": "aaa",
+      "id": "e91d",
+      "imageUrl": "http://localhost:3001/images/1717398627913-Bu Singgih.PNG"
+    },
+    {
+      "NamaWarung": "Ayam Chau Chii",
+      "Nama": "Pak Ashrul",
+      "Telp": "6285975983578",
+      "Alamat": "Sambiroto 5",
+      "Password": "aaa",
+      "id": "dd1b",
+      "imageUrl": "http://localhost:3001/images/1717398638934-Chiau Chi.PNG"
+    },
+    {
+      "NamaWarung": "Warung Bu Win",
+      "Nama": "Bu Windah",
+      "Telp": "6281232143698",
+      "Alamat": "Sambiroto IX 10",
+      "Password": "aaa",
+      "id": "050f",
+      "imageUrl": "http://localhost:3001/images/1717398649380-Bu Win.PNG"
+    },
+    {
+      "NamaWarung": "Butik Wong Ayu",
+      "Nama": "Bu Donita",
+      "Telp": "6281123123123",
+      "Alamat": "Sambiroto N8",
+      "Password": "aaa",
+      "id": "b6fc",
+      "imageUrl": "http://localhost:3001/images/1717398659344-Butik wong ayu.PNG"
+    }
+  ],
+  "DataWarung": [
+    {
+      "Nama": "Warung A",
+      "Telp": "087857909821",
+      "Alamat": "Sambiroto 1",
+      "id": "0d53"
+    },
+    {
+      "id": "0772",
+      "Nama": "tyu",
+      "Telp": "087857909824",
+      "Alamat": "Sambiroto 5"
+    }
+  ],
+  "DataProduk": [
+    {
+      "id": "e718",
+      "Nama": "Gulaku",
+      "Harga": "18000",
+      "Kategori": "Sembako",
+      "Keterangan": "Gulaku Hijau 1Kg",
+      "Pedagang": "Toko Wibowo",
+      "Stok": 6,
+      "imageUrl": "http://localhost:3001/images/1717382160987-gulaku.png"
+    },
+    {
+      "id": "9e4e",
+      "Nama": "Marjan",
+      "Harga": "15000",
+      "Kategori": "Sembako",
+      "Keterangan": "marjan jeruk",
+      "Pedagang": "Toko Wibowo",
+      "Stok": 8,
+      "imageUrl": "http://localhost:3001/images/1717383157357-marjan jeruk.jfif"
+    },
+    {
+      "id": "3530",
+      "Nama": "Sepatu Kicker",
+      "Harga": "150000",
+      "Kategori": "Pakaian",
+      "Keterangan": "Sepatu Kicker Model 458 Ukuran 41",
+      "Pedagang": "Butik Singgih",
+      "Stok": 7,
+      "imageUrl": "http://localhost:3001/images/1717383194991-sepatu kicker.jpg"
+    },
+    {
+      "id": "5c36",
+      "Nama": "Ayam Geprek ",
+      "Harga": "10000",
+      "Kategori": "Makanan",
+      "Keterangan": "Ayam geprek pedas ",
+      "Pedagang": "Ayam Chau Chii",
+      "Stok": "20",
+      "imageUrl": "http://localhost:3001/images/1717383246016-ayam geprek.png"
+    },
+    {
+      "id": "0ce7",
+      "Nama": "Teh Pucuk",
+      "Harga": "5000",
+      "Kategori": "Minuman",
+      "Keterangan": "Teh Pucuk Harum 400ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": "48",
+      "imageUrl": "http://localhost:3001/images/1717383258924-teh pucuk.webp"
+    },
+    {
+      "id": "266f",
+      "Nama": "Coca cola",
+      "Harga": "5000",
+      "Kategori": "Minuman",
+      "Keterangan": "Coca cola 300ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": "20",
+      "imageUrl": "http://localhost:3001/images/1717383269765-coca cola.png"
+    },
+    {
+      "id": "0b77",
+      "Nama": "Sprite",
+      "Harga": "5000",
+      "Kategori": "Minuman",
+      "Keterangan": "Sprite 300ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": "10",
+      "imageUrl": "http://localhost:3001/images/1717383279203-sprite.jpg"
+    },
+    {
+      "id": "e92e",
+      "Nama": "Frestea",
+      "Harga": "4000",
+      "Kategori": "Minuman",
+      "Keterangan": "Frestea jasmine 300ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": 10,
+      "imageUrl": "http://localhost:3001/images/1717384308896-frestea.png"
+    },
+    {
+      "id": "f282",
+      "Nama": "Beras Pin pin",
+      "Harga": "75000",
+      "Kategori": "Sembako",
+      "Keterangan": "Beras Pin pin 5 Kg",
+      "Pedagang": "Toko Wibowo",
+      "Stok": 5,
+      "imageUrl": "http://localhost:3001/images/1717384377664-beras pin pin.png"
+    },
+    {
+      "id": "e310",
+      "Nama": "Beras Jeruk",
+      "Harga": "70000",
+      "Kategori": "Sembako",
+      "Keterangan": "Beras Jeruk 5Kg",
+      "Pedagang": "Toko Wibowo",
+      "Stok": 20,
+      "imageUrl": "http://localhost:3001/images/1717384292561-beras jeruk.jpg"
+    },
+    {
+      "id": "18ec",
+      "Nama": "Minyak Kita",
+      "Harga": "15000",
+      "Kategori": "Sembako",
+      "Keterangan": "Minyak Kita 1 Liter",
+      "Pedagang": "Toko Wibowo",
+      "Stok": 8,
+      "imageUrl": "http://localhost:3001/images/1717382114245-minyak.webp"
+    },
+    {
+      "id": "605d",
+      "Nama": "Batik Pekalongan",
+      "Harga": "300000",
+      "Kategori": "Pakaian",
+      "Keterangan": "Batik Pekalongan XL",
+      "Pedagang": "Butik Wong Ayu",
+      "Stok": 7,
+      "imageUrl": "http://localhost:3001/images/1717384391791-6f21c493510e51793e6ab6ab812452c5.jfif"
+    },
+    {
+      "id": "654c",
+      "Nama": "Gamis Citra",
+      "Harga": "500000",
+      "Kategori": "Pakaian",
+      "Keterangan": "Gamis Citra Ukuran XL",
+      "Pedagang": "Butik Wong Ayu",
+      "Stok": 7,
+      "imageUrl": "http://localhost:3001/images/1717383299678-gamis.webp"
+    },
+    {
+      "id": "53ad",
+      "Nama": "Sarung Wadimor",
+      "Harga": "200000",
+      "Kategori": "Pakaian",
+      "Keterangan": "Sarung Wadimor Model 100 ",
+      "Pedagang": "Butik Singgih",
+      "Stok": 10,
+      "imageUrl": "http://localhost:3001/images/1717384236328-wadimor.png"
+    },
+    {
+      "id": "2be9",
+      "Nama": "Susu Cimori Coklat ",
+      "Harga": "10000",
+      "Kategori": "Minuman",
+      "Keterangan": "Susu Kotak Cimori Coklat 250ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": 30,
+      "imageUrl": "http://localhost:3001/images/1717384222925-cimori coklat.jpg"
+    },
+    {
+      "id": "41ae",
+      "Nama": "Yogurt Cimori Strawberry",
+      "Harga": "5000",
+      "Kategori": "Minuman",
+      "Keterangan": "Yogurt Cimori 200ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": 50,
+      "imageUrl": "http://localhost:3001/images/1717384207092-cimori stroberi.jpg"
+    },
+    {
+      "id": "221a",
+      "Nama": "Aqua",
+      "Harga": "5000",
+      "Kategori": "Minuman",
+      "Keterangan": "Aqua 1500ml",
+      "Pedagang": "Tiga Putra",
+      "Stok": "120",
+      "imageUrl": "http://localhost:3001/images/1717384192747-aqua.png"
+    },
+    {
+      "id": "68ce",
+      "Nama": "Beras Bintang",
+      "Harga": "75000",
+      "Kategori": "Sembako",
+      "Keterangan": "Beras Bintang 5Kg",
+      "Pedagang": "Toko Wibowo",
+      "Stok": "20",
+      "imageUrl": "http://localhost:3001/images/1717384182812-beras bintang.png"
+    },
+    {
+      "id": "d074",
+      "Nama": "Es Teh",
+      "Harga": "3000",
+      "Kategori": "Minuman",
+      "Keterangan": "Es Teh Manis Jumbo",
+      "Pedagang": "Toko Wibowo",
+      "Stok": "10",
+      "imageUrl": "http://localhost:3001/images/1717381931485-Minuman.png"
+    },
+    {
+      "id": "89d1",
+      "Nama": "Telur",
+      "Harga": "27000",
+      "Kategori": "Sembako",
+      "Keterangan": "Telur Ayam per 1 Kg",
+      "Pedagang": "Toko Wibowo",
+      "Stok": "10",
+      "imageUrl": "http://localhost:3001/images/1717356760302-telur.jpg"
+    },
+    {
+      "id": "08d8",
+      "Nama": "Sepatu Jordan",
+      "Harga": "1000000",
+      "Kategori": "Pakaian",
+      "Keterangan": "Sepatu Jordan model 3",
+      "Pedagang": "Butik Singgih",
+      "Stok": "2",
+      "imageUrl": "http://localhost:3001/images/1717514881778-Sepatu Jordan .jpg"
+    }
+  ],
+  "DataKategori": [
+    {
+      "Kategori": "Minuman",
+      "imageUrl": "http://localhost:3001/images/1717399615857-Lovepik_com-401429490-iced-red-tea.png",
+      "id": "1ed2"
+    },
+    {
+      "Kategori": "Makanan",
+      "imageUrl": "http://localhost:3001/images/1717399654512-Lovepik_com-401039765-golden-chicken-steak-lunchbox.png",
+      "id": "afe9"
+    },
+    {
+      "Kategori": "Sembako",
+      "imageUrl": "http://localhost:3001/images/1717400139795-SEMBAKO.jpg",
+      "id": "c546"
+    },
+    {
+      "Kategori": "Pakaian",
+      "imageUrl": "http://localhost:3001/images/1717399629559-PAKAIAN.jpg",
+      "id": "172b"
+    },
+    {
+      "Kategori": "Kebutuhan Rumah",
+      "imageUrl": "http://localhost:3001/images/1717400114446-gambar-pedagang-perabot-35.jpg",
+      "id": "385c"
+    }
+  ],
   "Orders": [],
   "Cart": [],
   "Transactions": []

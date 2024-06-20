@@ -29,12 +29,19 @@ import ProfilAdmin from "./components/ProfilAdmin.vue";
 import Informasi from "./components/Informasi.vue";
 import LandingPage from "./components/LandingPage.vue";
 import GuestSidebar from "./components/GuestSidebar.vue";
+import UserUpdateProduk from "./components/UserUpdateProduk.vue";
+
 
 const routes = [
   {
     path: "/",
     name: "LandingPage",
     component: LandingPage,
+  },
+  {
+    name: "UserUpdateProduk",
+    component: UserUpdateProduk,
+    path: "/UserUpdateProduk/:id",
   },
   {
     name: "Dashboard",

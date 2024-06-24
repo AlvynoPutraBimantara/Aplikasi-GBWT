@@ -30,7 +30,7 @@ import Informasi from "./components/Informasi.vue";
 import LandingPage from "./components/LandingPage.vue";
 import GuestSidebar from "./components/GuestSidebar.vue";
 import UserUpdateProduk from "./components/UserUpdateProduk.vue";
-
+import RiwayatTransaksi from "./components/RiwayatTransaksi.vue";
 
 const routes = [
   {
@@ -192,6 +192,11 @@ const routes = [
     name: "GuestSidebar",
     component: GuestSidebar,
     path: "/GuestSidebar",
+  },
+  {
+    name: "RiwayatTransaksi",
+    component: RiwayatTransaksi,
+    path: "/RiwayatTransaksi",
   },
 ];
 

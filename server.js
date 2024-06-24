@@ -11,30 +11,25 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Root route
 app.get("/", (req, res) => {
   res.send("Welcome to my server!");
 });
 
-// Paths
 const dbFilePath = path.join(__dirname, "db.json");
 const imagesDir = path.join(__dirname, "images");
 
-// Ensure images directory exists
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir);
 }
 
-// Helper functions for reading and writing data
 const getData = () => {
   if (!fs.existsSync(dbFilePath)) {
-    // Create initial data structure if file doesn't exist
     const initialData = {
       DataProduk: [],
       Orders: [],
       Cart: [],
       Transactions: [],
-      User: [], // Ensure User array is present
+      User: [], //
     };
     fs.writeFileSync(dbFilePath, JSON.stringify(initialData, null, 2));
   }
@@ -44,7 +39,6 @@ const getData = () => {
 const saveData = (data) =>
   fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2));
 
-// Set up Multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, imagesDir);
@@ -55,11 +49,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/images", express.static(imagesDir));
 
-// File upload endpoint
 app.post("/uploads", upload.single("image"), (req, res) => {
   if (!req.file) {
     return res.status(400).send("No file uploaded.");
@@ -68,7 +60,6 @@ app.post("/uploads", upload.single("image"), (req, res) => {
   res.status(201).json({ imageUrl });
 });
 
-// Routes for User
 app.get("/User", (req, res) => {
   const data = getData();
   res.json(data.User);
@@ -96,7 +87,6 @@ app.put("/User/:id", (req, res) => {
   }
 });
 
-// Routes for DataProduk
 app.get("/DataProduk", (req, res) => {
   const data = getData();
   res.json(data.DataProduk);
@@ -124,7 +114,6 @@ app.put("/DataProduk/:id", (req, res) => {
   }
 });
 
-// Routes for Orders
 app.get("/Orders", (req, res) => {
   const data = getData();
   res.json(data.Orders);
@@ -152,7 +141,6 @@ app.delete("/Orders/:id", (req, res) => {
   }
 });
 
-// Routes for Cart
 app.get("/Cart", (req, res) => {
   const data = getData();
   res.json(data.Cart);
@@ -182,7 +170,6 @@ app.delete("/Cart", (req, res) => {
   res.status(204).end();
 });
 
-// Routes for Transactions
 app.get("/Transactions", (req, res) => {
   const data = getData();
   const transactions = data.Transactions;
@@ -254,4 +241,17 @@ app.put("/DataKategori/:id", (req, res) => {
   } else {
     res.status(404).send("Kategori not found");
   }
+});
+
+app.get("/RiwayatTransaksi", (req, res) => {
+  const data = getData();
+  res.json(data.RiwayatTransaksi);
+});
+
+app.post("/RiwayatTransaksi", (req, res) => {
+  const data = getData();
+  const newRiwayat = req.body;
+  data.RiwayatTransaksi.push(newRiwayat);
+  saveData(data);
+  res.status(201).json(newRiwayat);
 });

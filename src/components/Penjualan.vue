@@ -9,7 +9,8 @@
           <th>Pemesan</th>
           <th>Alamat</th>
           <th>Produk</th>
-          <th>Timestamp</th>
+          <th>Waktu Pesan</th>
+          <th>Catatan</th>
           <th>Aksi</th>
         </tr>
       </thead>
@@ -26,18 +27,20 @@
                   Hapus Item
                 </button>
                 <button @click="refundTransactionItem(transaction, item)">
-                  Batalkan Item
+                  Kembalikan Item
                 </button>
               </li>
             </ul>
           </td>
           <td>{{ new Date(transaction.timestamp).toLocaleString() }}</td>
+          <td>{{ transaction.catatan }}</td>
           <td>
             <button @click="deleteTransaction(transaction.id)">
-              Hapus Transaksi
+              Terima Pesanan
             </button>
+            <button @click="deleteTransactions(transaction.id)">Kasbon</button>
             <button @click="handleRefundTransaction(transaction)">
-              Batalkan Transaksi
+              Kembalikan Pesanan
             </button>
           </td>
         </tr>
@@ -78,6 +81,7 @@ export default {
     ...mapActions([
       "fetchTransactions",
       "deleteTransactionAction",
+      "deleteTransactionsAction",
       "deleteTransactionItemAction",
       "refundTransaction",
       "refundTransactionItemAction",
@@ -99,7 +103,18 @@ export default {
       return this.userData[userName] || "Unknown Address";
     },
     deleteTransaction(transactionId) {
-      this.deleteTransactionAction(transactionId)
+      const description = "Pesanan Diterima";
+      this.deleteTransactionAction({ transactionId, description })
+        .then(() => {
+          console.log(`Transaction ${transactionId} deleted successfully`);
+        })
+        .catch((error) => {
+          console.error("Error deleting transaction:", error);
+        });
+    },
+    deleteTransactions(transactionId) {
+      const descriptions = "Kasbon";
+      this.deleteTransactionsAction({ transactionId, descriptions })
         .then(() => {
           console.log(`Transaction ${transactionId} deleted successfully`);
         })
@@ -108,7 +123,8 @@ export default {
         });
     },
     handleRefundTransaction(transaction) {
-      this.refundTransaction(transaction)
+      const description = "Kembalikan Pesanan";
+      this.refundTransaction({ transaction, description })
         .then(() => {
           console.log(`Transaction ${transaction.id} refunded successfully`);
         })

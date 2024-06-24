@@ -35,6 +35,10 @@
           </tr>
         </tbody>
       </table>
+      <div>
+        <label for="catatan">Catatan:</label>
+        <textarea id="catatan" v-model="catatan"></textarea>
+      </div>
       <p>Total: {{ cartTotalPrice }}</p>
       <button @click="checkout">Checkout</button>
     </div>
@@ -51,6 +55,11 @@ import UserHeader from "./UserHeader.vue";
 export default {
   components: {
     UserHeader,
+  },
+  data() {
+    return {
+      catatan: "",
+    };
   },
   computed: {
     ...mapState(["cart"]),
@@ -103,6 +112,7 @@ export default {
         total: this.cartTotalPrice,
         user: user.Nama,
         address: user.Alamat,
+        catatan: this.catatan,
       };
 
       await this.$store.dispatch("placeOrder", order);

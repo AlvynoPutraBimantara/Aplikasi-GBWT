@@ -33,12 +33,16 @@
         ><font-awesome-icon :icon="['fas', 'shopping-cart']"
       /></router-link>
 
-      <button @click="goToLogin">Login</button>
-
-      <router-link to="/Informasi" class="list-group-item bg-light info"
-        ><font-awesome-icon :icon="['fas', 'circle-info']" />
-      </router-link>
+      <button
+        @click="goToLogin"
+        class="list-group-item list-group-item-action bg-light"
+      >
+        Login
+      </button>
     </div>
+    <router-link to="/Informasi" class="list-group-item bg-light footer-info"
+      ><font-awesome-icon :icon="['fas', 'circle-info']" />
+    </router-link>
   </div>
 </template>
 
@@ -56,6 +60,17 @@ export default {
 </script>
 
 <style scoped>
+#sidebar-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.list-group {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
 .list-group-item-action {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -71,7 +86,7 @@ export default {
   font-weight: bold;
 }
 
-.info {
-  padding-top: 200px;
+.footer-info {
+  margin-top: auto;
 }
 </style>

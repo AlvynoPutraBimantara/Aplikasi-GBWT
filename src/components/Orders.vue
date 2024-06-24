@@ -11,7 +11,8 @@
             <th>Alamat</th>
             <th>Barang</th>
             <th>Total</th>
-            <th>Timestamp</th>
+            <th>Waktu Pesan</th>
+            <th>Catatan</th>
             <th>Aksi</th>
           </tr>
         </thead>
@@ -37,6 +38,7 @@
                 </li>
               </ul>
             </td>
+            <td>{{ order.catatan }}</td>
             <td>
               <button @click="acceptOrder(order)">Pesan</button>
               <button @click="deleteOrder(order.id)">Hapus</button>

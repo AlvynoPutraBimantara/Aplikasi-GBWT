@@ -22,6 +22,11 @@
         class="list-group-item list-group-item-action bg-light"
         >Penjualan</router-link
       >
+      <router-link
+        to="/RiwayatTransaksi"
+        class="list-group-item list-group-item-action bg-light"
+        >RiwayatTransaksi</router-link
+      >
 
       <router-link to="/Informasi" class="list-group-item infouser bg-light"
         ><font-awesome-icon :icon="['fas', 'circle-info']" />

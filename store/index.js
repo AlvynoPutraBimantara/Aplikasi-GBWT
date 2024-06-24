@@ -7,8 +7,21 @@ export default createStore({
     orders: [],
     products: [],
     transactions: [],
+    riwayatTransaksi: [],
   },
   mutations: {
+    SET_RIWAYAT_TRANSAKSI(state, transactions) {
+      state.riwayatTransaksi = transactions;
+    },
+    REMOVE_TRANSACTION_HISTORY(state, transactionId) {
+      state.riwayatTransaksi = state.riwayatTransaksi.filter(
+        (transaction) => transaction.id !== transactionId
+      );
+    },
+
+    ADD_RIWAYAT_TRANSAKSI(state, transaction) {
+      state.riwayatTransaksi.push(transaction);
+    },
     SET_CART(state, cart) {
       state.cart = cart;
     },
@@ -240,6 +253,7 @@ export default createStore({
             user: order.user || user.Nama,
             timestamp: new Date(),
             address: order.address,
+            catatan: order.catatan,
           };
 
           await axios.post("http://localhost:3000/Transactions", transaction);
@@ -292,8 +306,47 @@ export default createStore({
       }
     },
 
-    async deleteTransactionAction({ commit }, transactionId) {
+    async deleteTransactionAction(
+      { commit, state },
+      { transactionId, description }
+    ) {
       try {
+        const transaction = state.transactions.find(
+          (t) => t.id === transactionId
+        );
+        if (transaction) {
+          transaction.description = description; // Add the description to the transaction
+          await axios.post(
+            "http://localhost:3000/RiwayatTransaksi",
+            transaction
+          );
+          commit("ADD_RIWAYAT_TRANSAKSI", transaction);
+        }
+        await axios.delete(
+          `http://localhost:3000/Transactions/${transactionId}`
+        );
+        commit("REMOVE_TRANSACTION", transactionId);
+      } catch (error) {
+        console.error("Error deleting transaction:", error);
+      }
+    },
+
+    async deleteTransactionsAction(
+      { commit, state },
+      { transactionId, descriptions }
+    ) {
+      try {
+        const transaction = state.transactions.find(
+          (t) => t.id === transactionId
+        );
+        if (transaction) {
+          transaction.descriptions = descriptions; // Add the description to the transaction
+          await axios.post(
+            "http://localhost:3000/RiwayatTransaksi",
+            transaction
+          );
+          commit("ADD_RIWAYAT_TRANSAKSI", transaction);
+        }
         await axios.delete(
           `http://localhost:3000/Transactions/${transactionId}`
         );
@@ -328,7 +381,7 @@ export default createStore({
       }
     },
 
-    async refundTransaction({ commit, state }, transaction) {
+    async refundTransaction({ commit, state }, { transaction, description }) {
       try {
         for (const item of transaction.items) {
           const product = state.products.find((p) => p.id === item.id);
@@ -342,6 +395,10 @@ export default createStore({
             });
           }
         }
+
+        transaction.description = description; // Add the description to the transaction
+        await axios.post("http://localhost:3000/RiwayatTransaksi", transaction);
+        commit("ADD_RIWAYAT_TRANSAKSI", transaction);
 
         await axios.delete(
           `http://localhost:3000/Transactions/${transaction.id}`

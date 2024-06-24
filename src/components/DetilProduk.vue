@@ -12,7 +12,7 @@
           <h1>{{ product.Nama }}</h1>
         </div>
         <div class="detail-item">
-          <p>Harga: {{ product.Harga }}</p>
+          <p>Harga: Rp {{ product.Harga }}</p>
         </div>
         <div class="detail-item">
           <p>Kategori: {{ product.Kategori }}</p>

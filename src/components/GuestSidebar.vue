@@ -3,7 +3,7 @@
     <div class="sidebar-heading">Aplikasi GBWT</div>
     <div class="list-group list-group-flush">
       <router-link
-        to="/Dashboard"
+        to="/GuestDashboard"
         class="list-group-item list-group-item-action bg-light"
         >Dashboard</router-link
       >
@@ -32,17 +32,17 @@
         class="list-group-item list-group-item-action bg-light"
         ><font-awesome-icon :icon="['fas', 'shopping-cart']"
       /></router-link>
-
       <button
         @click="goToLogin"
-        class="list-group-item list-group-item-action bg-light"
+        class="list-group-item list-group-item-action sidebar-width bg-light"
       >
         Login
       </button>
+
+      <router-link to="/Informasi" class="list-group-item bg-light infouser"
+        ><font-awesome-icon :icon="['fas', 'circle-info']" />
+      </router-link>
     </div>
-    <router-link to="/Informasi" class="list-group-item bg-light footer-info"
-      ><font-awesome-icon :icon="['fas', 'circle-info']" />
-    </router-link>
   </div>
 </template>
 
@@ -61,16 +61,11 @@ export default {
 
 <style scoped>
 #sidebar-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  width: 250px;
 }
-
-.list-group {
-  flex-grow: 1;
-  overflow-y: auto;
+.sidebar-width {
+  width: 240px;
 }
-
 .list-group-item-action {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -80,13 +75,7 @@ export default {
   color: white;
 }
 
-.sidebar-heading {
-  padding: 2rem 2rem;
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.footer-info {
-  margin-top: auto;
+.infouser {
+  padding-top: 200px;
 }
 </style>

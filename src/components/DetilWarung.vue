@@ -31,6 +31,7 @@
         <option value="priceAsc">Harga: Termurah ke Termahal</option>
         <option value="priceDesc">Harga: Termahal ke Termurah</option>
         <option value="availability">Ketersediaan</option>
+        <option value="mostPurchased">Paling Banyak Dibeli</option>
       </select>
     </div>
     <div class="products-container">
@@ -61,6 +62,7 @@
 <script>
 import UserHeader from "./UserHeader.vue";
 import axios from "axios";
+import { mapGetters } from "vuex";
 
 export default {
   components: {
@@ -73,6 +75,34 @@ export default {
       searchQuery: "",
       selectedSortOption: "",
     };
+  },
+  computed: {
+    ...mapGetters(["purchaseCounts"]),
+    filteredProducts() {
+      return this.products.filter((product) =>
+        product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
+      );
+    },
+    sortedAndFilteredProducts() {
+      let sortedProducts = [...this.filteredProducts];
+      if (this.selectedSortOption === "alphabetAsc") {
+        sortedProducts.sort((a, b) => a.Nama.localeCompare(b.Nama));
+      } else if (this.selectedSortOption === "alphabetDesc") {
+        sortedProducts.sort((a, b) => b.Nama.localeCompare(a.Nama));
+      } else if (this.selectedSortOption === "priceAsc") {
+        sortedProducts.sort((a, b) => a.Harga - b.Harga);
+      } else if (this.selectedSortOption === "priceDesc") {
+        sortedProducts.sort((a, b) => b.Harga - a.Harga);
+      } else if (this.selectedSortOption === "availability") {
+        sortedProducts.sort((a, b) => b.Stok - a.Stok);
+      } else if (this.selectedSortOption === "mostPurchased") {
+        sortedProducts.sort(
+          (a, b) =>
+            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
+        );
+      }
+      return sortedProducts;
+    },
   },
   methods: {
     async loadWarung() {
@@ -108,30 +138,9 @@ export default {
       window.open(whatsappUrl, "_blank");
     },
   },
-  computed: {
-    filteredProducts() {
-      return this.products.filter((product) =>
-        product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
-    },
-    sortedAndFilteredProducts() {
-      let sortedProducts = [...this.filteredProducts];
-      if (this.selectedSortOption === "alphabetAsc") {
-        sortedProducts.sort((a, b) => a.Nama.localeCompare(b.Nama));
-      } else if (this.selectedSortOption === "alphabetDesc") {
-        sortedProducts.sort((a, b) => b.Nama.localeCompare(a.Nama));
-      } else if (this.selectedSortOption === "priceAsc") {
-        sortedProducts.sort((a, b) => a.Harga - b.Harga);
-      } else if (this.selectedSortOption === "priceDesc") {
-        sortedProducts.sort((a, b) => b.Harga - a.Harga);
-      } else if (this.selectedSortOption === "availability") {
-        sortedProducts.sort((a, b) => b.Stok - a.Stok);
-      }
-      return sortedProducts;
-    },
-  },
-  mounted() {
-    this.loadWarung();
+  async mounted() {
+    await this.loadWarung();
+    this.$store.dispatch("fetchPurchaseCounts");
   },
 };
 </script>

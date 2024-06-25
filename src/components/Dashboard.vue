@@ -13,10 +13,36 @@
       <h3>{{ product.name }}</h3>
     </div>
   </div>
+
+  <h4 style="font-size: 50px">Produk Populer</h4>
+
+  <div class="products-container">
+    <div
+      class="card"
+      v-for="(product, index) in popularProducts"
+      :key="index"
+      @click="goToProductPage(product.id)"
+      style="width: 15rem; cursor: pointer; margin: 10px"
+    >
+      <div class="card-body">
+        <img
+          :src="product.imageUrl"
+          alt="Product Image"
+          style="width: 100%; height: auto"
+        />
+        <h5 class="card-title">{{ product.Nama }}</h5>
+        <p class="card-text">Harga: Rp {{ product.Harga }}</p>
+        <p class="card-text">
+          {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+        </p>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
 import UserHeader from "./UserHeader.vue";
+import { mapState } from "vuex";
 
 export default {
   components: {
@@ -40,6 +66,11 @@ export default {
       ],
     };
   },
+  computed: {
+    ...mapState({
+      popularProducts: (state) => state.popularProducts,
+    }),
+  },
   methods: {
     goToProductPage(productId) {
       if (productId === 1) {
@@ -53,10 +84,57 @@ export default {
       }
     },
   },
+
+  mounted() {
+    this.$store.dispatch("fetchPopularProducts");
+  },
 };
 </script>
 
 <style scoped>
+.products-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 20px;
+}
+.h4 {
+  font-size: 64px;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0;
+}
+.card {
+  border: 1px solid #ccc;
+  padding: 0;
+  margin: 10px;
+  width: 200px;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.card:hover {
+  box-shadow: 1px 1px 1px black;
+}
+
+.card-body {
+  padding: 10px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.card-text {
+  margin: 5px 0;
+}
+
+.card img {
+  width: 100%;
+  height: auto;
+}
 .product {
   border: 3px solid black;
   padding: 20px;

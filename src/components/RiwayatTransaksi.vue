@@ -12,7 +12,7 @@
           <th>Waktu Pesan</th>
           <th>Catatan</th>
           <th>Keterangan</th>
-          <th>Aksi</th>
+          <!---<th>Aksi</th>-->
         </tr>
       </thead>
       <tbody>
@@ -33,11 +33,7 @@
           <td>{{ new Date(transaction.timestamp).toLocaleString() }}</td>
           <td>{{ transaction.catatan }}</td>
           <td>{{ transaction.description || transaction.descriptions }}</td>
-          <td>
-            <button @click="deleteTransactionHistory(transaction.id)">
-              Hapus
-            </button>
-          </td>
+          <!---<td><button @click="deleteTransactionHistory(transaction.id)">Hapus</button></td> -->
         </tr>
       </tbody>
     </table>

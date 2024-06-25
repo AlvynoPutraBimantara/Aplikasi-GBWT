@@ -17,7 +17,7 @@ export default {
   methods: {
     guestSignIn() {
       localStorage.setItem("guest", "true");
-      this.$router.push({ name: "Dashboard" }).then(() => {
+      this.$router.push({ name: "GuestDashboard" }).then(() => {
         window.location.reload();
       });
     },

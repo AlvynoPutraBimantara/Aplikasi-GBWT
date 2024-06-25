@@ -6,7 +6,7 @@
     <router-link
       v-for="route in routes"
       :key="route.path"
-      :to="route.path"
+      :to="getRoutePath(route)"
       :class="{ active: isActive(route.path) }"
     >
       <font-awesome-icon
@@ -60,6 +60,14 @@ export default {
     },
     isActive(route) {
       return this.$route.path === route;
+    },
+    getRoutePath(route) {
+      const user = JSON.parse(localStorage.getItem("user-info"));
+      const isGuest = localStorage.getItem("guest") === "true";
+      if (route.name === "Dashboard") {
+        return isGuest || !user ? "/GuestDashboard" : "/Dashboard";
+      }
+      return route.path;
     },
   },
 };

@@ -250,8 +250,24 @@ app.get("/RiwayatTransaksi", (req, res) => {
 
 app.post("/RiwayatTransaksi", (req, res) => {
   const data = getData();
-  const newRiwayat = req.body;
-  data.RiwayatTransaksi.push(newRiwayat);
+  const newTransaction = req.body;
+  newTransaction.timestamp = new Date().toISOString(); // Add timestamp
+  data.RiwayatTransaksi.push(newTransaction);
   saveData(data);
-  res.status(201).json(newRiwayat);
+  res.status(201).json(newTransaction);
+});
+
+app.delete("/RiwayatTransaksi/:id", (req, res) => {
+  const data = getData();
+  const transactionId = req.params.id;
+  const transactionIndex = data.RiwayatTransaksi.findIndex(
+    (transaction) => transaction.id === transactionId
+  );
+  if (transactionIndex !== -1) {
+    data.RiwayatTransaksi.splice(transactionIndex, 1);
+    saveData(data);
+    res.status(204).send(); // No content
+  } else {
+    res.status(404).send("Transaction not found");
+  }
 });

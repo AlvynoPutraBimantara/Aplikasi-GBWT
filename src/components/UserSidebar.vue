@@ -61,8 +61,4 @@ export default {
   background-color: darkblue;
   color: white;
 }
-
-.infouser {
-  padding-top: 300px;
-}
 </style>

@@ -16,12 +16,13 @@
           v-model="selectedSortOption"
           @change="sortProducts"
         >
-          <option value="">Urutkan Berdasakan...</option>
+          <option value="">Urutkan Berdasarkan...</option>
           <option value="alphabetAsc">Alfabet: A ke Z</option>
           <option value="alphabetDesc">Alfabet: Z ke A</option>
           <option value="priceAsc">Harga: Termurah ke Termahal</option>
           <option value="priceDesc">Harga: Termahal ke Termurah</option>
           <option value="availability">Ketersediaan</option>
+          <option value="mostPurchased">Paling Banyak Dibeli</option>
         </select>
       </div>
       <div class="products-container">
@@ -39,7 +40,7 @@
               style="width: 100%; height: auto"
             />
             <h5 class="card-title">{{ product.Nama }}</h5>
-            <p class="card-text">{{ product.Harga }}</p>
+            <p class="card-text">Harga: Rp {{ product.Harga }}</p>
             <p class="card-text">
               {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
             </p>
@@ -53,6 +54,7 @@
 <script>
 import UserHeader from "./UserHeader.vue";
 import axios from "axios";
+import { mapGetters } from "vuex";
 
 export default {
   components: {
@@ -65,6 +67,34 @@ export default {
       searchQuery: "",
       selectedSortOption: "",
     };
+  },
+  computed: {
+    ...mapGetters(["purchaseCounts"]),
+    filteredProducts() {
+      return this.products.filter((product) =>
+        product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
+      );
+    },
+    sortedAndFilteredProducts() {
+      let sortedProducts = [...this.filteredProducts];
+      if (this.selectedSortOption === "alphabetAsc") {
+        sortedProducts.sort((a, b) => a.Nama.localeCompare(b.Nama));
+      } else if (this.selectedSortOption === "alphabetDesc") {
+        sortedProducts.sort((a, b) => b.Nama.localeCompare(a.Nama));
+      } else if (this.selectedSortOption === "priceAsc") {
+        sortedProducts.sort((a, b) => a.Harga - b.Harga);
+      } else if (this.selectedSortOption === "priceDesc") {
+        sortedProducts.sort((a, b) => b.Harga - a.Harga);
+      } else if (this.selectedSortOption === "availability") {
+        sortedProducts.sort((a, b) => b.Stok - a.Stok);
+      } else if (this.selectedSortOption === "mostPurchased") {
+        sortedProducts.sort(
+          (a, b) =>
+            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
+        );
+      }
+      return sortedProducts;
+    },
   },
   methods: {
     async loadCategory() {
@@ -95,30 +125,9 @@ export default {
       // Sorting is handled by computed property, so no need to do anything here
     },
   },
-  computed: {
-    filteredProducts() {
-      return this.products.filter((product) =>
-        product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
-    },
-    sortedAndFilteredProducts() {
-      let sortedProducts = [...this.filteredProducts];
-      if (this.selectedSortOption === "alphabetAsc") {
-        sortedProducts.sort((a, b) => a.Nama.localeCompare(b.Nama));
-      } else if (this.selectedSortOption === "alphabetDesc") {
-        sortedProducts.sort((a, b) => b.Nama.localeCompare(a.Nama));
-      } else if (this.selectedSortOption === "priceAsc") {
-        sortedProducts.sort((a, b) => a.Harga - b.Harga);
-      } else if (this.selectedSortOption === "priceDesc") {
-        sortedProducts.sort((a, b) => b.Harga - a.Harga);
-      } else if (this.selectedSortOption === "availability") {
-        sortedProducts.sort((a, b) => b.Stok - a.Stok);
-      }
-      return sortedProducts;
-    },
-  },
-  mounted() {
-    this.loadCategory();
+  async mounted() {
+    await this.loadCategory();
+    this.$store.dispatch("fetchPurchaseCounts");
   },
 };
 </script>

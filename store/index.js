@@ -8,8 +8,16 @@ export default createStore({
     products: [],
     transactions: [],
     riwayatTransaksi: [],
+    popularProducts: [],
+    purchaseCounts: {},
   },
   mutations: {
+    SET_PURCHASE_COUNTS(state, purchaseCounts) {
+      state.purchaseCounts = purchaseCounts;
+    },
+    SET_POPULAR_PRODUCTS(state, products) {
+      state.popularProducts = products;
+    },
     SET_RIWAYAT_TRANSAKSI(state, transactions) {
       state.riwayatTransaksi = transactions;
     },
@@ -18,7 +26,6 @@ export default createStore({
         (transaction) => transaction.id !== transactionId
       );
     },
-
     ADD_RIWAYAT_TRANSAKSI(state, transaction) {
       state.riwayatTransaksi.push(transaction);
     },
@@ -439,6 +446,68 @@ export default createStore({
         throw error;
       }
     },
+    async fetchPopularProducts({ commit }) {
+      try {
+        const response = await axios.get(
+          "http://localhost:3000/RiwayatTransaksi"
+        );
+        const transactions = response.data;
+
+        const productCounts = {};
+        transactions.forEach((transaction) => {
+          transaction.items.forEach((item) => {
+            if (!productCounts[item.id]) {
+              productCounts[item.id] = { ...item, count: 0 };
+            }
+            productCounts[item.id].count += 1;
+          });
+        });
+
+        const popularProducts = Object.values(productCounts).filter(
+          (product) => product.count >= 3
+        );
+
+        // Fetch full product details including imageUrl
+        const fullProductDetailsPromises = popularProducts.map(
+          async (product) => {
+            const productResponse = await axios.get(
+              `http://localhost:3000/DataProduk/${product.id}`
+            );
+            return productResponse.data;
+          }
+        );
+
+        const fullProductDetails = await Promise.all(
+          fullProductDetailsPromises
+        );
+
+        commit("SET_POPULAR_PRODUCTS", fullProductDetails);
+      } catch (error) {
+        console.error("Error fetching popular products:", error);
+      }
+    },
+    async fetchPurchaseCounts({ commit }) {
+      try {
+        const response = await axios.get(
+          "http://localhost:3000/RiwayatTransaksi"
+        );
+        const transactions = response.data;
+
+        const purchaseCounts = {};
+        transactions.forEach((transaction) => {
+          transaction.items.forEach((item) => {
+            if (!purchaseCounts[item.id]) {
+              purchaseCounts[item.id] = 0;
+            }
+            purchaseCounts[item.id] += item.quantity;
+          });
+        });
+
+        commit("SET_PURCHASE_COUNTS", purchaseCounts);
+      } catch (error) {
+        console.error("Error fetching purchase counts:", error);
+      }
+    },
   },
   getters: {
     cartTotalPrice: (state) => {
@@ -446,5 +515,6 @@ export default createStore({
         return total + item.price * item.quantity;
       }, 0);
     },
+    purchaseCounts: (state) => state.purchaseCounts,
   },
 });

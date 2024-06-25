@@ -31,6 +31,7 @@ import LandingPage from "./components/LandingPage.vue";
 import GuestSidebar from "./components/GuestSidebar.vue";
 import UserUpdateProduk from "./components/UserUpdateProduk.vue";
 import RiwayatTransaksi from "./components/RiwayatTransaksi.vue";
+import GuestDashboard from "./components/GuestDashboard.vue";
 
 const routes = [
   {
@@ -197,6 +198,11 @@ const routes = [
     name: "RiwayatTransaksi",
     component: RiwayatTransaksi,
     path: "/RiwayatTransaksi",
+  },
+  {
+    name: "GuestDashboard",
+    component: GuestDashboard,
+    path: "/GuestDashboard",
   },
 ];
 

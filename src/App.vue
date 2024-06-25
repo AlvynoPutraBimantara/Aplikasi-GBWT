@@ -3,13 +3,15 @@
     <!-- Sidebar -->
     <Sidebar v-if="isAdmin" @logout="logout" />
     <UserSidebar v-if="isUser" @logout="logout" />
-    <GuestSidebar v-if="isGuest && !isLoggedIn" @logout="logout" />
+    <GuestSidebar v-if="isGuest" @logout="logout" />
     <!-- /#sidebar-wrapper -->
 
     <!-- Page Content -->
     <div id="page-content-wrapper">
       <div class="container-fluid">
         <!-- Router view for dynamic content -->
+        <GuestHeader v-if="isGuest" />
+        <UserHeader v-if="isUser" />
         <router-view></router-view>
       </div>
     </div>

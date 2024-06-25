@@ -106,7 +106,7 @@
       "Kategori": "Sembako",
       "Keterangan": "marjan jeruk",
       "Pedagang": "Toko Wibowo",
-      "Stok": 5,
+      "Stok": 1,
       "imageUrl": "http://localhost:3001/images/1717383157357-marjan jeruk.jfif"
     },
     {
@@ -166,7 +166,7 @@
       "Kategori": "Minuman",
       "Keterangan": "Frestea jasmine 300ml",
       "Pedagang": "Tiga Putra",
-      "Stok": 10,
+      "Stok": 6,
       "imageUrl": "http://localhost:3001/images/1717384308896-frestea.png"
     },
     {
@@ -176,7 +176,7 @@
       "Kategori": "Sembako",
       "Keterangan": "Beras Pin pin 5 Kg",
       "Pedagang": "Toko Wibowo",
-      "Stok": 3,
+      "Stok": 2,
       "imageUrl": "http://localhost:3001/images/1717384377664-beras pin pin.png"
     },
     {
@@ -337,25 +337,109 @@
       "id": "385c"
     }
   ],
-  "Orders": [
-    {
-      "id": "1719223913040",
-      "items": [
-        {
-          "id": "266f",
-          "name": "Coca cola",
-          "pedagang": "Tiga Putra",
-          "price": 5000,
-          "quantity": 1,
-          "timestamp": "2024-06-24T10:11:53.040Z"
-        }
-      ],
-      "total": 5000,
-      "user": "Bimantara",
-      "address": "Sambiroto J 15"
-    }
-  ],
+  "Orders": [],
   "Cart": [],
   "Transactions": [],
-  "RiwayatTransaksi": []
+  "RiwayatTransaksi": [
+    {
+      "id": "1719289930273-Toko Wibowo",
+      "orderId": "1719289927542",
+      "items": [
+        {
+          "id": "f282",
+          "name": "Beras Pin pin",
+          "pedagang": "Toko Wibowo",
+          "price": 75000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T04:32:07.542Z"
+        }
+      ],
+      "total": 75000,
+      "user": "Bu Elvy",
+      "timestamp": "2024-06-25T04:32:10.273Z",
+      "address": "Sambiroto E30",
+      "catatan": "Kirim pagi",
+      "descriptions": "Kasbon"
+    },
+    {
+      "id": "1719291473578-Tiga Putra",
+      "orderId": "1719291470977",
+      "items": [
+        {
+          "id": "e92e",
+          "name": "Frestea",
+          "pedagang": "Tiga Putra",
+          "price": 4000,
+          "quantity": 4,
+          "timestamp": "2024-06-25T04:57:50.977Z"
+        }
+      ],
+      "total": 16000,
+      "user": "Bu Arifin",
+      "timestamp": "2024-06-25T04:57:53.578Z",
+      "address": "Sambirogo K11",
+      "catatan": "Kirim siang",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719291620255-Toko Wibowo",
+      "orderId": "1719291617349",
+      "items": [
+        {
+          "id": "9e4e",
+          "name": "Marjan",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T05:00:17.349Z"
+        }
+      ],
+      "total": 15000,
+      "user": "Alvyno",
+      "timestamp": "2024-06-25T05:00:20.255Z",
+      "address": "K 15",
+      "catatan": "Kirim siang",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719291664282-Toko Wibowo",
+      "orderId": "1719291661999",
+      "items": [
+        {
+          "id": "9e4e",
+          "name": "Marjan",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 2,
+          "timestamp": "2024-06-25T05:01:01.999Z"
+        }
+      ],
+      "total": 30000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-25T05:01:04.282Z",
+      "address": "Sambiroto J14",
+      "catatan": "Kirim Mahgrib",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719294936718-Toko Wibowo",
+      "orderId": "1719294934429",
+      "items": [
+        {
+          "id": "9e4e",
+          "name": "Marjan",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T05:55:34.429Z"
+        }
+      ],
+      "total": 15000,
+      "user": "bima",
+      "timestamp": "2024-06-25T05:55:36.718Z",
+      "address": "J 17",
+      "catatan": "Kirim pagi",
+      "description": "Pesanan Diterima"
+    }
+  ]
 }

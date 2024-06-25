@@ -16,6 +16,7 @@
         <option value="priceAsc">Harga: Termurah ke Termahal</option>
         <option value="priceDesc">Harga: Termahal ke Termurah</option>
         <option value="availability">Ketersediaan</option>
+        <option value="mostPurchased">Paling Banyak Dibeli</option>
       </select>
     </div>
 
@@ -47,6 +48,7 @@
 <script>
 import UserHeader from "./UserHeader.vue";
 import axios from "axios";
+import { mapGetters } from "vuex";
 
 export default {
   components: {
@@ -59,23 +61,8 @@ export default {
       selectedSortOption: "",
     };
   },
-  methods: {
-    goToProductPage(productId) {
-      this.$router.push({ name: "DetilProduk", params: { id: productId } });
-    },
-    async loadProducts() {
-      try {
-        const response = await axios.get("http://localhost:3000/DataProduk");
-        this.products = response.data;
-      } catch (error) {
-        console.error("Error loading products:", error);
-      }
-    },
-    sortProducts() {
-      // Sorting is handled by computed property, so no need to do anything here
-    },
-  },
   computed: {
+    ...mapGetters(["purchaseCounts"]),
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -93,12 +80,34 @@ export default {
         sortedProducts.sort((a, b) => b.Harga - a.Harga);
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
+      } else if (this.selectedSortOption === "mostPurchased") {
+        sortedProducts.sort(
+          (a, b) =>
+            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
+        );
       }
       return sortedProducts;
     },
   },
-  mounted() {
-    this.loadProducts();
+  methods: {
+    goToProductPage(productId) {
+      this.$router.push({ name: "DetilProduk", params: { id: productId } });
+    },
+    async loadProducts() {
+      try {
+        const response = await axios.get("http://localhost:3000/DataProduk");
+        this.products = response.data;
+      } catch (error) {
+        console.error("Error loading products:", error);
+      }
+    },
+    sortProducts() {
+      // Sorting is handled by computed property, so no need to do anything here
+    },
+  },
+  async mounted() {
+    await this.loadProducts();
+    this.$store.dispatch("fetchPurchaseCounts");
   },
 };
 </script>

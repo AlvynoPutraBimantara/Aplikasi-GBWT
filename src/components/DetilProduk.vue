@@ -12,7 +12,7 @@
           <h1>{{ product.Nama }}</h1>
         </div>
         <div class="detail-item">
-          <p>Harga: Rp {{ product.Harga }}</p>
+          <p>Harga: {{ formatPrice(product.Harga) }}</p>
         </div>
         <div class="detail-item">
           <p>Kategori: {{ product.Kategori }}</p>
@@ -74,10 +74,13 @@ export default {
         `http://localhost:3000/DataProduk/${productId}`
       );
       this.product = response.data;
+      // Ensure Harga is a number
+      this.product.Harga = parseFloat(this.product.Harga);
     } catch (error) {
       console.error("Error loading product details:", error);
     }
   },
+
   methods: {
     async addToCart() {
       if (
@@ -107,6 +110,12 @@ export default {
       } else {
         alert("Invalid quantity selected");
       }
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
     },
   },
 };

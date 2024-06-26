@@ -6,6 +6,7 @@
       <thead>
         <tr>
           <th>ID</th>
+          <th>Total</th>
           <th>Pemesan</th>
           <th>Alamat</th>
           <th>Produk</th>
@@ -21,12 +22,15 @@
           :key="transaction.id"
         >
           <td>{{ transaction.id }}</td>
+          <td>{{ formatPrice(transaction.total) }}</td>
           <td>{{ transaction.user }}</td>
           <td>{{ transaction.address || getUserAddress(transaction.user) }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
-                {{ item.name }} - ({{ item.quantity }})
+                {{ item.name }}<br />
+                - {{ item.quantity }}<br />
+                - ({{ formatPrice(item.price) }})
               </li>
             </ul>
           </td>
@@ -69,6 +73,12 @@ export default {
     this.fetchRiwayatTransaksi();
   },
   methods: {
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
+    },
     fetchUserData() {
       axios
         .get("http://localhost:3000/User")

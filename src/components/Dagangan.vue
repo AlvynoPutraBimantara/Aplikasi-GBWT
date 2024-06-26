@@ -19,7 +19,7 @@
             style="width: 100%; height: auto"
           />
           <h5 class="card-title">{{ product.Nama }}</h5>
-          <p class="card-text">Harga: {{ product.Harga }}</p>
+          <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
           <p class="card-text">Kategori: {{ product.Kategori }}</p>
           <p class="card-text">Keterangan: {{ product.Keterangan }}</p>
           <p class="card-text">Stok: {{ product.Stok }}</p>
@@ -65,7 +65,16 @@ export default {
       }
     },
     goToProductPage(productId) {
-      this.$router.push({ name: "UserUpdateProduk", params: { id: productId } });
+      this.$router.push({
+        name: "UserUpdateProduk",
+        params: { id: productId },
+      });
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
     },
   },
   computed: {

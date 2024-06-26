@@ -1,6 +1,8 @@
 <template>
   <div>
-    <UserHeader />
+    <GuestHeader />
+  </div>
+  <div>
     <div
       class="product"
       v-for="(product, index) in products"
@@ -38,49 +40,32 @@
       </div>
     </div>
   </div>
-
-  <h6 style="font-size: 50px">Produk yang anda beli sebelumnya</h6>
-  <div class="products-container">
-    <div
-      class="card"
-      v-for="(product, index) in previousProducts"
-      :key="index"
-      @click="goToProductPage(product.id)"
-      style="width: 15rem; cursor: pointer; margin: 10px"
-    >
-      <div class="card-body">
-        <img
-          :src="product.imageUrl"
-          alt="Product Image"
-          style="width: 100%; height: auto"
-        />
-        <h5 class="card-title">{{ product.Nama }}</h5>
-        <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
-        <p class="card-text">
-          {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
-        </p>
-      </div>
-    </div>
-  </div>
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
+import GuestHeader from "./GuestHeader.vue";
 import { mapState } from "vuex";
-import axios from "axios";
 
 export default {
   components: {
-    UserHeader,
+    GuestHeader,
   },
   data() {
     return {
       products: [
-        { id: 1, name: "WARUNG" },
-        { id: 2, name: "PRODUK" },
-        { id: 3, name: "KATEGORI" },
+        {
+          id: 1,
+          name: "WARUNG",
+        },
+        {
+          id: 2,
+          name: "PRODUK",
+        },
+        {
+          id: 3,
+          name: "KATEGORI",
+        },
       ],
-      previousProducts: [],
     };
   },
   computed: {
@@ -100,33 +85,6 @@ export default {
         console.log(`Navigating to product page with ID: ${productId}`);
       }
     },
-    async fetchPreviousProducts() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      if (user && user.Nama) {
-        try {
-          const response = await axios.get(
-            "http://localhost:3000/RiwayatTransaksi"
-          );
-          const transactions = response.data.filter(
-            (transaction) => transaction.user === user.Nama
-          );
-          const productIds = [
-            ...new Set(
-              transactions.flatMap((transaction) =>
-                transaction.items.map((item) => item.id)
-              )
-            ),
-          ];
-          const productPromises = productIds.map((id) =>
-            axios.get(`http://localhost:3000/DataProduk/${id}`)
-          );
-          const products = await Promise.all(productPromises);
-          this.previousProducts = products.map((response) => response.data);
-        } catch (error) {
-          console.error("Error fetching previous products:", error);
-        }
-      }
-    },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -134,9 +92,9 @@ export default {
       }).format(value);
     },
   },
+
   mounted() {
     this.$store.dispatch("fetchPopularProducts");
-    this.fetchPreviousProducts();
   },
 };
 </script>

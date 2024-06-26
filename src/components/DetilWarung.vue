@@ -49,7 +49,7 @@
             style="width: 100%; height: auto"
           />
           <h5 class="card-title">{{ product.Nama }}</h5>
-          <p class="card-text">Harga: Rp {{ product.Harga }}</p>
+          <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
           <p class="card-text">
             {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
           </p>
@@ -136,6 +136,12 @@ export default {
     goToWhatsApp() {
       const whatsappUrl = `https://wa.me/${this.warung.Telp}`;
       window.open(whatsappUrl, "_blank");
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
     },
   },
   async mounted() {

@@ -6,6 +6,7 @@
       <thead>
         <tr>
           <th>ID</th>
+          <th>Total</th>
           <th>Pemesan</th>
           <th>Alamat</th>
           <th>Produk</th>
@@ -17,18 +18,20 @@
       <tbody>
         <tr v-for="transaction in filteredTransactions" :key="transaction.id">
           <td>{{ transaction.id }}</td>
+          <td>{{ formatPrice(transaction.total) }}</td>
           <td>{{ transaction.user }}</td>
           <td>{{ transaction.address || getUserAddress(transaction.user) }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
-                {{ item.name }} - {{ item.pedagang }} ({{ item.quantity }})
-                <button @click="deleteTransactionItem(transaction.id, item.id)">
+                {{ item.name }} <br />- {{ formatPrice(item.price) }}<br />
+                - ({{ item.quantity }})
+                <!---<button @click="deleteTransactionItem(transaction.id, item.id)">
                   Hapus Item
                 </button>
                 <button @click="refundTransactionItem(transaction, item)">
                   Kembalikan Item
-                </button>
+                </button>-->
               </li>
             </ul>
           </td>
@@ -86,6 +89,12 @@ export default {
       "refundTransaction",
       "refundTransactionItemAction",
     ]),
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
+    },
     fetchUserData() {
       axios
         .get("http://localhost:3000/User")

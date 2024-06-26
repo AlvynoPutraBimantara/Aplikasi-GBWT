@@ -1,3 +1,4 @@
+// Cart.vue
 <template>
   <div>
     <UserHeader />
@@ -18,7 +19,7 @@
           <tr v-for="item in cart" :key="item.id">
             <td>{{ item.pedagang }}</td>
             <td>{{ item.name }}</td>
-            <td>{{ item.price }}</td>
+            <td>{{ formatPrice(item.price) }}</td>
             <td>
               <input
                 type="number"
@@ -28,7 +29,7 @@
                 :max="getProductStock(item.id)"
               />
             </td>
-            <td>{{ item.price * item.quantity }}</td>
+            <td>{{ formatPrice(item.price * item.quantity) }}</td>
             <td>
               <button @click="removeFromCart(item.id)">Hapus</button>
             </td>
@@ -39,7 +40,7 @@
         <label for="catatan">Catatan:</label>
         <textarea id="catatan" v-model="catatan"></textarea>
       </div>
-      <p>Total: {{ cartTotalPrice }}</p>
+      <p>Total: {{ formatPrice(cartTotalPrice) }}</p>
       <button @click="checkout">Checkout</button>
     </div>
     <div v-else>
@@ -124,6 +125,12 @@ export default {
         (product) => product.id === productId
       );
       return product ? product.Stok : 0;
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
     },
   },
   async mounted() {

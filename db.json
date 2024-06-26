@@ -116,7 +116,7 @@
       "Kategori": "Pakaian",
       "Keterangan": "Sepatu Kicker Model 458 Ukuran 41",
       "Pedagang": "Butik Singgih",
-      "Stok": 7,
+      "Stok": 6,
       "imageUrl": "http://localhost:3001/images/1717383194991-sepatu kicker.jpg"
     },
     {
@@ -136,7 +136,7 @@
       "Kategori": "Minuman",
       "Keterangan": "Teh Pucuk Harum 400ml",
       "Pedagang": "Tiga Putra",
-      "Stok": "48",
+      "Stok": 33,
       "imageUrl": "http://localhost:3001/images/1717383258924-teh pucuk.webp"
     },
     {
@@ -146,7 +146,7 @@
       "Kategori": "Minuman",
       "Keterangan": "Coca cola 300ml",
       "Pedagang": "Tiga Putra",
-      "Stok": 15,
+      "Stok": 2,
       "imageUrl": "http://localhost:3001/images/1717383269765-coca cola.png"
     },
     {
@@ -156,7 +156,7 @@
       "Kategori": "Minuman",
       "Keterangan": "Sprite 300ml",
       "Pedagang": "Tiga Putra",
-      "Stok": 9,
+      "Stok": 8,
       "imageUrl": "http://localhost:3001/images/1717383279203-sprite.jpg"
     },
     {
@@ -196,7 +196,7 @@
       "Kategori": "Sembako",
       "Keterangan": "Minyak Kita 1 Liter",
       "Pedagang": "Toko Wibowo",
-      "Stok": 8,
+      "Stok": 4,
       "imageUrl": "http://localhost:3001/images/1717382114245-minyak.webp"
     },
     {
@@ -226,7 +226,7 @@
       "Kategori": "Pakaian",
       "Keterangan": "Sarung Wadimor Model 100 ",
       "Pedagang": "Butik Singgih",
-      "Stok": 10,
+      "Stok": 9,
       "imageUrl": "http://localhost:3001/images/1717384236328-wadimor.png"
     },
     {
@@ -339,7 +339,54 @@
   ],
   "Orders": [],
   "Cart": [],
-  "Transactions": [],
+  "Transactions": [
+    {
+      "id": "1719332699484-Butik Singgih",
+      "orderId": "1719330507548",
+      "items": [
+        {
+          "id": "3530",
+          "name": "Sepatu Kicker",
+          "pedagang": "Butik Singgih",
+          "price": 150000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T15:48:27.548Z"
+        }
+      ],
+      "total": 150000,
+      "user": "Bu Arifin",
+      "timestamp": "2024-06-25T16:24:59.484Z",
+      "address": "Sambirogo K11",
+      "catatan": ""
+    },
+    {
+      "id": "1719373780436-Tiga Putra",
+      "orderId": "1719337350448",
+      "items": [
+        {
+          "id": "0b77",
+          "name": "Sprite",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T17:42:30.448Z"
+        },
+        {
+          "id": "266f",
+          "name": "Coca cola",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T17:42:30.448Z"
+        }
+      ],
+      "total": 10000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-26T03:49:40.436Z",
+      "address": "Sambiroto J14",
+      "catatan": "kirim siang"
+    }
+  ],
   "RiwayatTransaksi": [
     {
       "id": "1719289930273-Toko Wibowo",
@@ -358,7 +405,7 @@
       "user": "Bu Elvy",
       "timestamp": "2024-06-25T04:32:10.273Z",
       "address": "Sambiroto E30",
-      "catatan": "Kirim pagi",
+      "catatan": "Kirim besok pagi",
       "descriptions": "Kasbon"
     },
     {
@@ -378,7 +425,7 @@
       "user": "Bu Arifin",
       "timestamp": "2024-06-25T04:57:53.578Z",
       "address": "Sambirogo K11",
-      "catatan": "Kirim siang",
+      "catatan": "Kirim nanti siang habis dhuhur",
       "description": "Pesanan Diterima"
     },
     {
@@ -398,8 +445,8 @@
       "user": "Alvyno",
       "timestamp": "2024-06-25T05:00:20.255Z",
       "address": "K 15",
-      "catatan": "Kirim siang",
-      "description": "Pesanan Diterima"
+      "catatan": "Kirim nanti siang habis dhuhur ",
+      "description": "Kasbon"
     },
     {
       "id": "1719291664282-Toko Wibowo",
@@ -418,7 +465,7 @@
       "user": "Bu Singgih",
       "timestamp": "2024-06-25T05:01:04.282Z",
       "address": "Sambiroto J14",
-      "catatan": "Kirim Mahgrib",
+      "catatan": "Kirim nanti habis Mahgrib",
       "description": "Pesanan Diterima"
     },
     {
@@ -438,7 +485,175 @@
       "user": "bima",
       "timestamp": "2024-06-25T05:55:36.718Z",
       "address": "J 17",
-      "catatan": "Kirim pagi",
+      "catatan": "Kirim besok pagi",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719336098995-Butik Singgih",
+      "orderId": "1719332843182",
+      "items": [
+        {
+          "id": "53ad",
+          "name": "Sarung Wadimor",
+          "pedagang": "Butik Singgih",
+          "price": 200000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T16:27:23.182Z"
+        }
+      ],
+      "total": 200000,
+      "user": "Bu Arifin",
+      "timestamp": "2024-06-25T17:21:38.995Z",
+      "address": "Sambirogo K11",
+      "catatan": "Kirim nanti habis isya",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719373779045-Toko Wibowo",
+      "orderId": "1719373769837",
+      "items": [
+        {
+          "id": "18ec",
+          "name": "Minyak Kita",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 2,
+          "timestamp": "2024-06-26T03:49:29.837Z"
+        }
+      ],
+      "total": 30000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-26T03:49:39.045Z",
+      "address": "Sambiroto J14",
+      "catatan": "Kirim nanti jam 7 malam",
+      "descriptions": "Kasbon"
+    },
+    {
+      "id": "1719336097615-Tiga Putra",
+      "orderId": "1719336088936",
+      "items": [
+        {
+          "id": "266f",
+          "name": "Coca cola",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 12,
+          "timestamp": "2024-06-25T17:21:28.936Z"
+        }
+      ],
+      "total": 60000,
+      "user": "Bu Arifin",
+      "timestamp": "2024-06-25T17:21:37.615Z",
+      "address": "Sambirogo K11",
+      "catatan": "Kirim besok pagi",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719373780436-Tiga Putra",
+      "orderId": "1719337350448",
+      "items": [
+        {
+          "id": "0b77",
+          "name": "Sprite",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T17:42:30.448Z"
+        },
+        {
+          "id": "266f",
+          "name": "Coca cola",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 1,
+          "timestamp": "2024-06-25T17:42:30.448Z"
+        }
+      ],
+      "total": 10000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-26T03:49:40.436Z",
+      "address": "Sambiroto J14",
+      "catatan": "kirim besok sabtu siang",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719373815473-Tiga Putra",
+      "orderId": "1719373813479",
+      "items": [
+        {
+          "id": "0ce7",
+          "name": "Teh Pucuk",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 5,
+          "timestamp": "2024-06-26T03:50:13.479Z"
+        }
+      ],
+      "total": 25000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-26T03:50:15.473Z",
+      "address": "Sambiroto J14",
+      "catatan": "Kirim besok sabtu pagi",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719374009626-Tiga Putra",
+      "orderId": "1719374003342",
+      "items": [
+        {
+          "id": "0ce7",
+          "name": "Teh Pucuk",
+          "pedagang": "Tiga Putra",
+          "price": 5000,
+          "quantity": 10,
+          "timestamp": "2024-06-26T03:53:23.343Z"
+        }
+      ],
+      "total": 50000,
+      "user": "Bu Arifin",
+      "timestamp": "2024-06-26T03:53:29.626Z",
+      "address": "Sambirogo K11",
+      "catatan": "Kirim besok Jum'at pagi",
+      "descriptions": "Kasbon"
+    },
+    {
+      "id": "1719374083249-Toko Wibowo",
+      "orderId": "1719374072757",
+      "items": [
+        {
+          "id": "18ec",
+          "name": "Minyak Kita",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 1,
+          "timestamp": "2024-06-26T03:54:32.757Z"
+        }
+      ],
+      "total": 15000,
+      "user": "Bu Elvy",
+      "timestamp": "2024-06-26T03:54:43.249Z",
+      "address": "Sambiroto E30",
+      "catatan": "Kirim nanti siang ",
+      "description": "Pesanan Diterima"
+    },
+    {
+      "id": "1719374169739-Toko Wibowo",
+      "orderId": "1719374166584",
+      "items": [
+        {
+          "id": "18ec",
+          "name": "Minyak Kita",
+          "pedagang": "Toko Wibowo",
+          "price": 15000,
+          "quantity": 1,
+          "timestamp": "2024-06-26T03:56:06.584Z"
+        }
+      ],
+      "total": 15000,
+      "user": "Bu Singgih",
+      "timestamp": "2024-06-26T03:56:09.739Z",
+      "address": "Sambiroto J14",
+      "catatan": "Kirim nani habis mahgrib",
       "description": "Pesanan Diterima"
     }
   ]

@@ -1,3 +1,4 @@
+// Orders.vue
 <template>
   <div>
     <UserHeader />
@@ -25,12 +26,11 @@
               <ul>
                 <li v-for="item in order.items" :key="item.id">
                   {{ item.name }} - {{ item.quantity }} <br />
-                  Pedagang: {{ item.pedagang }} <br />
-                  ID: {{ item.id }}
+                  - ({{ formatPrice(item.price) }})
                 </li>
               </ul>
             </td>
-            <td>{{ order.total }}</td>
+            <td>{{ formatPrice(order.total) }}</td>
             <td>
               <ul>
                 <li v-for="item in order.items" :key="item.id">
@@ -90,10 +90,7 @@ export default {
         });
     },
     getUserAddress(userName) {
-      return this.userData[userName] || "Unknown Address";
-    },
-    async deleteOrder(orderId) {
-      await this.$store.dispatch("deleteOrder", orderId.toString());
+      return this.userData[userName] || "Alamat tidak ditemukan";
     },
     async acceptOrder(order) {
       let user = JSON.parse(localStorage.getItem("user-info")) || {
@@ -104,6 +101,15 @@ export default {
       }
       order.user = user.Nama;
       await this.$store.dispatch("acceptOrder", order);
+    },
+    deleteOrder(orderId) {
+      this.$store.dispatch("deleteOrder", orderId);
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
     },
   },
 };

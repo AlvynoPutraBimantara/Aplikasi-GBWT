@@ -1,7 +1,7 @@
 <template>
-  <div class="nav">
-    <button class="btn btn-primary" id="menu-toggle">
-      <font-awesome-icon :icon="['fas', 'home']" />
+  <nav class="nav">
+    <button class="bg-light btn-primary" @click="toggleMenu" id="menu-toggle">
+      Menu
     </button>
     <router-link
       v-for="route in routes"
@@ -19,18 +19,15 @@
       />
       <span v-else>{{ route.name }}</span>
     </router-link>
-    <a v-on:click="logout" href="#">Logout</a>
-  </div>
+    <a @click.prevent="logout" class="logout-btn" href="#">Logout</a>
+  </nav>
 </template>
 
 <script>
-import $ from "jquery";
-
 export default {
   name: "UserHeader",
   data() {
     return {
-      userId: null,
       routes: [
         { name: "Dashboard", path: "/Dashboard" },
         { name: "Warung", path: "/Warung" },
@@ -41,17 +38,18 @@ export default {
       ],
     };
   },
-  mounted() {
-    const user = JSON.parse(localStorage.getItem("user-info"));
-    if (user) {
-      this.userId = user.id;
-    }
-    $("#menu-toggle").click(function (e) {
-      e.preventDefault();
-      $("#wrapper").toggleClass("toggled");
-    });
+  computed: {
+    user() {
+      return JSON.parse(localStorage.getItem("user-info"));
+    },
+    isGuest() {
+      return localStorage.getItem("guest") === "true";
+    },
   },
   methods: {
+    toggleMenu() {
+      document.getElementById("wrapper").classList.toggle("toggled");
+    },
     logout() {
       localStorage.clear();
       this.$router.push({ name: "LandingPage" }).then(() => {
@@ -62,10 +60,8 @@ export default {
       return this.$route.path === route;
     },
     getRoutePath(route) {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      const isGuest = localStorage.getItem("guest") === "true";
       if (route.name === "Dashboard") {
-        return isGuest || !user ? "/GuestDashboard" : "/Dashboard";
+        return this.isGuest || !this.user ? "/GuestDashboard" : "/Dashboard";
       }
       return route.path;
     },
@@ -73,29 +69,48 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .nav {
   background-color: darkblue;
-  overflow: hidden;
   display: flex;
   align-items: center;
-  padding: 0;
-  margin: 0;
-  width: 100vw;
+  padding: 1vh 10px;
+  gap: 1vh;
+  box-sizing: border-box;
+  width: 100%;
 }
+
 .nav a,
 .nav button {
   color: aliceblue;
-  padding: 20px;
+  padding: 10px 15px;
   text-align: center;
-  font-size: 19px;
+  font-size: 15px;
+  border-radius: 5px;
   text-decoration: none;
-  margin-right: 5px;
 }
+
 .nav a:hover,
 .nav button:hover,
 .nav a.active {
   background: #ddd;
   color: #333;
+}
+
+.logout-btn {
+  background-color: red;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  font-size: 15px;
+  border-radius: 5px;
+  text-decoration: none;
+  margin-left: auto;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: darkred;
+  color: white;
 }
 </style>

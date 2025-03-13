@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <div class="category-details">
       <h1>{{ categoryName }}</h1>
       <div class="top-container">
@@ -52,14 +51,10 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 import { mapGetters } from "vuex";
 
 export default {
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       categoryName: "",
@@ -100,20 +95,25 @@ export default {
     async loadCategory() {
       const categoryId = this.$route.params.id;
       try {
-        const response = await axios.get("http://localhost:3000/DataKategori");
+        const response = await axios.get("http://localhost:3006/categories");
         const category = response.data.find((cat) => cat.id === categoryId);
-        this.categoryName = category ? category.Kategori : "";
-        this.loadProducts(category ? category.Kategori : "");
+        this.categoryName = category ? category.category : "";
+        this.loadProducts(category ? category.category : "");
       } catch (error) {
         console.error("Error loading category details:", error);
       }
     },
     async loadProducts(categoryName) {
       try {
-        const response = await axios.get("http://localhost:3000/DataProduk");
-        this.products = response.data.filter(
-          (product) => product.Kategori === categoryName
-        );
+        const response = await axios.get("http://localhost:3002/products");
+        this.products = response.data
+          .filter((product) => product.Kategori === categoryName)
+          .map((product) => ({
+            ...product,
+            imageUrl: product.imageUrl
+              ? `http://localhost:3002${product.imageUrl}`
+              : "default-image.jpg", // Placeholder image if none provided
+          }));
       } catch (error) {
         console.error("Error loading products:", error);
       }
@@ -180,35 +180,21 @@ export default {
   padding: 20px;
 }
 
-.card {
-  border: 1px solid #ccc;
-  padding: 0;
-  margin: 10px;
-  width: 200px;
-  display: inline-block;
-  cursor: pointer;
-}
-
 .card:hover {
   box-shadow: 1px 1px 1px black;
 }
 
 .card-body {
-  padding: 10px;
+  padding: 20px;
 }
 
 .card-title {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: bold;
   margin: 0;
 }
 
 .card-text {
   margin: 5px 0;
-}
-
-.card img {
-  width: 100%;
-  height: auto;
 }
 </style>

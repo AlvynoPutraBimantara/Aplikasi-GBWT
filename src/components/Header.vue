@@ -1,6 +1,6 @@
 <template>
   <nav class="nav">
-    <button class="btn btn-primary" @click="toggleMenu" id="menu-toggle">
+    <button class="bg-light btn-primary" @click="toggleMenu" id="menu-toggle">
       Menu
     </button>
     <router-link
@@ -24,7 +24,7 @@
     >
       Data Kategori
     </router-link>
-    <a @click.prevent="logout" href="#">Logout</a>
+    <a @click.prevent="logout" class="logout-btn" href="#">Logout</a>
   </nav>
 </template>
 
@@ -57,22 +57,22 @@ export default {
 <style scoped>
 .nav {
   background-color: darkblue;
-  overflow: hidden;
   display: flex;
   align-items: center;
-  padding: 0;
-  margin: 0;
-  width: 100vw; /* Set width to full viewport width */
+  padding: 1vh 10px;
+  gap: 1vh;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .nav a,
 .nav button {
   color: aliceblue;
-  padding: 20px;
+  padding: 10px 15px;
   text-align: center;
-  font-size: 19px;
+  font-size: 15px;
+  border-radius: 5px;
   text-decoration: none;
-  margin-right: 5px;
 }
 
 .nav a:hover,
@@ -80,5 +80,22 @@ export default {
 .nav a.active {
   background: #ddd;
   color: #333;
+}
+
+.logout-btn {
+  background-color: red;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  font-size: 15px;
+  border-radius: 5px;
+  text-decoration: none;
+  margin-left: auto;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: darkred;
+  color: white;
 }
 </style>

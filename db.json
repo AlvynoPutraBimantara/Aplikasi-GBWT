@@ -2,10 +2,10 @@
   "User": [
     {
       "NamaWarung": "",
-      "Nama": "asd",
+      "Nama": "dsa",
       "Telp": "6287857909820",
       "Alamat": "",
-      "Password": "asd",
+      "Password": "dsa",
       "id": "4e50",
       "role": "admin"
     },
@@ -14,18 +14,18 @@
       "Nama": "Bu Arifin",
       "Telp": "6285755783882",
       "Alamat": "Sambirogo K11",
-      "Password": "aaa",
+      "Password": "sss",
       "id": "1058",
-      "imageUrl": "http://localhost:3001/images/1717433599609-wibowo.PNG"
+      "imageUrl": "http://localhost:3000/images/1717433599609-wibowo.PNG"
     },
     {
       "NamaWarung": "Tiga Putra",
       "Nama": "Bu Elvy",
       "Telp": "6287857909824",
       "Alamat": "Sambiroto E30",
-      "Password": "aaa",
+      "Password": "sss",
       "id": "16d3",
-      "imageUrl": "http://localhost:3001/images/1717398615303-Tiga Putra.PNG"
+      "imageUrl": "http://localhost:3000/images/1717398615303-Tiga Putra.PNG"
     },
     {
       "NamaWarung": "Butik Singgih",
@@ -34,7 +34,7 @@
       "Alamat": "Sambiroto J14",
       "Password": "aaa",
       "id": "e91d",
-      "imageUrl": "http://localhost:3001/images/1717398627913-Bu Singgih.PNG"
+      "imageUrl": "http://localhost:3000/images/1717398627913-Bu Singgih.PNG"
     },
     {
       "NamaWarung": "Ayam Chau Chii",
@@ -43,7 +43,7 @@
       "Alamat": "Sambiroto 5",
       "Password": "aaa",
       "id": "dd1b",
-      "imageUrl": "http://localhost:3001/images/1717398638934-Chiau Chi.PNG"
+      "imageUrl": "http://localhost:3000/images/1717398638934-Chiau Chi.PNG"
     },
     {
       "NamaWarung": "Warung Bu Win",
@@ -52,7 +52,7 @@
       "Alamat": "Sambiroto IX 10",
       "Password": "aaa",
       "id": "050f",
-      "imageUrl": "http://localhost:3001/images/1717398649380-Bu Win.PNG"
+      "imageUrl": "http://localhost:3000/images/1717398649380-Bu Win.PNG"
     },
     {
       "NamaWarung": "Butik Wong Ayu",
@@ -61,7 +61,7 @@
       "Alamat": "Sambiroto N8",
       "Password": "aaa",
       "id": "b6fc",
-      "imageUrl": "http://localhost:3001/images/1717398659344-Butik wong ayu.PNG"
+      "imageUrl": "http://localhost:3000/images/1717398659344-Butik wong ayu.PNG"
     },
     {
       "id": "00ee",
@@ -71,7 +71,7 @@
       "Password": "aaa",
       "role": "user",
       "NamaWarung": "Bimantara Store",
-      "imageUrl": "http://localhost:3001/images/1719220918032-rsz_220220611_110939.jpg"
+      "imageUrl": "http://localhost:3000/images/1719220918032-rsz_220220611_110939.jpg"
     }
   ],
   "DataWarung": [
@@ -97,7 +97,7 @@
       "Keterangan": "Gulaku Hijau 1Kg",
       "Pedagang": "Toko Wibowo",
       "Stok": 5,
-      "imageUrl": "http://localhost:3001/images/1717382160987-gulaku.png"
+      "imageUrl": "http://localhost:3000/images/1717382160987-gulaku.png"
     },
     {
       "id": "9e4e",
@@ -106,8 +106,8 @@
       "Kategori": "Sembako",
       "Keterangan": "marjan jeruk",
       "Pedagang": "Toko Wibowo",
-      "Stok": 1,
-      "imageUrl": "http://localhost:3001/images/1717383157357-marjan jeruk.jfif"
+      "Stok": "10",
+      "imageUrl": "http://localhost:3000/images/1717383157357-marjan jeruk.jfif"
     },
     {
       "id": "3530",
@@ -117,7 +117,7 @@
       "Keterangan": "Sepatu Kicker Model 458 Ukuran 41",
       "Pedagang": "Butik Singgih",
       "Stok": 6,
-      "imageUrl": "http://localhost:3001/images/1717383194991-sepatu kicker.jpg"
+      "imageUrl": "http://localhost:3000/images/1717383194991-sepatu kicker.jpg"
     },
     {
       "id": "5c36",
@@ -127,7 +127,7 @@
       "Keterangan": "Ayam geprek pedas ",
       "Pedagang": "Ayam Chau Chii",
       "Stok": "20",
-      "imageUrl": "http://localhost:3001/images/1717383246016-ayam geprek.png"
+      "imageUrl": "http://localhost:3000/images/1717383246016-ayam geprek.png"
     },
     {
       "id": "0ce7",
@@ -137,17 +137,17 @@
       "Keterangan": "Teh Pucuk Harum 400ml",
       "Pedagang": "Tiga Putra",
       "Stok": 33,
-      "imageUrl": "http://localhost:3001/images/1717383258924-teh pucuk.webp"
+      "imageUrl": "http://localhost:3000/images/1717383258924-teh pucuk.webp"
     },
     {
       "id": "266f",
       "Nama": "Coca cola",
-      "Harga": "5000",
+      "Harga": "10000",
       "Kategori": "Minuman",
       "Keterangan": "Coca cola 300ml",
       "Pedagang": "Tiga Putra",
-      "Stok": 2,
-      "imageUrl": "http://localhost:3001/images/1717383269765-coca cola.png"
+      "Stok": "20",
+      "imageUrl": "http://localhost:3000/images/1717383269765-coca cola.png"
     },
     {
       "id": "0b77",
@@ -157,7 +157,7 @@
       "Keterangan": "Sprite 300ml",
       "Pedagang": "Tiga Putra",
       "Stok": 8,
-      "imageUrl": "http://localhost:3001/images/1717383279203-sprite.jpg"
+      "imageUrl": "http://localhost:3000/images/1717383279203-sprite.jpg"
     },
     {
       "id": "e92e",
@@ -167,7 +167,7 @@
       "Keterangan": "Frestea jasmine 300ml",
       "Pedagang": "Tiga Putra",
       "Stok": 6,
-      "imageUrl": "http://localhost:3001/images/1717384308896-frestea.png"
+      "imageUrl": "http://localhost:3000/images/1717384308896-frestea.png"
     },
     {
       "id": "f282",
@@ -177,7 +177,7 @@
       "Keterangan": "Beras Pin pin 5 Kg",
       "Pedagang": "Toko Wibowo",
       "Stok": 2,
-      "imageUrl": "http://localhost:3001/images/1717384377664-beras pin pin.png"
+      "imageUrl": "http://localhost:3000/images/1717384377664-beras pin pin.png"
     },
     {
       "id": "e310",
@@ -187,7 +187,7 @@
       "Keterangan": "Beras Jeruk 5Kg",
       "Pedagang": "Toko Wibowo",
       "Stok": 20,
-      "imageUrl": "http://localhost:3001/images/1717384292561-beras jeruk.jpg"
+      "imageUrl": "http://localhost:3000/images/1717384292561-beras jeruk.jpg"
     },
     {
       "id": "18ec",
@@ -197,7 +197,7 @@
       "Keterangan": "Minyak Kita 1 Liter",
       "Pedagang": "Toko Wibowo",
       "Stok": 4,
-      "imageUrl": "http://localhost:3001/images/1717382114245-minyak.webp"
+      "imageUrl": "http://localhost:3000/images/1717382114245-minyak.webp"
     },
     {
       "id": "605d",
@@ -207,7 +207,7 @@
       "Keterangan": "Batik Pekalongan XL",
       "Pedagang": "Butik Wong Ayu",
       "Stok": 7,
-      "imageUrl": "http://localhost:3001/images/1717384391791-6f21c493510e51793e6ab6ab812452c5.jfif"
+      "imageUrl": "http://localhost:3000/images/1717384391791-6f21c493510e51793e6ab6ab812452c5.jfif"
     },
     {
       "id": "654c",
@@ -217,7 +217,7 @@
       "Keterangan": "Gamis Citra Ukuran XL",
       "Pedagang": "Butik Wong Ayu",
       "Stok": 7,
-      "imageUrl": "http://localhost:3001/images/1717383299678-gamis.webp"
+      "imageUrl": "http://localhost:3000/images/1717383299678-gamis.webp"
     },
     {
       "id": "53ad",
@@ -227,7 +227,7 @@
       "Keterangan": "Sarung Wadimor Model 100 ",
       "Pedagang": "Butik Singgih",
       "Stok": 9,
-      "imageUrl": "http://localhost:3001/images/1717384236328-wadimor.png"
+      "imageUrl": "http://localhost:3000/images/1717384236328-wadimor.png"
     },
     {
       "id": "2be9",
@@ -237,7 +237,7 @@
       "Keterangan": "Susu Kotak Cimori Coklat 250ml",
       "Pedagang": "Tiga Putra",
       "Stok": 30,
-      "imageUrl": "http://localhost:3001/images/1717384222925-cimori coklat.jpg"
+      "imageUrl": "http://localhost:3000/images/1717384222925-cimori coklat.jpg"
     },
     {
       "id": "41ae",
@@ -247,7 +247,7 @@
       "Keterangan": "Yogurt Cimori 200ml",
       "Pedagang": "Tiga Putra",
       "Stok": 50,
-      "imageUrl": "http://localhost:3001/images/1717384207092-cimori stroberi.jpg"
+      "imageUrl": "http://localhost:3000/images/1717384207092-cimori stroberi.jpg"
     },
     {
       "id": "221a",
@@ -257,7 +257,7 @@
       "Keterangan": "Aqua 1500ml",
       "Pedagang": "Tiga Putra",
       "Stok": "120",
-      "imageUrl": "http://localhost:3001/images/1717384192747-aqua.png"
+      "imageUrl": "http://localhost:3000/images/1717384192747-aqua.png"
     },
     {
       "id": "68ce",
@@ -267,7 +267,7 @@
       "Keterangan": "Beras Bintang 5Kg",
       "Pedagang": "Toko Wibowo",
       "Stok": "20",
-      "imageUrl": "http://localhost:3001/images/1717384182812-beras bintang.png"
+      "imageUrl": "http://localhost:3000/images/1717384182812-beras bintang.png"
     },
     {
       "id": "d074",
@@ -277,7 +277,7 @@
       "Keterangan": "Es Teh Manis Jumbo",
       "Pedagang": "Toko Wibowo",
       "Stok": "10",
-      "imageUrl": "http://localhost:3001/images/1717381931485-Minuman.png"
+      "imageUrl": "http://localhost:3000/images/1717381931485-Minuman.png"
     },
     {
       "id": "89d1",
@@ -287,7 +287,7 @@
       "Keterangan": "Telur Ayam per 1 Kg",
       "Pedagang": "Toko Wibowo",
       "Stok": "10",
-      "imageUrl": "http://localhost:3001/images/1717356760302-telur.jpg"
+      "imageUrl": "http://localhost:3000/images/1717356760302-telur.jpg"
     },
     {
       "id": "08d8",
@@ -297,7 +297,7 @@
       "Keterangan": "Sepatu Jordan model 3",
       "Pedagang": "Butik Singgih",
       "Stok": "2",
-      "imageUrl": "http://localhost:3001/images/1717514881778-Sepatu Jordan .jpg"
+      "imageUrl": "http://localhost:3000/images/1717514881778-Sepatu Jordan .jpg"
     },
     {
       "id": "0670",
@@ -307,38 +307,47 @@
       "Keterangan": "Macbook Pro M2 2020",
       "Pedagang": "Bimantara Store",
       "Stok": "3",
-      "imageUrl": "http://localhost:3001/images/1719221225808-MacBook_Pro_15_inch_(2017)_Touch_Bar.jpg"
+      "imageUrl": "http://localhost:3000/images/1719221225808-MacBook_Pro_15_inch_(2017)_Touch_Bar.jpg"
     }
   ],
   "DataKategori": [
     {
       "Kategori": "Minuman",
-      "imageUrl": "http://localhost:3001/images/1717399615857-Lovepik_com-401429490-iced-red-tea.png",
+      "imageUrl": "http://localhost:3000/images/1717399615857-Lovepik_com-401429490-iced-red-tea.png",
       "id": "1ed2"
     },
     {
       "Kategori": "Makanan",
-      "imageUrl": "http://localhost:3001/images/1717399654512-Lovepik_com-401039765-golden-chicken-steak-lunchbox.png",
+      "imageUrl": "http://localhost:3000/images/1717399654512-Lovepik_com-401039765-golden-chicken-steak-lunchbox.png",
       "id": "afe9"
     },
     {
       "Kategori": "Sembako",
-      "imageUrl": "http://localhost:3001/images/1717400139795-SEMBAKO.jpg",
+      "imageUrl": "http://localhost:3000/images/1717400139795-SEMBAKO.jpg",
       "id": "c546"
     },
     {
-      "Kategori": "Pakaian",
-      "imageUrl": "http://localhost:3001/images/1717399629559-PAKAIAN.jpg",
+      "Kategori": "Pakaiannn",
+      "imageUrl": "http://localhost:3000/images/1717399629559-PAKAIAN.jpg",
       "id": "172b"
     },
     {
       "Kategori": "Kebutuhan Rumah",
-      "imageUrl": "http://localhost:3001/images/1717400114446-gambar-pedagang-perabot-35.jpg",
+      "imageUrl": "http://localhost:3000/images/1717400114446-gambar-pedagang-perabot-35.jpg",
       "id": "385c"
     }
   ],
   "Orders": [],
-  "Cart": [],
+  "Cart": [
+    {
+      "id": "9e4e",
+      "name": "Marjan",
+      "price": 15000,
+      "quantity": 1,
+      "pedagang": "Toko Wibowo",
+      "user": "Bu Elvy"
+    }
+  ],
   "Transactions": [
     {
       "id": "1719332699484-Butik Singgih",

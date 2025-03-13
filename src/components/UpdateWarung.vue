@@ -1,7 +1,6 @@
-// UpdateWarung.vue
 
 <template>
-  <Header />
+
   <h1>Update Warung</h1>
   <form class="tambah">
     <input
@@ -26,12 +25,12 @@
   </form>
 </template>
 <script>
-import Header from "./Header.vue";
+
 import axios from "axios";
 export default {
   name: "Update",
   components: {
-    Header,
+ 
   },
   data() {
     return {

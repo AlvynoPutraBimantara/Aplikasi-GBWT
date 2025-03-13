@@ -1,12 +1,11 @@
 <template>
   <div>
-    <UserHeader />
     <div class="warung-details">
       <h1>{{ warung.NamaWarung }}</h1>
       <img
         :src="warung.imageUrl"
         alt="Warung Image"
-        style="width: 30%; height: auto; margin-bottom: 20px"
+        style="width: 20%; height: auto; margin-bottom: 20px"
       />
       <p>Telp: {{ warung.Telp }}</p>
       <p>Alamat: {{ warung.Alamat }}</p>
@@ -60,14 +59,10 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 import { mapGetters } from "vuex";
 
 export default {
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       warung: {},
@@ -101,25 +96,28 @@ export default {
             (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
         );
       }
-      return sortedProducts;
+      return sortedProducts.map((product) => ({
+        ...product,
+        imageUrl: `http://localhost:3002/images/${product.id}`,
+      }));
     },
   },
   methods: {
     async loadWarung() {
-      const userId = this.$route.params.id;
-      try {
-        const response = await axios.get(
-          `http://localhost:3000/User/${userId}`
-        );
-        this.warung = response.data;
-        this.loadProducts(response.data.NamaWarung);
-      } catch (error) {
-        console.error("Error loading warung details:", error);
-      }
-    },
+  const userId = this.$route.params.id;
+  try {
+    const response = await axios.get(`http://localhost:3001/user/${userId}`);
+    const warungData = response.data;
+    this.warung = warungData; // Directly use the formatted data from the backend
+    this.loadProducts(warungData.NamaWarung);
+  } catch (error) {
+    console.error("Error loading warung details:", error);
+  }
+}
+,
     async loadProducts(warungName) {
       try {
-        const response = await axios.get("http://localhost:3000/DataProduk");
+        const response = await axios.get("http://localhost:3002/products");
         this.products = response.data.filter(
           (product) => product.Pedagang === warungName
         );
@@ -131,7 +129,7 @@ export default {
       this.$router.push({ name: "DetilProduk", params: { id: productId } });
     },
     sortProducts() {
-      // Sorting is handled by computed property, so no need to do anything here
+      // Sorting is handled by computed properties
     },
     goToWhatsApp() {
       const whatsappUrl = `https://wa.me/${this.warung.Telp}`;
@@ -150,6 +148,8 @@ export default {
   },
 };
 </script>
+
+
 
 <style scoped>
 .warung-details {

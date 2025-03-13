@@ -1,13 +1,8 @@
 <template>
   <div>
-    <UserHeader />
     <div class="container">
       <div class="product-details">
-        <img
-          :src="product.imageUrl"
-          alt="Product Image"
-          class="product-image"
-        />
+        <img :src="product.imageUrl" alt="Product Image" class="product-image" />
         <div class="detail-item">
           <h1>{{ product.Nama }}</h1>
         </div>
@@ -48,18 +43,14 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
-  components: {
-    UserHeader,
-  },
   data() {
     return {
-      product: {},
-      quantity: 1,
-      user: JSON.parse(localStorage.getItem("user-info")),
+      product: {}, // Stores the product details
+      quantity: 1, // User-selected quantity
+      user: JSON.parse(localStorage.getItem("user-info")), // Current logged-in user
     };
   },
   computed: {
@@ -71,55 +62,60 @@ export default {
     const productId = this.$route.params.id;
     try {
       const response = await axios.get(
-        `http://localhost:3000/DataProduk/${productId}`
+        `http://localhost:3002/products/${productId}`
       );
       this.product = response.data;
-      // Ensure Harga is a number
-      this.product.Harga = parseFloat(this.product.Harga);
+      this.product.Harga = parseFloat(this.product.Harga); // Ensure Harga is numeric
     } catch (error) {
       console.error("Error loading product details:", error);
     }
   },
-
   methods: {
     async addToCart() {
-      if (
-        this.quantity > 0 &&
-        this.quantity <= this.product.Stok &&
-        !(this.isOwnProduct && this.user)
-      ) {
-        try {
-          let user = JSON.parse(localStorage.getItem("user-info"));
-          if (!user) {
-            user = { Nama: "Guest" }; // Default guest user
-          }
-          await this.$store.dispatch("addToCart", {
-            item: {
-              id: this.product.id,
-              name: this.product.Nama,
-              price: parseFloat(this.product.Harga),
-              quantity: this.quantity,
-            },
-            user: user,
-          });
-          alert("Pesanan berhasil dimasukan dalam keranjang!");
-        } catch (error) {
-          console.error("Error adding to cart:", error);
-          alert("Failed to add product to cart. Please try again.");
+    if (
+      this.quantity > 0 &&
+      this.quantity <= this.product.Stok &&
+      !(this.isOwnProduct && this.user)
+    ) {
+      try {
+        const user = this.user || { Nama: "Guest" };
+        const payload = {
+          id: this.product.id,
+          name: this.product.Nama,
+          price: parseFloat(this.product.Harga),
+          quantity: this.quantity,
+          pedagang: this.product.Pedagang,
+          user: user.Nama,
+        };
+
+        // Send POST request to cart-service
+        const response = await axios.post("http://localhost:3004/cart", payload);
+
+        if (response.status === 201 || response.status === 200) {
+          alert("Pesanan berhasil dimasukkan dalam keranjang!");
+          this.$router.push("/cart");
+        } else {
+          throw new Error("Unexpected response from the server.");
         }
-      } else {
-        alert("Invalid quantity selected");
+      } catch (error) {
+        console.error("Error adding to cart:", error);
+        alert("Failed to add product to cart. Please try again.");
       }
-    },
-    formatPrice(value) {
-      return new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-      }).format(value);
-    },
+    } else {
+      alert("Invalid quantity selected.");
+    }
   },
+  formatPrice(value) {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+    }).format(value);
+  },
+},
+
 };
 </script>
+
 
 <style scoped>
 .container {
@@ -169,7 +165,7 @@ export default {
   margin-right: 10px;
 }
 
-quantity-form input {
+.quantity-form input {
   width: 60px;
   padding: 5px;
   border: 1px solid #ddd;
@@ -184,7 +180,6 @@ quantity-form input {
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  margin-left: auto;
 }
 
 .quantity-form button:hover {

@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <h1>Penjualan</h1>
     <table>
       <thead>
@@ -20,22 +19,16 @@
           <td>{{ transaction.id }}</td>
           <td>{{ formatPrice(transaction.total) }}</td>
           <td>{{ transaction.user }}</td>
-          <td>{{ transaction.address || getUserAddress(transaction.user) }}</td>
+          <td>{{ transaction.alamat }}</td>
           <td>
             <ul>
-              <li v-for="item in transaction.items" :key="item.id">
+              <li v-for="item in transaction.transaction_items" :key="item.id">
                 {{ item.name }} <br />- {{ formatPrice(item.price) }}<br />
                 - ({{ item.quantity }})
-                <!---<button @click="deleteTransactionItem(transaction.id, item.id)">
-                  Hapus Item
-                </button>
-                <button @click="refundTransactionItem(transaction, item)">
-                  Kembalikan Item
-                </button>-->
               </li>
             </ul>
           </td>
-          <td>{{ new Date(transaction.timestamp).toLocaleString() }}</td>
+          <td>{{ formatDateTime(transaction.created_at) }}</td>
           <td>{{ transaction.catatan }}</td>
           <td>
             <button @click="deleteTransaction(transaction.id)">
@@ -49,132 +42,196 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Kasbon Table -->
+    <div>
+      <h2>Kasbon</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Total</th>
+            <th>Pemesan</th>
+            <th>Alamat</th>
+            <th>Produk</th>
+            <th>Waktu Pesan</th>
+            <th>Catatan</th>
+            <th>Keterangan</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="transaction in kasbonTransactions" :key="transaction.id">
+            <td>{{ transaction.id }}</td>
+            <td>{{ formatPrice(transaction.total) }}</td>
+            <td>{{ transaction.user }}</td>
+            <td>{{ transaction.alamat }}</td>
+            <td>
+              <ul>
+                <li v-for="item in transaction.items" :key="item.id">
+                  {{ item.name }}<br />
+                  - {{ item.quantity }}<br />
+                  - ({{ formatPrice(item.price) }})
+                </li>
+              </ul>
+            </td>
+            <td>{{ formatDateTime(transaction.created_at) }}</td>
+            <td>{{ transaction.catatan }}</td>
+            <td>{{ transaction.description }}</td>
+            <td>
+              <button @click="markAsPaid(transaction.id)">
+                Lunas
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
 <script>
 import axios from "axios";
-import { mapActions, mapState } from "vuex";
-import UserHeader from "@/components/UserHeader.vue";
 
 export default {
   name: "Penjualan",
-  components: {
-    UserHeader,
-  },
   data() {
     return {
-      userData: {},
+      transactions: [], // Store transactions fetched from the backend
+      kasbonTransactions: [], // Store Kasbon transactions fetched from the backend
+      userData: {}, // Store user data for address lookup
     };
   },
   computed: {
-    ...mapState(["transactions"]),
+    // Filter transactions to show only those relevant to the logged-in user
     filteredTransactions() {
       const user = JSON.parse(localStorage.getItem("user-info"));
       return this.transactions.filter((transaction) =>
-        transaction.items.some((item) => item.pedagang === user.NamaWarung)
+        transaction.transaction_items.some((item) => item.pedagang === user.NamaWarung)
       );
     },
   },
-  created() {
-    this.fetchTransactions();
-    this.fetchUserData();
+  async created() {
+    await this.fetchTransactions(); // Fetch transactions when the component is mounted
+    await this.fetchKasbonTransactions(); // Fetch Kasbon transactions when the component is mounted
   },
   methods: {
-    ...mapActions([
-      "fetchTransactions",
-      "deleteTransactionAction",
-      "deleteTransactionsAction",
-      "deleteTransactionItemAction",
-      "refundTransaction",
-      "refundTransactionItemAction",
-    ]),
+    // Fetch transactions from the backend
+    async fetchTransactions() {
+      try {
+        const response = await axios.get("http://localhost:3005/transactions");
+        this.transactions = response.data; // Store fetched transactions
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      }
+    },
+    // Fetch Kasbon transactions from the backend
+    async fetchKasbonTransactions() {
+      try {
+        // Fetch all transactions with description "Kasbon"
+        const response = await axios.get("http://localhost:3005/transactions-history");
+        const kasbonTransactions = response.data.filter(
+          (transaction) => transaction.description === "Kasbon"
+        );
+
+        // Fetch items for each Kasbon transaction
+        const kasbonTransactionsWithItems = await Promise.all(
+          kasbonTransactions.map(async (transaction) => {
+            const itemsResponse = await axios.get(
+              `http://localhost:3005/transactions-history-items/${transaction.id}`
+            );
+            return {
+              ...transaction,
+              items: itemsResponse.data,
+            };
+          })
+        );
+
+        this.kasbonTransactions = kasbonTransactionsWithItems;
+      } catch (error) {
+        console.error("Error fetching Kasbon transactions:", error);
+      }
+    },
+    // Format price as currency
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
       }).format(value);
     },
-    fetchUserData() {
-      axios
-        .get("http://localhost:3000/User")
-        .then((response) => {
-          this.userData = response.data.reduce((acc, user) => {
-            acc[user.Nama] = user.Alamat;
-            return acc;
-          }, {});
-        })
-        .catch((error) => {
-          console.error("Error fetching user data:", error);
-        });
+    // Format date and time
+    formatDateTime(dateString) {
+      if (!dateString) return "";
+      return new Date(dateString).toLocaleString("id-ID", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
     },
-    getUserAddress(userName) {
-      return this.userData[userName] || "Unknown Address";
-    },
-    deleteTransaction(transactionId) {
-      const description = "Pesanan Diterima";
-      this.deleteTransactionAction({ transactionId, description })
-        .then(() => {
-          console.log(`Transaction ${transactionId} deleted successfully`);
-        })
-        .catch((error) => {
-          console.error("Error deleting transaction:", error);
+    // Handle "Terima Pesanan" action
+    async deleteTransaction(transactionId) {
+      try {
+        await axios.post(`http://localhost:3005/transactions/${transactionId}/move-to-history`, {
+          description: "Lunas",
         });
+        this.transactions = this.transactions.filter(
+          (transaction) => transaction.id !== transactionId
+        );
+        alert("Pesanan diterima dan dipindahkan ke riwayat!");
+      } catch (error) {
+        console.error("Error accepting order:", error);
+        alert("Gagal menerima pesanan. Silakan coba lagi.");
+      }
     },
-    deleteTransactions(transactionId) {
-      const descriptions = "Kasbon";
-      this.deleteTransactionsAction({ transactionId, descriptions })
-        .then(() => {
-          console.log(`Transaction ${transactionId} deleted successfully`);
-        })
-        .catch((error) => {
-          console.error("Error deleting transaction:", error);
+    // Handle "Kasbon" action
+    async deleteTransactions(transactionId) {
+      try {
+        await axios.post(`http://localhost:3005/transactions/${transactionId}/move-to-history`, {
+          description: "Kasbon",
         });
+        this.transactions = this.transactions.filter(
+          (transaction) => transaction.id !== transactionId
+        );
+        alert("Kasbon berhasil dan dipindahkan ke riwayat!");
+        await this.fetchKasbonTransactions(); // Refresh Kasbon transactions after moving
+      } catch (error) {
+        console.error("Error handling Kasbon:", error);
+        alert("Gagal memproses Kasbon. Silakan coba lagi.");
+      }
     },
-    handleRefundTransaction(transaction) {
-      const description = "Kembalikan Pesanan";
-      this.refundTransaction({ transaction, description })
-        .then(() => {
-          console.log(`Transaction ${transaction.id} refunded successfully`);
-        })
-        .catch((error) => {
-          console.error("Error refunding transaction:", error);
-        });
+    // Handle refund action
+    async handleRefundTransaction(transaction) {
+      try {
+        // Call the refund endpoint
+        await axios.post(`http://localhost:3005/transactions/${transaction.id}/refund`);
+        this.transactions = this.transactions.filter(
+          (t) => t.id !== transaction.id
+        );
+        alert("Pesanan berhasil dikembalikan dan stok diperbarui!");
+      } catch (error) {
+        console.error("Error refunding transaction:", error);
+        alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
+      }
     },
-    deleteTransactionItem(transactionId, itemId) {
-      this.deleteTransactionItemAction({ transactionId, itemId })
-        .then(() => {
-          const transaction = this.transactions.find(
-            (t) => t.id === transactionId
-          );
-          if (transaction && transaction.items.length === 0) {
-            this.deleteTransaction(transactionId);
-          }
-          console.log(
-            `Item ${itemId} from transaction ${transactionId} deleted successfully`
-          );
-        })
-        .catch((error) => {
-          console.error("Error deleting item:", error);
-        });
-    },
-    refundTransactionItem(transaction, item) {
-      this.refundTransactionItemAction({ transaction, item })
-        .then(() => {
-          const updatedTransaction = this.transactions.find(
-            (t) => t.id === transaction.id
-          );
-          if (updatedTransaction && updatedTransaction.items.length === 0) {
-            this.deleteTransaction(transaction.id);
-          }
-          console.log(
-            `Item ${item.id} from transaction ${transaction.id} refunded successfully`
-          );
-        })
-        .catch((error) => {
-          console.error("Error refunding item:", error);
-        });
+    // Mark transaction as paid
+    async markAsPaid(transactionId) {
+      try {
+        // Update the transaction description to "Sudah dibayar"
+        await axios.put(`http://localhost:3005/transactions-history/${transactionId}/mark-as-paid`);
+        alert("Transaksi berhasil ditandai sebagai Sudah Dibayar!");
+        await this.fetchKasbonTransactions(); // Refresh Kasbon transactions after updating
+      } catch (error) {
+        console.error("Error marking transaction as paid:", error);
+        alert("Gagal menandai transaksi sebagai Sudah Dibayar. Silakan coba lagi.");
+      }
     },
   },
 };
 </script>
+
+<style scoped>
+/* Add your styles here */
+</style>

@@ -1,5 +1,5 @@
 <template>
-  <Header />
+
   <h1>Tambah Kategori</h1>
   <form class="tambah">
     <input
@@ -13,13 +13,13 @@
 </template>
 
 <script>
-import Header from "./Header.vue";
+
 import axios from "axios";
 
 export default {
   name: "TambahKategori",
   components: {
-    Header,
+   
   },
   data() {
     return {

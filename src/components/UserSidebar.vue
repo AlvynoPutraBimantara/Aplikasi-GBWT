@@ -61,4 +61,13 @@ export default {
   background-color: darkblue;
   color: white;
 }
+#sidebar-wrapper {
+  min-height: 100vh;
+  margin-left: -300px; /* Hidden by default */
+  transition: margin 0.25s ease-out;
+}
+
+#wrapper.toggled #sidebar-wrapper {
+  margin-left: 0;
+}
 </style>

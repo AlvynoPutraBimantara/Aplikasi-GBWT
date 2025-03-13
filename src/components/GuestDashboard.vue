@@ -1,6 +1,5 @@
 <template>
   <div>
-    <GuestHeader />
   </div>
   <div>
     <div
@@ -43,12 +42,11 @@
 </template>
 
 <script>
-import GuestHeader from "./GuestHeader.vue";
 import { mapState } from "vuex";
 
 export default {
   components: {
-    GuestHeader,
+
   },
   data() {
     return {

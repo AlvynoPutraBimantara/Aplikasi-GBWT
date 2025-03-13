@@ -1,7 +1,5 @@
-// TambahWarung.vue
 
 <template>
-  <Header />
   <h1>Tambah Warung</h1>
   <form class="tambah">
     <input
@@ -26,12 +24,11 @@
   </form>
 </template>
 <script>
-import Header from "./Header.vue";
 import axios from "axios";
 export default {
   name: "Tambah",
   components: {
-    Header,
+
   },
   data() {
     return {

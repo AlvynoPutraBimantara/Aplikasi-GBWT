@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <div class="search-container">
       <input type="text" v-model="searchQuery" placeholder="Cari Produk..." />
     </div>
@@ -27,49 +26,60 @@
       </div>
     </div>
     <div class="button-container">
-      <router-link to="/TambahDagangan" class="btn-add"
-        >Tambah Produk</router-link
-      >
+      <router-link to="/TambahDagangan" class="btn-add">Tambah Produk</router-link>
     </div>
   </div>
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       products: [],
       searchQuery: "",
+      user: null, // Store logged-in user data
     };
   },
   methods: {
+    // Fetch the logged-in user's profile
+    async fetchUser() {
+      try {
+        const userId = JSON.parse(localStorage.getItem("user-info")).id; // Get user ID from localStorage
+        const response = await axios.get(`http://localhost:3001/user/${userId}`);
+        this.user = response.data; // Store user data
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        this.$router.push({ name: "Login" }); // Redirect to login on error
+      }
+    },
+    // Load products and filter based on user's "NamaWarung"
     async loadProducts() {
-      let user = JSON.parse(localStorage.getItem("user-info"));
-      if (user && user.NamaWarung) {
+      if (this.user && this.user.NamaWarung) {
         try {
-          const response = await axios.get("http://localhost:3000/DataProduk");
-          this.products = response.data.filter(
-            (product) => product.Pedagang === user.NamaWarung
-          );
+          const response = await axios.get("http://localhost:3002/products");
+          this.products = response.data
+            .filter((product) => product.Pedagang === this.user.NamaWarung)
+            .map((product) => ({
+              ...product,
+              imageUrl: product.imageUrl
+                ? `http://localhost:3002${product.imageUrl}`
+                : "default-image.jpg", // Placeholder image if none provided
+            }));
         } catch (error) {
           console.error("Error loading products:", error);
         }
-      } else {
-        this.$router.push({ name: "Login" });
       }
     },
+    // Navigate to product update page
     goToProductPage(productId) {
       this.$router.push({
         name: "UserUpdateProduk",
         params: { id: productId },
       });
     },
+    // Format currency
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -78,14 +88,16 @@ export default {
     },
   },
   computed: {
+    // Filter products based on search query
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
       );
     },
   },
-  mounted() {
-    this.loadProducts();
+  async mounted() {
+    await this.fetchUser(); // Fetch logged-in user's profile
+    await this.loadProducts(); // Load and filter products
   },
 };
 </script>

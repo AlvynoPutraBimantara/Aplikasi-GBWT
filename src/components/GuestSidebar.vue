@@ -25,23 +25,24 @@
       <router-link
         to="/Orders"
         class="list-group-item list-group-item-action bg-light"
-        ><font-awesome-icon :icon="['fas', 'receipt']"
-      /></router-link>
+        >Pesanan</router-link
+      >
       <router-link
         to="/Cart"
         class="list-group-item list-group-item-action bg-light"
-        ><font-awesome-icon :icon="['fas', 'shopping-cart']"
-      /></router-link>
+        >Keranjang</router-link
+      >
+      <router-link
+        to="/Informasi"
+        class="list-group-item list-group-item-action bg-light infouser"
+        ><font-awesome-icon :icon="['fas', 'circle-info']" /></router-link
+      >
       <button
         @click="goToLogin"
-        class="list-group-item list-group-item-action sidebar-width bg-light"
+        class=" bg-light login-btn"
       >
         Login
       </button>
-
-      <router-link to="/Informasi" class="list-group-item bg-light infouser"
-        ><font-awesome-icon :icon="['fas', 'circle-info']" />
-      </router-link>
     </div>
   </div>
 </template>
@@ -51,31 +52,33 @@ export default {
   name: "GuestSidebar",
   methods: {
     goToLogin() {
-      this.$router.push({ name: "Login" }).then(() => {
-        window.location.reload();
-      });
+      this.$router.push({ name: "Login" });
     },
   },
 };
 </script>
 
 <style scoped>
+
+
 #sidebar-wrapper {
-  width: 250px;
-}
-.sidebar-width {
-  width: 240px;
-}
-.list-group-item-action {
-  transition: background-color 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+  margin-left: -300px; /* Hidden by default */
+  transition: margin 0.25s ease-out;
 }
 
-.list-group-item-action:hover {
-  background-color: darkblue;
-  color: white;
+#wrapper.toggled #sidebar-wrapper {
+  margin-left: 0;
 }
 
 .infouser {
-  padding-top: 200px;
+  padding-top: 25vh;
+}
+
+.login-btn {
+  width: 100%; /* Match sidebar width */
+  text-align: center; /* Center-align text */
+  border: none; /* Optional: Remove button border */
+  cursor: pointer;
 }
 </style>

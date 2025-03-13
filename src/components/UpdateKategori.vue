@@ -1,14 +1,22 @@
 <template>
   <div>
-    <Header />
     <h1>Update Kategori</h1>
     <div class="update-container">
-      <img
-        v-if="DataKategori.imageUrl"
-        :src="DataKategori.imageUrl"
-        alt="Category Image"
-        class="category-image"
-      />
+      <!-- Image Display -->
+      <div v-if="previewImage || DataKategori.imageUrl">
+        <img
+          :src="previewImage || DataKategori.imageUrl"
+          alt="Category Image"
+          style="width: 400px; height: auto; margin-bottom: 10px"
+        />
+      </div>
+      <button
+        v-if="previewImage"
+        @click="cancelImageSelection"
+        style="margin-bottom: 10px"
+      >
+        Batalkan Pilihan Gambar
+      </button>
       <form class="update" @submit.prevent="updateKategori">
         <input
           type="text"
@@ -16,7 +24,11 @@
           placeholder="Ubah Nama Kategori"
           v-model="DataKategori.Kategori"
         />
-        <input type="file" @change="onImageChange" />
+        <input
+          type="file"
+          @change="onImageChange"
+          accept="image/*"
+        />
         <button type="submit">Update Data Kategori</button>
       </form>
     </div>
@@ -24,13 +36,13 @@
 </template>
 
 <script>
-import Header from "./Header.vue";
+
 import axios from "axios";
 
 export default {
   name: "UpdateKategori",
   components: {
-    Header,
+
   },
   data() {
     return {
@@ -38,53 +50,90 @@ export default {
         Kategori: "",
         imageUrl: "",
       },
+      previewImage: null, // Stores preview of the selected image
       imageFile: null,
     };
   },
   methods: {
-    onImageChange(event) {
-      this.imageFile = event.target.files[0];
-    },
-    async updateKategori() {
-      try {
-        if (this.imageFile) {
-          const formData = new FormData();
-          formData.append("image", this.imageFile);
-          const response = await axios.post(
-            "http://localhost:3001/uploads",
-            formData
-          );
-          this.DataKategori.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
-        }
-        const result = await axios.put(
-          `http://localhost:3000/DataKategori/${this.$route.params.id}`,
-          this.DataKategori
-        );
-        if (result.status === 200) {
-          this.$router.push({ name: "DataKategori" });
-        }
-      } catch (error) {
-        console.error("Error updating category:", error);
-      }
-    },
-  },
-  async mounted() {
-    let user = localStorage.getItem("user-info");
-    if (!user) {
-      this.$router.push({ name: "SignUp" });
-    } else {
+    async fetchCategory() {
       try {
         const result = await axios.get(
-          `http://localhost:3000/DataKategori/${this.$route.params.id}`
+          `http://localhost:3006/categories/${this.$route.params.id}`
         );
-        this.DataKategori = result.data;
+        this.DataKategori = {
+          Kategori: result.data.category,
+          imageUrl: result.data.imageUrl,
+        };
       } catch (error) {
         console.error("Error fetching category data:", error);
       }
-    }
+    },
+
+    async updateKategori() {
+      try {
+        let previousImageId = null;
+
+        // Extract old image ID if it exists
+        if (this.DataKategori.imageUrl) {
+          const urlParts = this.DataKategori.imageUrl.split("/");
+          previousImageId = urlParts[urlParts.length - 1];
+        }
+
+        // Upload new image if selected
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+
+          const response = await axios.post("http://localhost:3006/images", formData);
+          const newImageId = response.data.id;
+          this.DataKategori.imageUrl = `http://localhost:3006/images/${newImageId}`;
+
+          // Delete old image if applicable
+          if (previousImageId) {
+            await axios.delete(`http://localhost:3006/images/${previousImageId}`);
+          }
+        }
+
+        // Update category data
+        await axios.put(`http://localhost:3006/categories/${this.$route.params.id}`, {
+          category: this.DataKategori.Kategori,
+          imageurl: this.DataKategori.imageUrl || null,
+        });
+
+        alert("Category updated successfully.");
+        this.$router.push({ name: "DataKategori" });
+      } catch (error) {
+        console.error("Error updating category:", error);
+        alert("Failed to update category. Please try again.");
+      }
+    },
+
+    onImageChange(event) {
+      const file = event.target.files[0];
+      if (file) {
+        this.imageFile = file;
+
+        // Generate preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.previewImage = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    },
+
+    cancelImageSelection() {
+      this.previewImage = null;
+      this.imageFile = null;
+    },
+  },
+  async mounted() {
+    await this.fetchCategory();
   },
 };
 </script>
+
+
 
 <style scoped>
 .update-container {
@@ -99,21 +148,7 @@ export default {
   align-items: center;
 }
 
-.category-image {
-  width: 50%;
-  height: auto;
-  margin-bottom: 20px;
-}
-
-.update {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-}
-
 .update input,
-.update select,
 .update button {
   display: block;
   margin-bottom: 10px;
@@ -123,11 +158,6 @@ export default {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 16px;
-}
-
-.update input::placeholder,
-.update select::placeholder {
-  color: #aaa;
 }
 
 .update button {

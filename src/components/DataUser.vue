@@ -1,6 +1,6 @@
 <template>
   <div class="data-warung-container">
-    <Header />
+
 
     <h1>Data User</h1>
     <div class="table-container">
@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import Header from "./Header.vue";
+
 import axios from "axios";
 
 export default {
@@ -52,16 +52,20 @@ export default {
     };
   },
   components: {
-    Header,
+  
   },
   methods: {
     UpdateUser(id) {
       this.$router.push({ name: "ProfilAdmin", params: { id: id } });
     },
     async HapusUser(id) {
-      let result = await axios.delete(`http://localhost:3000/User/${id}`);
-      if (result.status === 200) {
-        this.loadData();
+      try {
+        let result = await axios.delete(`http://localhost:3001/user/${id}`);
+        if (result.status === 200) {
+          this.loadData();
+        }
+      } catch (error) {
+        console.error("Error deleting user:", error);
       }
     },
     confirmDelete(id) {
@@ -70,12 +74,16 @@ export default {
       }
     },
     async loadData() {
-      let user = localStorage.getItem("user-info");
-      if (!user) {
-        this.$router.push({ name: "SignUp" });
-      } else {
-        let result = await axios.get("http://localhost:3000/User");
-        this.User = result.data.filter((user) => user.role !== "admin");
+      try {
+        let user = localStorage.getItem("user-info");
+        if (!user) {
+          this.$router.push({ name: "SignUp" });
+        } else {
+          let result = await axios.get("http://localhost:3001/users");
+          this.User = result.data.filter((user) => user.role !== "admin");
+        }
+      } catch (error) {
+        console.error("Error loading users:", error);
       }
     },
   },
@@ -84,6 +92,7 @@ export default {
   },
 };
 </script>
+
 
 <style>
 .data-warung-container {

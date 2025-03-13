@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <div class="warung-details">
       <h1>Versi aplikasi : Masih Dikembangkan</h1>
 
@@ -28,11 +27,10 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 
 export default {
   components: {
-    UserHeader,
+
   },
   data() {
     return {};

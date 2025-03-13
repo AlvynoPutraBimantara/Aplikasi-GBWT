@@ -1,6 +1,6 @@
 <template>
   <div>
-    <UserHeader />
+    
     <div class="search-container">
       <input type="text" v-model="searchQuery" placeholder="Cari Warung..." />
     </div>
@@ -26,12 +26,12 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
+
 import axios from "axios";
 
 export default {
   components: {
-    UserHeader,
+    
   },
   data() {
     return {
@@ -57,13 +57,13 @@ export default {
       this.$router.push({ name: "DetilWarung", params: { id: userId } });
     },
     async loadUsers() {
-      try {
-        const response = await axios.get("http://localhost:3000/User");
-        this.users = response.data.filter((user) => user.role !== "admin");
-      } catch (error) {
-        console.error("Error loading users:", error);
-      }
-    },
+    try {
+      const response = await axios.get("http://localhost:3001/users");
+      this.users = response.data; // Only users with NamaWarung already filtered
+    } catch (error) {
+      console.error("Error loading users:", error);
+    }
+  },
   },
   mounted() {
     this.loadUsers();

@@ -1,6 +1,5 @@
 <template>
   <div class="data-produk-container">
-    <Header />
     <h1>Data Produk</h1>
     <div class="table-container">
       <table border="1">
@@ -21,27 +20,17 @@
           <tr v-for="item in DataProduk" :key="item.id">
             <td>{{ item.id }}</td>
             <td>
-              <img
-                :src="item.imageUrl"
-                alt="Product Image"
-                class="product-image"
-              />
+              <img :src="`http://localhost:3002/images/${item.id}`" alt="Product Image" class="product-image" />
             </td>
-            <td>
-              {{ item.Nama }}
-            </td>
+            <td>{{ item.Nama }}</td>
             <td>{{ item.Harga }}</td>
             <td>{{ item.Kategori }}</td>
             <td>{{ item.Keterangan }}</td>
             <td>{{ item.Pedagang }}</td>
             <td>{{ item.Stok }}</td>
             <td>
-              <button @click="UpdateProduk(item.id)" class="btn-edit">
-                Edit
-              </button>
-              <button @click="confirmDelete(item.id)" class="btn-delete">
-                Hapus
-              </button>
+              <button @click="UpdateProduk(item.id)" class="btn-edit">Edit</button>
+              <button @click="confirmDelete(item.id)" class="btn-delete">Hapus</button>
             </td>
           </tr>
         </tbody>
@@ -51,49 +40,43 @@
 </template>
 
 <script>
-import Header from "./Header.vue";
 import axios from "axios";
 
 export default {
   name: "DataProduk",
   data() {
     return {
-      Nama: "",
       DataProduk: [],
     };
   },
-  components: {
-    Header,
-  },
   methods: {
+    async fetchData() {
+      try {
+        const { data } = await axios.get("http://localhost:3002/products");
+        this.DataProduk = data.map((product) => ({
+          ...product,
+          imageUrl: `http://localhost:3002/images/${product.id}`,
+        }));
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
+    },
     UpdateProduk(id) {
-      this.$router.push({ name: "UpdateProduk", params: { id: id } });
+      this.$router.push({ name: "UpdateProduk", params: { id } });
     },
-    async HapusProduk(id) {
-      let result = await axios.delete("http://localhost:3000/DataProduk/" + id);
-      console.warn(result);
-      if (result.status === 200) {
-        this.loadData();
-      }
-    },
-    confirmDelete(id) {
-      if (confirm("Apakah anda yakin akan menghapus?")) {
-        this.HapusProduk(id);
-      }
-    },
-    async loadData() {
-      let user = localStorage.getItem("user-info");
-      if (!user) {
-        this.$router.push({ name: "SignUp" });
-      } else {
-        this.Nama = JSON.parse(user).name;
-        let result = await axios.get("http://localhost:3000/DataProduk");
-        this.DataProduk = result.data;
+    async confirmDelete(id) {
+      if (confirm("Are you sure you want to delete this product?")) {
+        try {
+          await axios.delete(`http://localhost:3002/products/${id}`);
+          this.fetchData();
+        } catch (error) {
+          console.error("Error deleting product:", error);
+        }
       }
     },
   },
-  async mounted() {
-    this.loadData();
+  mounted() {
+    this.fetchData();
   },
 };
 </script>
@@ -112,7 +95,7 @@ export default {
 table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0 auto; /* Center the table horizontally */
+  margin: 0 auto;
 }
 
 th,
@@ -125,18 +108,18 @@ td {
   width: 100px;
   height: auto;
   display: block;
-  margin: 0 auto 10px;
+  margin: 0 auto;
 }
 
 button {
-  margin: 0 5px; /* Add margin between buttons */
+  margin: 0 5px;
 }
 
 .btn-edit {
-  margin-right: 10px; /* Specific margin for the edit button */
+  margin-right: 10px;
 }
 
 .btn-delete {
-  margin-left: 10px; /* Specific margin for the delete button */
+  margin-left: 10px;
 }
 </style>

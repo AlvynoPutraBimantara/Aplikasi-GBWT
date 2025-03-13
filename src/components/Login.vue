@@ -9,7 +9,7 @@
           v-model="Password"
           placeholder="Masukan Password"
         />
-        <button v-on:click="login">Login</button>
+        <button @click="login">Login</button>
         <p>
           <router-link to="/sign-up">Daftar</router-link>
         </p>
@@ -30,42 +30,48 @@ export default {
     };
   },
   methods: {
-    async login() {
-      if (this.Nama === "" || this.Password === "") {
-        alert("Please enter both name and password");
-        return;
-      }
+  async login() {
+    if (this.Nama === "" || this.Password === "") {
+      alert("Please enter both name and password");
+      return;
+    }
 
-      try {
-        let result = await axios.get(
-          `http://localhost:3000/User?Nama=${this.Nama}&Password=${this.Password}`
-        );
-        if (result.status === 200 && result.data.length > 0) {
-          const user = result.data[0];
-          localStorage.setItem("user-info", JSON.stringify(user));
-          localStorage.removeItem("guest");
-          if (user.role === "admin") {
-            this.$router.push({ name: "DataProduk" });
-          } else {
-            this.$router.push({ name: "Dashboard" });
-          }
-          // Automatically reload the page
-          window.location.reload();
+    try {
+      const result = await axios.post("http://localhost:3001/login", {
+        Nama: this.Nama,
+        Password: this.Password,
+      });
+
+      if (result.status === 200) {
+        const user = result.data;
+        localStorage.setItem("user-info", JSON.stringify(user));
+
+        if (user.role === "admin") {
+          this.$router.push({ name: "DataUser" });
         } else {
-          alert("Invalid credentials");
+          this.$router.push({ name: "Dashboard" });
         }
-      } catch (error) {
-        console.error("Error during login:", error);
+
+        // Reload the page after redirection
+        setTimeout(() => window.location.reload(), 1);
+      }
+    } catch (error) {
+      console.error("Error during login:", error);
+      if (error.response && error.response.status === 401) {
+        alert("Invalid credentials");
+      } else {
         alert("An error occurred. Please try again later.");
       }
-    },
+    }
   },
+},
+
   mounted() {
-    let user = localStorage.getItem("user-info");
+    const user = localStorage.getItem("user-info");
     if (user) {
       const parsedUser = JSON.parse(user);
       if (parsedUser.role === "admin") {
-        this.$router.push({ name: "DataProduk" });
+        this.$router.push({ name: "DataUser" });
       } else {
         this.$router.push({ name: "Dashboard" });
       }

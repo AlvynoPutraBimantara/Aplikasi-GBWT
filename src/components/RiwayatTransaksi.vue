@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <h1>Riwayat Transaksi</h1>
     <table>
       <thead>
@@ -13,18 +12,14 @@
           <th>Waktu Pesan</th>
           <th>Catatan</th>
           <th>Keterangan</th>
-          <!---<th>Aksi</th>-->
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="transaction in filteredRiwayatTransaksi"
-          :key="transaction.id"
-        >
+        <tr v-for="transaction in filteredRiwayatTransaksi" :key="transaction.id">
           <td>{{ transaction.id }}</td>
           <td>{{ formatPrice(transaction.total) }}</td>
           <td>{{ transaction.user }}</td>
-          <td>{{ transaction.address || getUserAddress(transaction.user) }}</td>
+          <td>{{ transaction.alamat || getUserAddress(transaction.user) }}</td>
           <td>
             <ul>
               <li v-for="item in transaction.items" :key="item.id">
@@ -34,10 +29,9 @@
               </li>
             </ul>
           </td>
-          <td>{{ new Date(transaction.timestamp).toLocaleString() }}</td>
+          <td>{{ formatDateTime(transaction.created_at) }}</td>
           <td>{{ transaction.catatan }}</td>
-          <td>{{ transaction.description || transaction.descriptions }}</td>
-          <!---<td><button @click="deleteTransactionHistory(transaction.id)">Hapus</button></td> -->
+          <td>{{ transaction.description }}</td>
         </tr>
       </tbody>
     </table>
@@ -46,21 +40,16 @@
 
 <script>
 import axios from "axios";
-import { mapState } from "vuex";
-import UserHeader from "@/components/UserHeader.vue";
 
 export default {
   name: "RiwayatTransaksi",
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       userData: {},
+      riwayatTransaksi: [],
     };
   },
   computed: {
-    ...mapState(["riwayatTransaksi"]),
     filteredRiwayatTransaksi() {
       const user = JSON.parse(localStorage.getItem("user-info"));
       return this.riwayatTransaksi.filter((transaction) =>
@@ -79,45 +68,58 @@ export default {
         currency: "IDR",
       }).format(value);
     },
-    fetchUserData() {
-      axios
-        .get("http://localhost:3000/User")
-        .then((response) => {
-          this.userData = response.data.reduce((acc, user) => {
-            acc[user.Nama] = user.Alamat;
-            return acc;
-          }, {});
-        })
-        .catch((error) => {
-          console.error("Error fetching user data:", error);
-        });
+    formatDateTime(dateString) {
+      if (!dateString) return "";
+      return new Date(dateString).toLocaleString("id-ID", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
     },
-    fetchRiwayatTransaksi() {
-      axios
-        .get("http://localhost:3000/RiwayatTransaksi")
-        .then((response) => {
-          this.$store.commit("SET_RIWAYAT_TRANSAKSI", response.data);
-        })
-        .catch((error) => {
-          console.error("Error fetching transaction history:", error);
-        });
+    async fetchUserData() {
+      try {
+        const response = await axios.get("http://localhost:3001/users");
+        this.userData = response.data.reduce((acc, user) => {
+          acc[user.Nama] = user.Alamat; // Map user names to addresses
+          return acc;
+        }, {});
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    },
+    async fetchRiwayatTransaksi() {
+      try {
+        const response = await axios.get("http://localhost:3005/transactions-history");
+        const transactions = response.data;
+
+        // Fetch items for each transaction
+        const transactionsWithItems = await Promise.all(
+          transactions.map(async (transaction) => {
+            const itemsResponse = await axios.get(
+              `http://localhost:3005/transactions-history-items/${transaction.id}`
+            );
+            return {
+              ...transaction,
+              items: itemsResponse.data,
+            };
+          })
+        );
+
+        this.riwayatTransaksi = transactionsWithItems;
+      } catch (error) {
+        console.error("Error fetching transaction history:", error);
+      }
     },
     getUserAddress(userName) {
       return this.userData[userName] || "Unknown Address";
     },
-    deleteTransactionHistory(transactionId) {
-      axios
-        .delete(`http://localhost:3000/RiwayatTransaksi/${transactionId}`)
-        .then(() => {
-          this.$store.commit("REMOVE_TRANSACTION_HISTORY", transactionId);
-          console.log(
-            `Transaction ${transactionId} deleted successfully from history`
-          );
-        })
-        .catch((error) => {
-          console.error("Error deleting transaction history:", error);
-        });
-    },
   },
 };
 </script>
+
+<style scoped>
+/* Add your styles here */
+</style>

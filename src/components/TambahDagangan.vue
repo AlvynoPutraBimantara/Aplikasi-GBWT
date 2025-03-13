@@ -1,55 +1,54 @@
 <template>
-  <UserHeader />
-  <h1>Tambah Produk</h1>
-  <form class="tambah" @submit.prevent="submitProduct">
-    <input
-      type="text"
-      name="Nama"
-      placeholder="Masukan Nama Produk"
-      v-model="DataProduk.Nama"
-    />
-    <input
-      type="text"
-      name="Harga"
-      placeholder="Masukan Harga Produk"
-      v-model="DataProduk.Harga"
-    />
-    <select v-model="DataProduk.Kategori">
-      <option disabled value="">Pilih Kategori</option>
-      <option
-        v-for="kategori in kategoriList"
-        :key="kategori.id"
-        :value="kategori.Kategori"
-      >
-        {{ kategori.Kategori }}
-      </option>
-    </select>
-    <input
-      type="text"
-      name="Keterangan"
-      placeholder="Masukan Keterangan Produk"
-      v-model="DataProduk.Keterangan"
-    />
-    <input
-      type="text"
-      name="Stok"
-      placeholder="Masukan Stok Produk"
-      v-model="DataProduk.Stok"
-    />
-    <input type="file" @change="onImageChange" />
-    <button type="submit">Tambah Produk</button>
-  </form>
+  <div>
+    <h1>Tambah Produk</h1>
+    <div class="update-container">
+      <form class="update" @submit.prevent="submitProduct">
+        <input
+          type="text"
+          name="Nama"
+          placeholder="Masukan Nama Produk"
+          v-model="DataProduk.Nama"
+        />
+        <input
+          type="text"
+          name="Harga"
+          placeholder="Masukan Harga Produk"
+          v-model="DataProduk.Harga"
+        />
+        <select v-model="DataProduk.Kategori">
+          <option disabled value="">Pilih Kategori</option>
+          <option
+            v-for="kategori in kategoriList"
+            :key="kategori.id"
+            :value="kategori.category"
+          >
+            {{ kategori.category }}
+          </option>
+        </select>
+        <input
+          type="text"
+          name="Keterangan"
+          placeholder="Masukan Keterangan Produk"
+          v-model="DataProduk.Keterangan"
+        />
+        <input
+          type="text"
+          name="Stok"
+          placeholder="Masukan Stok Produk"
+          v-model="DataProduk.Stok"
+        />
+        <input type="file" @change="onImageChange" />
+        <button type="submit">Tambah Produk</button>
+      </form>
+    </div>
+  </div>
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
 
 export default {
   name: "TambahDagangan",
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       DataProduk: {
@@ -57,7 +56,7 @@ export default {
         Harga: "",
         Kategori: "",
         Keterangan: "",
-        Pedagang: "",
+        Pedagang: "", // To hold NamaWarung
         Stok: "",
       },
       kategoriList: [],
@@ -67,39 +66,36 @@ export default {
   methods: {
     async submitProduct() {
       try {
-        let user = JSON.parse(localStorage.getItem("user-info"));
-        if (user && user.NamaWarung) {
-          this.DataProduk.Pedagang = user.NamaWarung;
-          if (this.imageFile) {
-            const formData = new FormData();
-            formData.append("image", this.imageFile);
-            const response = await axios.post(
-              "http://localhost:3001/uploads",
-              formData
-            );
-            this.DataProduk.imageUrl = `http://localhost:3001${response.data.imageUrl}`;
-          }
-          const result = await axios.post(
-            "http://localhost:3000/DataProduk",
-            this.DataProduk
-          );
-          if (result.status === 201) {
-            this.$router.push({ name: "Dagangan" });
-          }
-        } else {
-          this.$router.push({ name: "Login" });
+        const formData = new FormData();
+        formData.append("Nama", this.DataProduk.Nama);
+        formData.append("Harga", this.DataProduk.Harga);
+        formData.append("Kategori", this.DataProduk.Kategori);
+        formData.append("Keterangan", this.DataProduk.Keterangan);
+        formData.append("Pedagang", this.DataProduk.Pedagang);
+        formData.append("Stok", this.DataProduk.Stok);
+        if (this.imageFile) {
+          formData.append("image", this.imageFile);
         }
-      } catch (error) {
-        console.error("Error adding product:", error);
-        alert(
-          "An error occurred while adding the product. Please try again later."
+
+        const response = await axios.post(
+          "http://localhost:3002/products",
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } }
         );
+
+        console.log(response.data.message);
+        this.$router.push("/Dagangan");
+      } catch (error) {
+        console.error("Error submitting product:", error.response?.data || error.message);
       }
     },
     async fetchKategori() {
       try {
-        const response = await axios.get("http://localhost:3000/DataKategori");
-        this.kategoriList = response.data;
+        const response = await axios.get("http://localhost:3006/categories");
+        this.kategoriList = response.data.map((item) => ({
+          id: item.id,
+          category: item.category,
+        }));
       } catch (error) {
         console.error("Error fetching categories:", error);
       }
@@ -108,6 +104,10 @@ export default {
       this.imageFile = event.target.files[0];
     },
   },
+  created() {
+    const userInfo = JSON.parse(localStorage.getItem("user-info"));
+    this.DataProduk.Pedagang = userInfo?.NamaWarung || "Unknown";
+  },
   mounted() {
     this.fetchKategori();
   },
@@ -115,39 +115,46 @@ export default {
 </script>
 
 <style scoped>
-.tambah {
+.update-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.update {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px;
 }
 
-.tambah input,
-.tambah select,
-.tambah button {
+.update input,
+.update select,
+.update button {
   display: block;
   margin-bottom: 10px;
   padding: 10px;
-  width: 300px;
+  width: 400px;
   box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 16px;
 }
 
-.tambah input::placeholder,
-.tambah select::placeholder {
-  color: #aaa;
-}
-
-.tambah button {
+.update button {
   background-color: #007bff;
   color: white;
   border: none;
   cursor: pointer;
 }
 
-.tambah button:hover {
+.update button:hover {
   background-color: #0056b3;
 }
 </style>

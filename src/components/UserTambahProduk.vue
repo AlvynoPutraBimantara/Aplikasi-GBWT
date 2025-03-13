@@ -1,6 +1,5 @@
-//UserTambahProduk.vue
+
 <template>
-  <UserHeader />
   <h1>Tambah Produk</h1>
   <form class="tambah">
     <input
@@ -57,13 +56,13 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
+
 import axios from "axios";
 
 export default {
   name: "TambahProduk",
   components: {
-    UserHeader,
+
   },
   data() {
     return {

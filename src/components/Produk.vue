@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <div class="top-container">
       <div class="search-container">
         <input type="text" v-model="searchQuery" placeholder="Cari Produk..." />
@@ -10,7 +9,7 @@
         v-model="selectedSortOption"
         @change="sortProducts"
       >
-        <option value="">Urutkan Berdasakan...</option>
+        <option value="">Urutkan Berdasarkan...</option>
         <option value="alphabetAsc">Alfabet: A ke Z</option>
         <option value="alphabetDesc">Alfabet: Z ke A</option>
         <option value="priceAsc">Harga: Termurah ke Termahal</option>
@@ -46,14 +45,9 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
 import axios from "axios";
-import { mapGetters } from "vuex";
 
 export default {
-  components: {
-    UserHeader,
-  },
   data() {
     return {
       products: [],
@@ -62,7 +56,6 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(["purchaseCounts"]),
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -80,40 +73,36 @@ export default {
         sortedProducts.sort((a, b) => b.Harga - a.Harga);
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
-      } else if (this.selectedSortOption === "mostPurchased") {
-        sortedProducts.sort(
-          (a, b) =>
-            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
-        );
       }
       return sortedProducts;
     },
   },
   methods: {
-    goToProductPage(productId) {
-      this.$router.push({ name: "DetilProduk", params: { id: productId } });
-    },
-    async loadProducts() {
+    async fetchProducts() {
       try {
-        const response = await axios.get("http://localhost:3000/DataProduk");
-        this.products = response.data;
+        const response = await axios.get("http://localhost:3002/products");
+        this.products = response.data.map((product) => ({
+          ...product,
+          imageUrl: product.imageUrl
+            ? `http://localhost:3002${product.imageUrl}`
+            : "default-image.jpg", // Placeholder image if none provided
+        }));
       } catch (error) {
-        console.error("Error loading products:", error);
+        console.error("Failed to fetch products:", error);
       }
     },
-    sortProducts() {
-      // Sorting is handled by computed property, so no need to do anything here
-    },
-    formatPrice(value) {
+    formatPrice(price) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
-      }).format(value);
+      }).format(price);
+    },
+    goToProductPage(productId) {
+      this.$router.push(`/DetilProduk/${productId}`);
     },
   },
-  async mounted() {
-    await this.loadProducts();
-    this.$store.dispatch("fetchPurchaseCounts");
+  mounted() {
+    this.fetchProducts();
   },
 };
 </script>

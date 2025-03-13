@@ -32,54 +32,49 @@ export default {
     return {
       Nama: "",
       Telp: "",
-      Alamat: "", // Initialize Alamat
+      Alamat: "",
       Password: "",
     };
   },
   methods: {
     async SignUp() {
-      if (
-        this.Nama === "" ||
-        this.Telp === "" ||
-        this.Password === "" ||
-        this.Alamat === ""
-      ) {
-        alert("All fields are required.");
-        return;
-      }
+  if (
+    this.Nama === "" ||
+    this.Telp === "" ||
+    this.Password === "" ||
+    this.Alamat === ""
+  ) {
+    alert("All fields are required.");
+    return;
+  }
 
-      if (this.Telp.toString().length < 10) {
-        alert("Phone number must be at least 10 digits.");
-        return;
-      }
+  if (this.Telp.toString().length < 10) {
+    alert("Phone number must be at least 10 digits.");
+    return;
+  }
 
-      try {
-        let result = await axios.post("http://localhost:3000/User", {
-          Nama: this.Nama,
-          Telp: this.Telp,
-          Alamat: this.Alamat, // Include Alamat
-          Password: this.Password,
-          role: "user",
-        });
-        console.warn(result);
-        if (result.status == 201) {
-          localStorage.setItem("user-info", JSON.stringify(result.data));
-          this.$router.push({ name: "Dashboard" });
-        }
-      } catch (error) {
-        console.error("Error during sign up:", error);
-        alert("An error occurred. Please try again.");
-      }
-    },
-  },
-  mounted() {
-    let user = localStorage.getItem("user-info");
-    if (user) {
+  try {
+    const result = await axios.post("http://localhost:3001/user", {
+      Nama: this.Nama,
+      Telp: this.Telp,
+      Alamat: this.Alamat,
+      Password: this.Password,
+    });
+    if (result.status === 201) {
+      const userData = result.data; // Full user data returned
+      localStorage.setItem("user-info", JSON.stringify(userData)); // Store in localStorage
+      alert("Registration successful!");
       this.$router.push({ name: "Dashboard" });
     }
+  } catch (error) {
+    console.error("Error during sign up:", error);
+    alert("An error occurred during registration. Please try again.");
+  }
+},
   },
 };
 </script>
+
 
 <style scoped>
 .signup-container {

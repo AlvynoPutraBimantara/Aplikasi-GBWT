@@ -1,6 +1,5 @@
 <template>
   <div>
-    <UserHeader />
     <div class="search-container">
       <input type="text" v-model="searchQuery" placeholder="Cari Kategori..." />
     </div>
@@ -18,7 +17,7 @@
             alt="Category Image"
             class="category-image"
           />
-          <h5 class="card-title">{{ category.Kategori }}</h5>
+          <h5 class="card-title">{{ category.category }}</h5>
         </div>
       </div>
     </div>
@@ -26,12 +25,12 @@
 </template>
 
 <script>
-import UserHeader from "./UserHeader.vue";
+
 import axios from "axios";
 
 export default {
   components: {
-    UserHeader,
+
   },
   data() {
     return {
@@ -42,7 +41,7 @@ export default {
   methods: {
     async loadCategories() {
       try {
-        const response = await axios.get("http://localhost:3000/DataKategori");
+        const response = await axios.get("http://localhost:3006/categories");
         this.categories = response.data;
       } catch (error) {
         console.error("Error loading categories:", error);
@@ -55,7 +54,7 @@ export default {
   computed: {
     filteredCategories() {
       return this.categories.filter((category) =>
-        category.Kategori.toLowerCase().includes(this.searchQuery.toLowerCase())
+        category.category.toLowerCase().includes(this.searchQuery.toLowerCase())
       );
     },
   },

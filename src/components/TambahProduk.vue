@@ -1,5 +1,4 @@
 <template>
-  <Header />
   <h1>Tambah Produk</h1>
   <form class="tambah">
     <input
@@ -56,13 +55,12 @@
 </template>
 
 <script>
-import Header from "./Header.vue";
 import axios from "axios";
 
 export default {
   name: "TambahProduk",
   components: {
-    Header,
+
   },
   data() {
     return {

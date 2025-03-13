@@ -1,23 +1,22 @@
 <template>
   <div id="wrapper" class="d-flex">
     <!-- Sidebar -->
-    <Sidebar v-if="isAdmin" @logout="logout" />
-    <UserSidebar v-if="isUser" @logout="logout" />
+    <Sidebar v-if="isLoggedIn && isAdmin" @logout="logout" />
+    <UserSidebar v-if="isLoggedIn && isUser" @logout="logout" />
     <GuestSidebar v-if="isGuest" @logout="logout" />
-    <!-- /#sidebar-wrapper -->
 
     <!-- Page Content -->
-    <div id="page-content-wrapper">
+    <div id="page-content-wrapper" class="flex-column">
+      <!-- Conditional header rendering -->
+      <Header v-if="isLoggedIn && isAdmin" @toggle-sidebar="toggleSidebar" />
+      <UserHeader v-if="isUser" />
+      <GuestHeader v-if="isGuest" />
+
       <div class="container-fluid">
-        <!-- Router view for dynamic content -->
-        <GuestHeader v-if="isGuest" />
-        <UserHeader v-if="isUser" />
         <router-view></router-view>
       </div>
     </div>
-    <!-- /#page-content-wrapper -->
   </div>
-  <!-- /#wrapper -->
 </template>
 
 <script>
@@ -29,6 +28,9 @@ import "./App.css";
 import Sidebar from "./components/Sidebar.vue";
 import UserSidebar from "./components/UserSidebar.vue";
 import GuestSidebar from "./components/GuestSidebar.vue";
+import Header from "./components/Header.vue";
+import GuestHeader from "./components/GuestHeader.vue";
+import UserHeader from "./components/UserHeader.vue";
 
 export default {
   name: "App",
@@ -36,6 +38,9 @@ export default {
     Sidebar,
     UserSidebar,
     GuestSidebar,
+    Header,
+    GuestHeader,
+    UserHeader,
   },
   computed: {
     isLoggedIn() {
@@ -63,11 +68,15 @@ export default {
         window.location.reload();
       });
     },
+    toggleSidebar() {
+      document.getElementById("wrapper").classList.toggle("toggled");
+    },
   },
   mounted() {
     if (!this.isLoggedIn && !this.isGuest) {
       this.$router.push({ name: "LandingPage" });
     }
+    
   },
 };
 </script>

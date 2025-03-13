@@ -33,7 +33,7 @@
             <h5 class="card-title">{{ product.Nama }}</h5>
             <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
             <p class="card-text">
-              {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+              {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
             </p>
           </div>
         </div>
@@ -60,7 +60,7 @@
             <h5 class="card-title">{{ product.Nama }}</h5>
             <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
             <p class="card-text">
-              {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+              {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
             </p>
           </div>
         </div>
@@ -105,23 +105,52 @@ export default {
         return [];
       }
     },
+    async fetchRiwayatTransaksi() {
+      try {
+        const response = await axios.get("http://localhost:3005/transactions-history");
+        const transactions = response.data;
+
+        // Fetch items for each transaction
+        const transactionsWithItems = await Promise.all(
+          transactions.map(async (transaction) => {
+            const itemsResponse = await axios.get(
+              `http://localhost:3005/transactions-history-items/${transaction.id}`
+            );
+            return {
+              ...transaction,
+              items: itemsResponse.data,
+            };
+          })
+        );
+
+        return transactionsWithItems;
+      } catch (error) {
+        console.error("Error fetching transaction history:", error);
+        return [];
+      }
+    },
     async fetchPreviousProducts() {
       const user = JSON.parse(localStorage.getItem("user-info"));
       if (user && user.Nama) {
         try {
-          const response = await axios.get(
-            "http://localhost:3000/RiwayatTransaksi"
-          );
-          const transactions = response.data.filter(
+          // Fetch transaction history for the user
+          const transactions = await this.fetchRiwayatTransaksi();
+
+          // Filter transactions for the current user
+          const userTransactions = transactions.filter(
             (transaction) => transaction.user === user.Nama
           );
+
+          // Extract unique product IDs from the user's transactions
           const productIds = [
             ...new Set(
-              transactions.flatMap((transaction) =>
-                transaction.items.map((item) => item.id)
+              userTransactions.flatMap((transaction) =>
+                transaction.items.map((item) => item.itemid)
               )
             ),
           ];
+
+          // Fetch product details for the unique product IDs
           this.previousProducts = await this.fetchProducts(productIds);
         } catch (error) {
           console.error("Error fetching previous products:", error);

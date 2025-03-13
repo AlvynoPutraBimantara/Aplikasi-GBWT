@@ -53,6 +53,7 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
+      productPurchaseCounts: {}, // Store purchase counts for each product
     };
   },
   computed: {
@@ -73,6 +74,13 @@ export default {
         sortedProducts.sort((a, b) => b.Harga - a.Harga);
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
+      } else if (this.selectedSortOption === "mostPurchased") {
+        // Sort by purchase count (descending)
+        sortedProducts.sort((a, b) => {
+          const countA = this.productPurchaseCounts[a.id] || 0;
+          const countB = this.productPurchaseCounts[b.id] || 0;
+          return countB - countA;
+        });
       }
       return sortedProducts;
     },
@@ -91,6 +99,21 @@ export default {
         console.error("Failed to fetch products:", error);
       }
     },
+    async fetchPurchaseCounts() {
+      try {
+        // Fetch transaction history items
+        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const items = response.data;
+
+        // Count how many times each product appears in the transaction history
+        this.productPurchaseCounts = items.reduce((acc, item) => {
+          acc[item.itemid] = (acc[item.itemid] || 0) + 1;
+          return acc;
+        }, {});
+      } catch (error) {
+        console.error("Failed to fetch purchase counts:", error);
+      }
+    },
     formatPrice(price) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -103,6 +126,7 @@ export default {
   },
   mounted() {
     this.fetchProducts();
+    this.fetchPurchaseCounts(); // Fetch purchase counts when the component is mounted
   },
 };
 </script>

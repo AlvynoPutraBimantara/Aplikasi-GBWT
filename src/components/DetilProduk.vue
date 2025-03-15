@@ -70,8 +70,8 @@ export default {
       console.error("Error loading product details:", error);
     }
   },
-  methods: {
-    async addToCart() {
+methods: {
+  async addToCart() {
     if (
       this.quantity > 0 &&
       this.quantity <= this.product.Stok &&
@@ -88,12 +88,24 @@ export default {
           user: user.Nama,
         };
 
-        // Send POST request to cart-service
-        const response = await axios.post("http://localhost:3004/cart", payload);
+        // Step 1: Add the product to the cart
+        const cartResponse = await axios.post("http://localhost:3004/cart", payload);
 
-        if (response.status === 201 || response.status === 200) {
-          alert("Pesanan berhasil dimasukkan dalam keranjang!");
-          this.$router.push("/cart");
+        if (cartResponse.status === 201 || cartResponse.status === 200) {
+          // Step 2: Update the product stock in the backend
+          const updateStockResponse = await axios.put(
+            `http://localhost:3002/products/${this.product.id}/stock`,
+            { quantity: this.quantity }
+          );
+
+          if (updateStockResponse.status === 200) {
+            // Step 3: Update the local product stock to reflect the change
+            this.product.Stok -= this.quantity;
+            alert("Pesanan berhasil dimasukkan dalam keranjang!");
+            this.$router.push("/cart");
+          } else {
+            throw new Error("Failed to update product stock.");
+          }
         } else {
           throw new Error("Unexpected response from the server.");
         }

@@ -51,6 +51,7 @@ export default {
       product: {}, // Stores the product details
       quantity: 1, // User-selected quantity
       user: JSON.parse(localStorage.getItem("user-info")), // Current logged-in user
+      guestId: localStorage.getItem("guestId") || null, // Guest ID
     };
   },
   computed: {
@@ -71,6 +72,10 @@ export default {
     }
   },
   methods: {
+    generateRandomId() {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    },
     async addToCart() {
       if (
         this.quantity > 0 &&
@@ -78,9 +83,17 @@ export default {
         !(this.isOwnProduct && this.user)
       ) {
         try {
-          const user = this.user || { Nama: "Guest" };
+          // Generate or retrieve guest ID if the user is a guest
+          if (!this.user) {
+            if (!this.guestId) {
+              this.guestId = `Guest_${this.generateRandomId()}`;
+              localStorage.setItem("guestId", this.guestId);
+            }
+          }
+
+          const user = this.user ? this.user.Nama : this.guestId;
           const payload = {
-            user: user.Nama,
+            user: user,
             itemid: this.product.id,
             name: this.product.Nama,
             price: parseFloat(this.product.Harga),

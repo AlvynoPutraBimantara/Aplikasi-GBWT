@@ -52,7 +52,7 @@ app.post("/orders", async (req, res) => {
       if (!acc[order.orderid]) {
         acc[order.orderid] = {
           id: generateRandomId(),
-          user: order.user,
+          user: order.user, // This can be a guest ID (e.g., "Guest_abc123")
           total: 0,
           catatan: order.catatan,
           created_at: getCurrentTimestamp(), // Assign timestamp in UTC+7
@@ -113,7 +113,6 @@ app.delete("/orders/:id", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 
 // Refund an order and update stock
 app.post("/orders/:id/refund", async (req, res) => {

@@ -6,7 +6,8 @@
         <thead>
           <tr>
             <th>Order ID</th>
-            <th>Pemesan</th>
+            <!-- Conditionally render the Pemesan column header -->
+            <th v-if="!isGuestUser">Pemesan</th>
             <th>Alamat</th>
             <th>Barang</th>
             <th>Total</th>
@@ -18,8 +19,23 @@
         <tbody>
           <tr v-for="order in filteredOrders" :key="order.id">
             <td>{{ order.id }}</td>
-            <td>{{ order.user }}</td>
-            <td>{{ order.address || getUserAddress(order.user) }}</td>
+            <!-- Conditionally render the Pemesan column data -->
+            <td v-if="!isGuestUser">{{ order.user }}</td>
+            <td>
+              <!-- Display input form for Alamat if user is a guest -->
+              <template v-if="order.user.startsWith('Guest_')">
+                <input
+                  type="text"
+                  v-model="order.alamat"
+                  placeholder="Masukkan alamat"
+                  required
+                />
+              </template>
+              <!-- Display address for logged-in users -->
+              <template v-else>
+                {{ order.address || getUserAddress(order.user) }}
+              </template>
+            </td>
             <td>
               <ul>
                 <li v-for="item in order.order_items" :key="item.id">
@@ -56,13 +72,19 @@ export default {
     return {
       orders: [], // Store orders fetched from the backend
       userData: {}, // Store user data for address lookup
+      guestId: localStorage.getItem("guestId") || null, // Retrieve guest ID from localStorage
     };
   },
   computed: {
-    // Filter orders to show only those relevant to the logged-in user
+    // Filter orders to show only those relevant to the logged-in user or guest
     filteredOrders() {
-      const user = JSON.parse(localStorage.getItem("user-info")) || { Nama: "Guest" };
-      return this.orders.filter((order) => order.user === user.Nama);
+      const user = JSON.parse(localStorage.getItem("user-info")) || { Nama: this.guestId };
+      return this.orders.filter((order) => order.user === user.Nama || order.user === this.guestId);
+    },
+    // Check if the current user is a guest
+    isGuestUser() {
+      const user = JSON.parse(localStorage.getItem("user-info"));
+      return !user && this.guestId; // If no user is logged in and guestId exists, it's a guest
     },
   },
   async mounted() {
@@ -98,12 +120,18 @@ export default {
     // Handle order acceptance
     async acceptOrder(order) {
       try {
-        const user = JSON.parse(localStorage.getItem("user-info")) || { Nama: "Guest", Alamat: "Unknown" };
+        // Check if the user is a guest and if the alamat is provided
+        if (order.user.startsWith("Guest_") && !order.alamat) {
+          alert("Mohon masukkan alamat untuk melanjutkan.");
+          return;
+        }
+
+        const user = JSON.parse(localStorage.getItem("user-info")) || { Nama: this.guestId, Alamat: order.alamat || "Unknown" };
         const transactionData = {
           user: user.Nama,
           total: order.total,
           catatan: order.catatan,
-          alamat: user.Alamat, // Insert user's Alamat data value
+          alamat: user.Alamat, // Use the provided alamat for guests
           order_items: order.order_items,
         };
 
@@ -120,30 +148,30 @@ export default {
       }
     },
     async deleteOrder(orderId) {
-    try {
-      // Step 1: Fetch the order details
-      const order = this.orders.find((order) => order.id === orderId);
-      if (!order) {
-        throw new Error("Order not found");
-      }
+      try {
+        // Step 1: Fetch the order details
+        const order = this.orders.find((order) => order.id === orderId);
+        if (!order) {
+          throw new Error("Order not found");
+        }
 
-      // Step 2: Call the refund endpoint
-      const refundResponse = await axios.post(
-        `http://localhost:3003/orders/${orderId}/refund`
-      );
+        // Step 2: Call the refund endpoint
+        const refundResponse = await axios.post(
+          `http://localhost:3003/orders/${orderId}/refund`
+        );
 
-      if (refundResponse.status === 200) {
-        // Step 3: Remove the order from the local list
-        this.orders = this.orders.filter((order) => order.id !== orderId);
-        alert("Pesanan berhasil dikembalikan dan stok diperbarui!");
-      } else {
-        throw new Error("Failed to process refund.");
+        if (refundResponse.status === 200) {
+          // Step 3: Remove the order from the local list
+          this.orders = this.orders.filter((order) => order.id !== orderId);
+          alert("Pesanan berhasil dikembalikan dan stok diperbarui!");
+        } else {
+          throw new Error("Failed to process refund.");
+        }
+      } catch (error) {
+        console.error("Error deleting order:", error);
+        alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
       }
-    } catch (error) {
-      console.error("Error deleting order:", error);
-      alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
-    }
-  },
+    },
     // Format price as currency
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
@@ -164,4 +192,25 @@ export default {
 
 <style scoped>
 /* Add your styles here */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+th {
+  background-color: #f2f2f2;
+  text-align: left;
+}
+
+td input {
+  width: 100%;
+  padding: 5px;
+  box-sizing: border-box;
+}
 </style>

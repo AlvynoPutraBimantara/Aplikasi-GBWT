@@ -61,15 +61,16 @@ export default {
       cart: [],
       catatan: "",
       user: null, // Store logged-in user data
+      guestId: null, // Store guest identifier
       warningMessage: "", // New warning message for quantity limit
     };
   },
   computed: {
     filteredCart() {
-      return this.cart.filter((item) => item.user === this.user?.Nama);
+      return this.cart; // No need to filter by user since the backend handles it
     },
     cartTotalPrice() {
-      return this.filteredCart.reduce(
+      return this.cart.reduce(
         (total, item) => total + item.price * item.quantity,
         0
       );
@@ -78,27 +79,28 @@ export default {
   methods: {
     async fetchUser() {
       try {
-        const userId = JSON.parse(localStorage.getItem("user-info")).id;
-        const response = await axios.get(`http://localhost:3001/user/${userId}`);
-        this.user = response.data;
+        const userInfo = JSON.parse(localStorage.getItem("user-info"));
+        if (userInfo) {
+          const userId = userInfo.id;
+          const response = await axios.get(`http://localhost:3001/user/${userId}`);
+          this.user = response.data;
+        } else {
+          // Generate or retrieve guest ID
+          this.guestId = localStorage.getItem("guestId") || `guest-${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem("guestId", this.guestId);
+        }
       } catch (error) {
         console.error("Error fetching user profile:", error);
-        this.$router.push({ name: "Login" });
       }
     },
     async fetchCart() {
       try {
-        const response = await axios.get("http://localhost:3004/cart");
+        const identifier = this.user ? this.user.Nama : this.guestId;
+        const response = await axios.get(`http://localhost:3004/cart?user=${identifier}`);
         const cartItems = response.data;
 
         // Fetch product details using itemid from cart service
         const promises = cartItems.map(async (item) => {
-          // Check if itemid is valid before making a request
-          if (!item.itemid) {
-            console.warn(`Skipping item with invalid itemid:`, item);
-            return { ...item, stock: 0, name: "Unknown Product", price: 0, pedagang: "Unknown Seller" };
-          }
-
           try {
             const productResponse = await axios.get(
               `http://localhost:3002/products/${item.itemid}`
@@ -131,22 +133,20 @@ export default {
         this.showWarning("Maksimal jumlah produk dalam stok tercapai!");
       }
     },
-    updateQuantity(item) {
-      // Ensure the value is clamped between min and max before sending to the backend.
+    async updateQuantity(item) {
       if (item.quantity < 1) {
         item.quantity = 1;
       } else if (item.quantity > item.stock) {
         item.quantity = item.stock;
       }
 
-      axios
-        .put(`http://localhost:3004/cart/${item.id}`, { quantity: item.quantity })
-        .then(() => {
-          console.log("Cart item quantity updated successfully.");
-        })
-        .catch((error) => {
-          console.error("Error updating cart item quantity:", error);
-        });
+      try {
+        // Update the quantity in the backend
+        await axios.put(`http://localhost:3004/cart/${item.id}`, { quantity: item.quantity });
+        console.log("Cart item quantity updated successfully.");
+      } catch (error) {
+        console.error("Error updating cart item quantity:", error);
+      }
     },
     removeFromCart(itemId) {
       axios
@@ -157,8 +157,8 @@ export default {
         .catch((error) => console.error("Error removing item from cart:", error));
     },
     async checkout() {
-      if (!this.user || !this.user.Alamat) {
-        alert("Alamat tidak ditemukan! Pastikan Anda sudah login.");
+      if (!this.user && !this.guestId) {
+        alert("Anda harus login atau melanjutkan sebagai tamu.");
         return;
       }
 
@@ -168,7 +168,7 @@ export default {
 
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " "); // MySQL-compatible format
 
-      this.filteredCart.forEach((item) => {
+      this.cart.forEach((item) => {
         if (!orderIds[item.pedagang]) {
           orderIds[item.pedagang] = generateRandomId();
         }
@@ -182,8 +182,8 @@ export default {
           price: item.price,
           quantity: item.quantity,
           total: item.price * item.quantity,
-          user: this.user.Nama,
-          Alamat: this.user.Alamat,
+          user: this.user ? this.user.Nama : this.guestId,
+          Alamat: this.user ? this.user.Alamat : "Alamat Tamu",
           catatan: this.catatan,
           timestamp, // Use formatted timestamp
         });
@@ -191,7 +191,7 @@ export default {
 
       try {
         await axios.post("http://localhost:3003/orders", { orders });
-        await axios.delete("http://localhost:3004/cart"); // Clear the cart after successful checkout
+        await axios.delete(`http://localhost:3004/cart?user=${this.user ? this.user.Nama : this.guestId}`); // Clear the cart after successful checkout
         this.cart = [];
         alert("Checkout successful!");
 

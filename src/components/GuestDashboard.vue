@@ -1,7 +1,6 @@
 <template>
   <div>
-  </div>
-  <div>
+    <!-- Section for main products -->
     <div
       class="product"
       v-for="(product, index) in products"
@@ -13,63 +12,49 @@
     >
       <h3>{{ product.name }}</h3>
     </div>
-  </div>
 
-  <h4 style="font-size: 50px">Produk Populer</h4>
-
-  <div class="products-container">
-    <div
-      class="card"
-      v-for="(product, index) in popularProducts"
-      :key="index"
-      @click="goToProductPage(product.id)"
-      style="width: 15rem; cursor: pointer; margin: 10px"
-    >
-      <div class="card-body">
-        <img
-          :src="product.imageUrl"
-          alt="Product Image"
-          style="width: 100%; height: auto"
-        />
-        <h5 class="card-title">{{ product.Nama }}</h5>
-        <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
-        <p class="card-text">
-          {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
-        </p>
+    <!-- Section for popular products -->
+    <section class="section-popular" v-if="popularProducts.length > 0">
+      <h4 class="section-title">Produk Populer</h4>
+      <div class="products-container">
+        <div
+          class="card"
+          v-for="(product, index) in popularProducts"
+          :key="index"
+          @click="goToProductPage(product.id)"
+          style="width: 15rem; cursor: pointer; margin: 10px"
+        >
+          <div class="card-body">
+            <img
+              :src="product.imageUrl"
+              alt="Product Image"
+              style="width: 100%; height: auto"
+            />
+            <h5 class="card-title">{{ product.Nama }}</h5>
+            <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
+            <p class="card-text">
+              {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script>
-import { mapState } from "vuex";
+import axios from "axios";
 
 export default {
-  components: {
-
-  },
   data() {
     return {
       products: [
-        {
-          id: 1,
-          name: "WARUNG",
-        },
-        {
-          id: 2,
-          name: "PRODUK",
-        },
-        {
-          id: 3,
-          name: "KATEGORI",
-        },
+        { id: 1, name: "WARUNG" },
+        { id: 2, name: "PRODUK" },
+        { id: 3, name: "KATEGORI" },
       ],
+      popularProducts: [],
     };
-  },
-  computed: {
-    ...mapState({
-      popularProducts: (state) => state.popularProducts,
-    }),
   },
   methods: {
     goToProductPage(productId) {
@@ -83,6 +68,46 @@ export default {
         console.log(`Navigating to product page with ID: ${productId}`);
       }
     },
+    async fetchProducts(productIds) {
+      try {
+        const productPromises = productIds.map((id) =>
+          axios.get(`http://localhost:3002/products/${id}`)
+        );
+        const products = await Promise.all(productPromises);
+        return products.map((response) => ({
+          ...response.data,
+          imageUrl: response.data.imageUrl
+            ? `http://localhost:3002/images/${response.data.id}` // Construct URL for serving images
+            : "default-image.jpg", // Placeholder image if none provided
+        }));
+      } catch (error) {
+        console.error("Failed to fetch products:", error);
+        return [];
+      }
+    },
+    async fetchPopularProducts() {
+      try {
+        // Fetch all transaction history items
+        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const items = response.data;
+
+        // Count how many times each product appears in the transaction history
+        const productCountMap = items.reduce((acc, item) => {
+          acc[item.itemid] = (acc[item.itemid] || 0) + 1;
+          return acc;
+        }, {});
+
+        // Filter products that appear more than 3 times
+        const popularProductIds = Object.keys(productCountMap).filter(
+          (productId) => productCountMap[productId] > 3
+        );
+
+        // Fetch product details for popular products
+        this.popularProducts = await this.fetchProducts(popularProductIds);
+      } catch (error) {
+        console.error("Error fetching popular products:", error);
+      }
+    },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -90,9 +115,8 @@ export default {
       }).format(value);
     },
   },
-
   mounted() {
-    this.$store.dispatch("fetchPopularProducts");
+    this.fetchPopularProducts();
   },
 };
 </script>
@@ -104,12 +128,14 @@ export default {
   justify-content: center;
   padding: 20px;
 }
-.h4 {
-  font-size: 64px;
+
+.section-title {
+  font-size: 24px;
   font-weight: bold;
   text-align: center;
   margin: 20px 0;
 }
+
 .card {
   border: 1px solid #ccc;
   padding: 0;
@@ -141,6 +167,7 @@ export default {
   width: 100%;
   height: auto;
 }
+
 .product {
   border: 3px solid black;
   padding: 20px;

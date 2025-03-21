@@ -1,7 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const pool = require("./db"); // Assumes db.js provides the database pool connection
+const { Cart, CartItems } = require("./cart.model");
+const { Produk } = require("./produk.model"); // Import Produk model
+
+
 
 const app = express();
 const port = 3004;
@@ -12,116 +15,105 @@ app.use(bodyParser.json());
 // Generate an 8-character random string for ID
 function generateRandomId() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-// Get all cart items
+// Get all cart items for a specific user
 app.get("/cart", async (req, res) => {
+  const { user } = req.query;
   try {
-    const result = await pool.query("SELECT * FROM cart");
-    res.status(200).json(result[0]);
+    const cart = await Cart.findOne({
+      where: { user },
+      include: [{ model: CartItems, as: "cart_items" }],
+    });
+    res.status(200).json(cart ? cart.cart_items : []);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch cart items." });
   }
 });
 
-// Get a cart item by ID
-app.get("/cart/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query("SELECT * FROM cart WHERE id = ?", [id]);
-    if (result[0].length === 0) {
-      return res.status(404).json({ error: "Cart item not found." });
-    }
-    res.status(200).json(result[0][0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch the cart item." });
-  }
-});
-
+// Add item to cart
 app.post("/cart", async (req, res) => {
   try {
-    const { id, itemid, name, price, quantity, pedagang, user } = req.body;
+    const { user, itemid, name, price, quantity, pedagang } = req.body;
 
-    // Check if the product already exists in the cart for the same user
-    const [existingCartItems] = await pool.query(
-      "SELECT * FROM cart WHERE name = ? AND user = ?",
-      [name, user]
-    );
+    // Find or create a cart for the user
+    let cart = await Cart.findOne({ where: { user } });
+    if (!cart) {
+      cart = await Cart.create({ id: generateRandomId(), user });
+    }
 
-    if (existingCartItems.length > 0) {
+    // Check if the item already exists in the cart
+    const existingCartItem = await CartItems.findOne({
+      where: { cart_id: cart.id, itemid },
+    });
+
+    if (existingCartItem) {
       // Update the quantity of the existing item
-      const updatedQuantity = existingCartItems[0].quantity + quantity;
-      await pool.query(
-        "UPDATE cart SET quantity = ? WHERE id = ?",
-        [updatedQuantity, existingCartItems[0].id]
+      const updatedQuantity = existingCartItem.quantity + quantity;
+      await CartItems.update(
+        { quantity: updatedQuantity },
+        { where: { id: existingCartItem.id } }
       );
       return res.status(200).json({ message: "Quantity updated successfully." });
     }
 
-    // Use provided id and itemid or generate new IDs if not provided
-    const newId = id || generateRandomId();
-    const newItemId = itemid || generateRandomId();
+    // Add the item to cart_items
+    await CartItems.create({
+      id: generateRandomId(),
+      cart_id: cart.id,
+      itemid,
+      name,
+      price,
+      quantity,
+      pedagang,
+    });
 
-    // Add the item as a new entry
-    await pool.query(
-      "INSERT INTO cart (id, name, price, quantity, pedagang, user, itemid) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [newItemId, name, price, quantity, pedagang, user, newId]
-    );
-
-    res.status(201).json({ message: "Item added to cart.", id: newId, itemid: newItemId });
+    res.status(201).json({ message: "Item added to cart." });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to add/update the cart item." });
+    res.status(500).json({ error: "Failed to add item to cart." });
   }
 });
 
-
 // Update a cart item's quantity
 app.put("/cart/:id", async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // This is the cart_item id
   const { quantity } = req.body;
 
   try {
-    // Fetch the itemid from the cart using the cart id
-    const [cartResult] = await pool.query(
-      "SELECT itemid FROM cart WHERE id = ?",
-      [id]
-    );
-
-    if (cartResult.length === 0) {
+    // Fetch the cart item from the cart_items table
+    const cartItem = await CartItems.findOne({ where: { id } });
+    if (!cartItem) {
       return res.status(404).json({ error: "Cart item not found." });
     }
 
-    const itemid = cartResult[0].itemid;
+    // Ensure itemid is valid
+    if (!cartItem.itemid) {
+      return res.status(400).json({ error: "Invalid item ID." });
+    }
 
-    // Get the stock for the product from the dataproduk table
-    const [productResult] = await pool.query(
-      "SELECT Stok FROM dataproduk WHERE id = ?",
-      [itemid] // Now correctly using itemid to fetch stock
-    );
+    // Fetch the product's stock using Sequelize
+    const productResult = await Produk.findOne({
+      where: { id: cartItem.itemid },
+      attributes: ["Stok"], // Only fetch the Stok column
+    });
 
-    if (productResult.length === 0) {
+    if (!productResult) {
       return res.status(404).json({ error: "Product not found." });
     }
 
-    const maxStock = productResult[0].Stok;
+    const maxStock = productResult.Stok;
 
     // Clamp the quantity to the available stock
     const clampedQuantity = Math.min(quantity, maxStock);
 
-    // Update the cart item
-    await pool.query("UPDATE cart SET quantity = ? WHERE id = ?", [
-      clampedQuantity,
-      id,
-    ]);
+    // Update the cart item's quantity in the cart_items table
+    await CartItems.update(
+      { quantity: clampedQuantity },
+      { where: { id } } // Update the cart_item with the given id
+    );
 
     res.status(200).json({ message: "Quantity updated successfully." });
   } catch (err) {
@@ -133,12 +125,9 @@ app.put("/cart/:id", async (req, res) => {
 
 // Delete a cart item by ID
 app.delete("/cart/:id", async (req, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-    const result = await pool.query("DELETE FROM cart WHERE id = ?", [id]);
-    if (result[0].affectedRows === 0) {
-      return res.status(404).json({ error: "Cart item not found." });
-    }
+    await CartItems.destroy({ where: { id } });
     res.status(204).end();
   } catch (err) {
     console.error(err);
@@ -146,10 +135,15 @@ app.delete("/cart/:id", async (req, res) => {
   }
 });
 
-// Clear all cart items
+// Clear all cart items for a specific user
 app.delete("/cart", async (req, res) => {
+  const { user } = req.query;
   try {
-    await pool.query("DELETE FROM cart");
+    const cart = await Cart.findOne({ where: { user } });
+    if (cart) {
+      await CartItems.destroy({ where: { cart_id: cart.id } });
+      await Cart.destroy({ where: { id: cart.id } });
+    }
     res.status(204).end();
   } catch (err) {
     console.error(err);

@@ -70,61 +70,51 @@ export default {
       console.error("Error loading product details:", error);
     }
   },
-methods: {
-  async addToCart() {
-    if (
-      this.quantity > 0 &&
-      this.quantity <= this.product.Stok &&
-      !(this.isOwnProduct && this.user)
-    ) {
-      try {
-        const user = this.user || { Nama: "Guest" };
-        const payload = {
-          id: this.product.id,
-          name: this.product.Nama,
-          price: parseFloat(this.product.Harga),
-          quantity: this.quantity,
-          pedagang: this.product.Pedagang,
-          user: user.Nama,
-        };
+  methods: {
+    async addToCart() {
+      if (
+        this.quantity > 0 &&
+        this.quantity <= this.product.Stok &&
+        !(this.isOwnProduct && this.user)
+      ) {
+        try {
+          const user = this.user || { Nama: "Guest" };
+          const payload = {
+            user: user.Nama,
+            itemid: this.product.id,
+            name: this.product.Nama,
+            price: parseFloat(this.product.Harga),
+            quantity: this.quantity,
+            pedagang: this.product.Pedagang,
+          };
 
-        // Step 1: Add the product to the cart
-        const cartResponse = await axios.post("http://localhost:3004/cart", payload);
+          // Add the item to the cart
+          const cartResponse = await axios.post("http://localhost:3004/cart", payload);
+          console.log("Cart response:", cartResponse.data);
 
-        if (cartResponse.status === 201 || cartResponse.status === 200) {
-          // Step 2: Update the product stock in the backend
-          const updateStockResponse = await axios.put(
-            `http://localhost:3002/products/${this.product.id}/stock`,
-            { quantity: this.quantity }
-          );
-
-          if (updateStockResponse.status === 200) {
-            // Step 3: Update the local product stock to reflect the change
+          if (cartResponse.status === 201 || cartResponse.status === 200) {
+            // Update the local product stock to reflect the change
             this.product.Stok -= this.quantity;
             alert("Pesanan berhasil dimasukkan dalam keranjang!");
             this.$router.push("/cart");
           } else {
-            throw new Error("Failed to update product stock.");
+            throw new Error("Unexpected response from the server.");
           }
-        } else {
-          throw new Error("Unexpected response from the server.");
+        } catch (error) {
+          console.error("Error adding to cart:", error);
+          alert("Failed to add product to cart. Please try again.");
         }
-      } catch (error) {
-        console.error("Error adding to cart:", error);
-        alert("Failed to add product to cart. Please try again.");
+      } else {
+        alert("Invalid quantity selected.");
       }
-    } else {
-      alert("Invalid quantity selected.");
-    }
+    },
+    formatPrice(value) {
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
+    },
   },
-  formatPrice(value) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-    }).format(value);
-  },
-},
-
 };
 </script>
 

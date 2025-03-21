@@ -1,28 +1,29 @@
-const mysql = require("mysql2");
-require("dotenv").config();
+const { Sequelize } = require("sequelize");
+const dotenv = require("dotenv");
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "localhost", // Use 'mysql' as host inside Docker
+// Load environment variables
+dotenv.config();
+
+// Initialize Sequelize with MySQL
+const sequelize = new Sequelize({
+  dialect: "mysql",
+  host: process.env.DB_HOST || "localhost",
   port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || "root",
+  username: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "1234",
   database: process.env.DB_NAME || "gbwt",
-  connectionLimit: 100,
-  waitForConnections: true,
-  queueLimit: 0,
+  logging: false, // Disable logging SQL queries (optional)
 });
 
-pool.on("error", (err) => {
-  console.error("MySQL Pool Error:", err.message);
-});
+// Test the database connection
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log("Connection to the database has been established successfully.");
+  })
+  .catch((error) => {
+    console.error("Unable to connect to the database:", error);
+  });
 
-pool.getConnection((err, connection) => {
-  if (err) {
-    console.error("Error connecting to MySQL:", err);
-  } else {
-    console.log("Connected to MySQL");
-    connection.release();
-  }
-});
-
-module.exports = pool.promise();
+// Export the sequelize instance
+module.exports = sequelize;

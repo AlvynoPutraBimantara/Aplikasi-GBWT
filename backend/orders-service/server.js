@@ -114,6 +114,42 @@ app.delete("/orders/:id", async (req, res) => {
   }
 });
 
+
+// Refund an order and update stock
+app.post("/orders/:id/refund", async (req, res) => {
+  const orderId = req.params.id;
+
+  try {
+    // Step 1: Fetch the order and its items
+    const order = await Orders.findOne({
+      where: { id: orderId },
+      include: [{ model: OrderItems, as: "order_items" }],
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Step 2: Update stock for each item in the order
+    for (const item of order.order_items) {
+      const product = await Produk.findOne({ where: { id: item.itemid } });
+      if (product) {
+        const newStock = product.Stok + parseInt(item.quantity, 10);
+        await Produk.update({ Stok: newStock }, { where: { id: item.itemid } });
+      }
+    }
+
+    // Step 3: Delete the order and its items
+    await OrderItems.destroy({ where: { order_id: orderId } });
+    await Orders.destroy({ where: { id: orderId } });
+
+    res.status(200).json({ message: "Order refunded and stock updated successfully!" });
+  } catch (error) {
+    console.error("Error refunding order:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Orders service is running on http://localhost:${port}`);
 });

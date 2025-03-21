@@ -269,22 +269,43 @@ app.delete("/uploads/:id", async (req, res) => {
   }
 });
 
-app.get('/images/:id', async (req, res) => {
-  const id = req.params.id;
+// Add a new endpoint for guest sign-in
+app.post('/guest-signin', async (req, res) => {
+  const guestId = generateRandomId();
+  const guestName = `guest_${guestId}`;
+  const guestPassword = generateRandomId();
+
+  const query = `
+    INSERT INTO User (id, Nama, Password, role)
+    VALUES (?, ?, ?, 'guest')`;
+
   try {
-      const [rows] = await pool.execute('SELECT * FROM userimages WHERE id = ?', [id]);
-      if (rows.length === 0) {
-          return res.status(404).send('Image not found');
-      }
-      const image = rows[0];
-      res.set('Content-Type', image.mimetype);
-      res.send(image.data);
-  } catch (error) {
-      console.error('Error fetching image:', error);
-      res.status(500).send('Error fetching image');
+    await pool.query(query, [guestId, guestName, guestPassword]);
+
+    const [userResults] = await pool.query("SELECT * FROM User WHERE id = ?", [guestId]);
+    const guestUser = userResults[0];
+
+    res.status(201).json(guestUser);
+  } catch (err) {
+    console.error("Error creating guest user:", err);
+    res.status(500).json({ message: "Internal server error." });
   }
 });
-
+// Delete Guest User
+app.delete('/guest/:id', async (req, res) => {
+  const { id } = req.params;
+  const query = "DELETE FROM gbwt.user WHERE id = ? AND role = 'guest'";
+  try {
+    const [results] = await pool.query(query, [id]);
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Guest user not found." });
+    }
+    res.status(200).json({ message: "Guest user deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting guest user:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
 
 app.listen(port, () => {
   console.log(`User Service is running on http://localhost:${port}`);

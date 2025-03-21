@@ -3,43 +3,43 @@
     <div class="sidebar-heading">Aplikasi GBWT</div>
     <div class="list-group list-group-flush">
       <router-link
-        to="/GuestDashboard"
+        :to="{ path: '/GuestDashboard', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Dashboard</router-link
       >
       <router-link
-        to="/Produk"
+        :to="{ path: '/Produk', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Produk</router-link
       >
       <router-link
-        to="/Kategori"
+        :to="{ path: '/Kategori', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Kategori</router-link
       >
       <router-link
-        to="/Warung"
+        :to="{ path: '/Warung', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Warung</router-link
       >
       <router-link
-        to="/Orders"
+        :to="{ path: '/Orders', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Pesanan</router-link
       >
       <router-link
-        to="/Cart"
+        :to="{ path: '/Cart', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light"
         >Keranjang</router-link
       >
       <router-link
-        to="/Informasi"
+        :to="{ path: '/Informasi', query: { guestId: $route.query.guestId, is_guest: $route.query.is_guest } }"
         class="list-group-item list-group-item-action bg-light infouser"
         ><font-awesome-icon :icon="['fas', 'circle-info']" /></router-link
       >
       <button
         @click="goToLogin"
-        class=" bg-light login-btn"
+        class="bg-light login-btn"
       >
         Login
       </button>

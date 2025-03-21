@@ -83,16 +83,13 @@ export default {
       if (!this.user) return; // Exit if no user is logged in
 
       try {
-        const response = await axios.get("http://localhost:3004/cart");
+        const response = await axios.get("http://localhost:3004/cart", {
+          params: { user: this.user.Nama },
+        });
         const cartItems = response.data;
 
-        // Filter cart items for the logged-in user
-        const userCartItems = cartItems.filter(
-          (item) => item.user === this.user.Nama
-        );
-
         // Calculate the total number of items in the cart
-        this.cartItemCount = userCartItems.reduce(
+        this.cartItemCount = cartItems.reduce(
           (total, item) => total + item.quantity,
           0
         );

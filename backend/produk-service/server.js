@@ -182,33 +182,6 @@ app.get("/users", async (req, res) => {
 });
 
 
-// Update product stock
-app.put("/products/:id/stock", async (req, res) => {
-  const { id } = req.params;
-  const { quantity } = req.body;
-
-  try {
-    // Fetch the current stock
-    const [rows] = await pool.query("SELECT Stok FROM dataproduk WHERE id = ?", [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    const currentStock = rows[0].Stok;
-    const newStock = currentStock - quantity;
-
-    if (newStock < 0) {
-      return res.status(400).json({ error: "Insufficient stock" });
-    }
-
-    // Update the stock
-    await pool.query("UPDATE dataproduk SET Stok = ? WHERE id = ?", [newStock, id]);
-    res.status(200).json({ message: "Stock updated successfully" });
-  } catch (error) {
-    console.error(`Error updating stock for product (${id}):`, error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
 // Start server
 app.listen(3002, () => {
   console.log("Produk service is running on http://localhost:3002");

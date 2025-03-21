@@ -119,17 +119,31 @@ export default {
         alert("Failed to accept order. Please try again.");
       }
     },
-    // Handle order deletion
     async deleteOrder(orderId) {
-      try {
-        await axios.delete(`http://localhost:3003/orders/${orderId}`);
-        this.orders = this.orders.filter((order) => order.id !== orderId); // Remove deleted order from the list
-        
-        
-      } catch (error) {
-        console.error("Error deleting order:", error);
+    try {
+      // Step 1: Fetch the order details
+      const order = this.orders.find((order) => order.id === orderId);
+      if (!order) {
+        throw new Error("Order not found");
       }
-    },
+
+      // Step 2: Call the refund endpoint
+      const refundResponse = await axios.post(
+        `http://localhost:3003/orders/${orderId}/refund`
+      );
+
+      if (refundResponse.status === 200) {
+        // Step 3: Remove the order from the local list
+        this.orders = this.orders.filter((order) => order.id !== orderId);
+        alert("Pesanan berhasil dikembalikan dan stok diperbarui!");
+      } else {
+        throw new Error("Failed to process refund.");
+      }
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
+    }
+  },
     // Format price as currency
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {

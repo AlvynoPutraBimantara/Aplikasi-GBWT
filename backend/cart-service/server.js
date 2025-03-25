@@ -33,10 +33,20 @@ app.get("/cart", async (req, res) => {
   }
 });
 
+
 // Add item to cart
 app.post("/cart", async (req, res) => {
   try {
     const { user, itemid, name, price, quantity, pedagang } = req.body;
+
+    // Verify the product exists and check for discount price
+    const product = await Produk.findOne({ where: { id: itemid } });
+    if (!product) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+
+    // Use discount price if available
+    const finalPrice = product.Harga_diskon || price;
 
     // Find or create a cart for the user
     let cart = await Cart.findOne({ where: { user } });
@@ -59,13 +69,13 @@ app.post("/cart", async (req, res) => {
       return res.status(200).json({ message: "Quantity updated successfully." });
     }
 
-    // Add the item to cart_items
+    // Add the item to cart_items with the correct price
     await CartItems.create({
       id: generateRandomId(),
       cart_id: cart.id,
       itemid,
       name,
-      price,
+      price: finalPrice,
       quantity,
       pedagang,
     });
@@ -127,14 +137,31 @@ app.put("/cart/:id", async (req, res) => {
 app.delete("/cart/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    // First get the cart item to find its cart_id
+    const cartItem = await CartItems.findOne({ where: { id } });
+    if (!cartItem) {
+      return res.status(404).json({ error: "Cart item not found." });
+    }
+
+    const cartId = cartItem.cart_id;
+    
+    // Delete the cart item
     await CartItems.destroy({ where: { id } });
+    
+    // Check if this was the last item in the cart
+    const remainingItems = await CartItems.count({ where: { cart_id: cartId } });
+    
+    if (remainingItems === 0) {
+      // If no items left, delete the cart too
+      await Cart.destroy({ where: { id: cartId } });
+    }
+    
     res.status(204).end();
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to delete cart item." });
   }
 });
-
 // Clear all cart items for a specific user
 app.delete("/cart", async (req, res) => {
   const { user } = req.query;

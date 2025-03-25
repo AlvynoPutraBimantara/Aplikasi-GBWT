@@ -7,7 +7,14 @@
           <h1>{{ product.Nama }}</h1>
         </div>
         <div class="detail-item">
-          <p>Harga: {{ formatPrice(product.Harga) }}</p>
+          <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
+          <p :class="{ 'strikethrough': product.Harga_diskon }">
+            Harga: {{ formatPrice(product.Harga) }}
+          </p>
+          <!-- Display Harga_diskon in red if it exists -->
+          <p v-if="product.Harga_diskon" class="discount-price">
+            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+          </p>
         </div>
         <div class="detail-item">
           <p>Kategori: {{ product.Kategori }}</p>
@@ -67,6 +74,9 @@ export default {
       );
       this.product = response.data;
       this.product.Harga = parseFloat(this.product.Harga); // Ensure Harga is numeric
+      if (this.product.Harga_diskon) {
+        this.product.Harga_diskon = parseFloat(this.product.Harga_diskon); // Ensure Harga_diskon is numeric
+      }
     } catch (error) {
       console.error("Error loading product details:", error);
     }
@@ -77,50 +87,51 @@ export default {
       return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     },
     async addToCart() {
-      if (
-        this.quantity > 0 &&
-        this.quantity <= this.product.Stok &&
-        !(this.isOwnProduct && this.user)
-      ) {
-        try {
-          // Generate or retrieve guest ID if the user is a guest
-          if (!this.user) {
-            if (!this.guestId) {
-              this.guestId = `Guest_${this.generateRandomId()}`;
-              localStorage.setItem("guestId", this.guestId);
-            }
-          }
-
-          const user = this.user ? this.user.Nama : this.guestId;
-          const payload = {
-            user: user,
-            itemid: this.product.id,
-            name: this.product.Nama,
-            price: parseFloat(this.product.Harga),
-            quantity: this.quantity,
-            pedagang: this.product.Pedagang,
-          };
-
-          // Add the item to the cart
-          const cartResponse = await axios.post("http://localhost:3004/cart", payload);
-          console.log("Cart response:", cartResponse.data);
-
-          if (cartResponse.status === 201 || cartResponse.status === 200) {
-            // Update the local product stock to reflect the change
-            this.product.Stok -= this.quantity;
-            alert("Pesanan berhasil dimasukkan dalam keranjang!");
-            this.$router.push("/cart");
-          } else {
-            throw new Error("Unexpected response from the server.");
-          }
-        } catch (error) {
-          console.error("Error adding to cart:", error);
-          alert("Failed to add product to cart. Please try again.");
+  if (
+    this.quantity > 0 &&
+    this.quantity <= this.product.Stok &&
+    !(this.isOwnProduct && this.user)
+  ) {
+    try {
+      // Generate or retrieve guest ID if the user is a guest
+      if (!this.user) {
+        if (!this.guestId) {
+          this.guestId = `Guest_${this.generateRandomId()}`;
+          localStorage.setItem("guestId", this.guestId);
         }
-      } else {
-        alert("Invalid quantity selected.");
       }
-    },
+
+      const user = this.user ? this.user.Nama : this.guestId;
+      const payload = {
+        user: user,
+        itemid: this.product.id,
+        name: this.product.Nama,
+        // Use Harga_diskon if available, otherwise use Harga
+        price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
+        quantity: this.quantity,
+        pedagang: this.product.Pedagang,
+      };
+
+      // Add the item to the cart
+      const cartResponse = await axios.post("http://localhost:3004/cart", payload);
+      console.log("Cart response:", cartResponse.data);
+
+      if (cartResponse.status === 201 || cartResponse.status === 200) {
+        // Update the local product stock to reflect the change
+        this.product.Stok -= this.quantity;
+        alert("Pesanan berhasil dimasukkan dalam keranjang!");
+        this.$router.push("/cart");
+      } else {
+        throw new Error("Unexpected response from the server.");
+      }
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      alert("Failed to add product to cart. Please try again.");
+    }
+  } else {
+    alert("Invalid quantity selected.");
+  }
+},
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -130,7 +141,6 @@ export default {
   },
 };
 </script>
-
 
 <style scoped>
 .container {
@@ -168,6 +178,16 @@ export default {
 .detail-item p {
   text-align: left;
   margin: 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  color: gray;
+}
+
+.discount-price {
+  color: red;
+  font-weight: bold;
 }
 
 .quantity-form {

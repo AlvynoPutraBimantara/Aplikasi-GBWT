@@ -18,7 +18,14 @@
             style="width: 100%; height: auto"
           />
           <h5 class="card-title">{{ product.Nama }}</h5>
-          <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
+          <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
+          <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+            Harga: {{ formatPrice(product.Harga) }}
+          </p>
+          <!-- Display Harga_diskon in red if it exists -->
+          <p v-if="product.Harga_diskon" class="card-text discount-price">
+            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+          </p>
           <p class="card-text">Kategori: {{ product.Kategori }}</p>
           <p class="card-text">Keterangan: {{ product.Keterangan }}</p>
           <p class="card-text">Stok: {{ product.Stok }}</p>
@@ -149,6 +156,16 @@ export default {
 
 .card-text {
   margin: 5px 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  color: gray;
+}
+
+.discount-price {
+  color: red;
+  font-weight: bold;
 }
 
 .product-card img {

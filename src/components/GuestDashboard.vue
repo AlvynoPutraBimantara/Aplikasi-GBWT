@@ -31,7 +31,14 @@
               style="width: 100%; height: auto"
             />
             <h5 class="card-title">{{ product.Nama }}</h5>
-            <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
+            <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
+            <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+              Harga: {{ formatPrice(product.Harga) }}
+            </p>
+            <!-- Display Harga_diskon in red if it exists -->
+            <p v-if="product.Harga_diskon" class="card-text discount-price">
+              Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+            </p>
             <p class="card-text">
               {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
             </p>
@@ -57,17 +64,20 @@ export default {
     };
   },
   methods: {
-    goToProductPage(productId) {
-      if (productId === 1) {
-        this.$router.push({ path: "/Warung" });
-      } else if (productId === 2) {
-        this.$router.push({ path: "/Produk" });
-      } else if (productId === 3) {
-        this.$router.push({ path: "/Kategori" });
-      } else {
-        console.log(`Navigating to product page with ID: ${productId}`);
-      }
-    },
+   
+  goToProductPage(productId) {
+    if (productId === 1) {
+      this.$router.push({ path: "/Warung" });
+    } else if (productId === 2) {
+      this.$router.push({ path: "/Produk" });
+    } else if (productId === 3) {
+      this.$router.push({ path: "/Kategori" });
+    } else {
+      // Change this line to match Produk.vue's routing
+      this.$router.push(`/DetilProduk/${productId}`);
+    }
+  },
+
     async fetchProducts(productIds) {
       try {
         const productPromises = productIds.map((id) =>
@@ -161,6 +171,16 @@ export default {
 
 .card-text {
   margin: 5px 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  color: gray;
+}
+
+.discount-price {
+  color: red;
+  font-weight: bold;
 }
 
 .card img {

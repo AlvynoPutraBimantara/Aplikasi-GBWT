@@ -48,7 +48,12 @@
             style="width: 100%; height: auto"
           />
           <h5 class="card-title">{{ product.Nama }}</h5>
-          <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
+          <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+            Harga: {{ formatPrice(product.Harga) }}
+          </p>
+          <p v-if="product.Harga_diskon" class="card-text discount-price">
+            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+          </p>
           <p class="card-text">
             {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
           </p>
@@ -60,7 +65,6 @@
 
 <script>
 import axios from "axios";
-import { mapGetters } from "vuex";
 
 export default {
   data() {
@@ -69,10 +73,10 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
+      productPurchaseCounts: {}, // Store purchase counts for each product
     };
   },
   computed: {
-    ...mapGetters(["purchaseCounts"]),
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -91,30 +95,33 @@ export default {
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
       } else if (this.selectedSortOption === "mostPurchased") {
-        sortedProducts.sort(
-          (a, b) =>
-            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
-        );
+        // Sort by purchase count (descending)
+        sortedProducts.sort((a, b) => {
+          const countA = this.productPurchaseCounts[a.id] || 0;
+          const countB = this.productPurchaseCounts[b.id] || 0;
+          return countB - countA;
+        });
       }
       return sortedProducts.map((product) => ({
         ...product,
-        imageUrl: `http://localhost:3002/images/${product.id}`,
+        imageUrl: product.imageUrl
+          ? `http://localhost:3002${product.imageUrl}`
+          : "default-image.jpg",
       }));
     },
   },
   methods: {
     async loadWarung() {
-  const userId = this.$route.params.id;
-  try {
-    const response = await axios.get(`http://localhost:3001/user/${userId}`);
-    const warungData = response.data;
-    this.warung = warungData; // Directly use the formatted data from the backend
-    this.loadProducts(warungData.NamaWarung);
-  } catch (error) {
-    console.error("Error loading warung details:", error);
-  }
-}
-,
+      const userId = this.$route.params.id;
+      try {
+        const response = await axios.get(`http://localhost:3001/user/${userId}`);
+        const warungData = response.data;
+        this.warung = warungData;
+        this.loadProducts(warungData.NamaWarung);
+      } catch (error) {
+        console.error("Error loading warung details:", error);
+      }
+    },
     async loadProducts(warungName) {
       try {
         const response = await axios.get("http://localhost:3002/products");
@@ -125,11 +132,26 @@ export default {
         console.error("Error loading products:", error);
       }
     },
+    async fetchPurchaseCounts() {
+      try {
+        // Fetch transaction history items
+        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const items = response.data;
+
+        // Count how many times each product appears in the transaction history
+        this.productPurchaseCounts = items.reduce((acc, item) => {
+          acc[item.itemid] = (acc[item.itemid] || 0) + 1;
+          return acc;
+        }, {});
+      } catch (error) {
+        console.error("Failed to fetch purchase counts:", error);
+      }
+    },
     goToProductPage(productId) {
       this.$router.push({ name: "DetilProduk", params: { id: productId } });
     },
     sortProducts() {
-      // Sorting is handled by computed properties
+      // Sorting is handled by computed property
     },
     goToWhatsApp() {
       const whatsappUrl = `https://wa.me/${this.warung.Telp}`;
@@ -144,28 +166,26 @@ export default {
   },
   async mounted() {
     await this.loadWarung();
-    this.$store.dispatch("fetchPurchaseCounts");
+    await this.fetchPurchaseCounts();
   },
 };
 </script>
 
-
-
 <style scoped>
 .warung-details {
   padding: 20px;
-  text-align: center; /* Center contents */
+  text-align: center;
 }
 
 .button-container {
   display: flex;
-  justify-content: center; /* Center button horizontally */
+  justify-content: center;
 }
 
 .whatsapp-button {
   display: inline-flex;
   align-items: center;
-  background-color: #25d366; /* WhatsApp green */
+  background-color: #25d366;
   color: white;
   border: none;
   border-radius: 5px;
@@ -177,12 +197,12 @@ export default {
 }
 
 .whatsapp-button font-awesome-icon {
-  margin-left: 10px; /* Space between text and icon */
-  font-size: 24px; /* Larger icon size */
+  margin-left: 10px;
+  font-size: 24px;
 }
 
 .whatsapp-button:hover {
-  background-color: #1ebe57; /* Darker green on hover */
+  background-color: #1ebe57;
 }
 
 .top-container {
@@ -247,6 +267,16 @@ export default {
 
 .card-text {
   margin: 5px 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  color: gray;
+}
+
+.discount-price {
+  color: red;
+  font-weight: bold;
 }
 
 .card img {

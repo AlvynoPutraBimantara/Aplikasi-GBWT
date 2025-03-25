@@ -110,7 +110,7 @@ app.get("/images/:id", async (req, res) => {
 
 app.put("/products/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
-  const { Nama, Harga, Kategori, Keterangan, Pedagang, Stok } = req.body;
+  const { Nama, Harga, Kategori, Keterangan, Pedagang, Stok, Harga_diskon } = req.body;
 
   try {
     let imageUrl;
@@ -137,13 +137,13 @@ app.put("/products/:id", upload.single("image"), async (req, res) => {
       imageUrl = rows[0]?.imageUrl || null;
     }
 
-    // Update the product details
+    // Update the product details, including Harga_diskon
     const updateQuery = `
       UPDATE dataproduk 
-      SET Nama = ?, Harga = ?, Kategori = ?, Keterangan = ?, Pedagang = ?, Stok = ?, imageUrl = ? 
+      SET Nama = ?, Harga = ?, Kategori = ?, Keterangan = ?, Pedagang = ?, Stok = ?, imageUrl = ?, Harga_diskon = ?
       WHERE id = ?
     `;
-    const updateValues = [Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl, id];
+    const updateValues = [Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl, Harga_diskon, id];
     await pool.query(updateQuery, updateValues);
 
     res.json({ message: "Product updated successfully" });
@@ -177,6 +177,26 @@ app.get("/users", async (req, res) => {
     res.json(users);
   } catch (error) {
     console.error("Error fetching users:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset Harga_diskon for a product
+app.put("/products/:id/reset-discount", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Update the product to set Harga_diskon to NULL
+    const updateQuery = `
+      UPDATE dataproduk 
+      SET Harga_diskon = NULL
+      WHERE id = ?
+    `;
+    await pool.query(updateQuery, [id]);
+
+    res.json({ message: "Discount reset successfully" });
+  } catch (error) {
+    console.error(`Error resetting discount for product (${id}):`, error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -47,43 +47,59 @@ export default {
         { name: "STRUK", path: "/Orders" },
         { name: "Cart", path: "/Cart" },
       ],
-      cartItemCount: 0, // Store the number of items in the cart
-      orderCount: 0, // Store the number of orders (receipts)
+      cartItemCount: 0,
+      orderCount: 0,
     };
   },
   computed: {
     filteredRoutes() {
-      // Filter routes specifically for guests
       return this.routes.filter((route) => !route.adminOnly);
     },
     guestId() {
-      return localStorage.getItem("guestId"); // Retrieve guest ID from localStorage
+      return localStorage.getItem("guestId");
     },
   },
   methods: {
     toggleMenu() {
       document.getElementById("wrapper").classList.toggle("toggled");
     },
-    logout() {
-      localStorage.clear();
-      this.$router.push({ name: "LandingPage" }).then(() => {
-        window.location.reload();
-      });
-    },
+    async logout() {
+  const guestId = this.guestId;
+  
+  try {
+    // Delete cart and cart items
+    await axios.delete(`http://localhost:3004/cart`, {
+      params: { user: guestId }
+    });
+
+    // Delete all orders and order items for this user
+    await axios.delete(`http://localhost:3003/orders/user/${guestId}`);
+
+    // Clear local storage and redirect
+    localStorage.clear();
+    this.$router.push({ name: "LandingPage" }).then(() => {
+      window.location.reload();
+    });
+  } catch (error) {
+    console.error("Error during logout cleanup:", error);
+    // Still proceed with logout even if cleanup fails
+    localStorage.clear();
+    this.$router.push({ name: "LandingPage" }).then(() => {
+      window.location.reload();
+    });
+  }
+},
     isActive(route) {
       return this.$route.path === route;
     },
-    // Fetch cart items for the guest user
     async fetchCartItems() {
-      if (!this.guestId) return; // Exit if no guest ID is found
+      if (!this.guestId) return;
 
       try {
         const response = await axios.get("http://localhost:3004/cart", {
           params: { user: this.guestId },
         });
         const cartItems = response.data;
-
-        // Calculate the total number of items in the cart
         this.cartItemCount = cartItems.reduce(
           (total, item) => total + item.quantity,
           0
@@ -92,20 +108,15 @@ export default {
         console.error("Error fetching cart items:", error);
       }
     },
-    // Fetch orders (receipts) for the guest user
     async fetchOrders() {
-      if (!this.guestId) return; // Exit if no guest ID is found
+      if (!this.guestId) return;
 
       try {
         const response = await axios.get("http://localhost:3003/orders");
         const orders = response.data;
-
-        // Filter orders for the guest user
         const guestOrders = orders.filter(
           (order) => order.user === this.guestId
         );
-
-        // Calculate the total number of orders
         this.orderCount = guestOrders.length;
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -114,8 +125,8 @@ export default {
   },
   mounted() {
     if (this.guestId) {
-      this.fetchCartItems(); // Fetch cart items when the component is mounted
-      this.fetchOrders(); // Fetch orders when the component is mounted
+      this.fetchCartItems();
+      this.fetchOrders();
     }
   },
 };

@@ -17,6 +17,10 @@ const Produk = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
+    Harga_diskon: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
     Kategori: {
       type: DataTypes.STRING(255),
       allowNull: true,

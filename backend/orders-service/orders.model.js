@@ -23,6 +23,16 @@ const Orders = sequelize.define(
       allowNull: true,
       defaultValue: null,
     },
+    alamat: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+    },
+    pemesan: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: true,

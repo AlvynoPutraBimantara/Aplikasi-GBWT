@@ -39,7 +39,12 @@
               style="width: 100%; height: auto"
             />
             <h5 class="card-title">{{ product.Nama }}</h5>
-            <p class="card-text">Harga: {{ formatPrice(product.Harga) }}</p>
+            <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+              Harga: {{ formatPrice(product.Harga) }}
+            </p>
+            <p v-if="product.Harga_diskon" class="card-text discount-price">
+              Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+            </p>
             <p class="card-text">
               {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
             </p>
@@ -52,7 +57,6 @@
 
 <script>
 import axios from "axios";
-import { mapGetters } from "vuex";
 
 export default {
   data() {
@@ -61,10 +65,10 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
+      productPurchaseCounts: {}, // Store purchase counts for each product
     };
   },
   computed: {
-    ...mapGetters(["purchaseCounts"]),
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -83,10 +87,12 @@ export default {
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
       } else if (this.selectedSortOption === "mostPurchased") {
-        sortedProducts.sort(
-          (a, b) =>
-            (this.purchaseCounts[b.id] || 0) - (this.purchaseCounts[a.id] || 0)
-        );
+        // Sort by purchase count (descending)
+        sortedProducts.sort((a, b) => {
+          const countA = this.productPurchaseCounts[a.id] || 0;
+          const countB = this.productPurchaseCounts[b.id] || 0;
+          return countB - countA;
+        });
       }
       return sortedProducts;
     },
@@ -112,17 +118,32 @@ export default {
             ...product,
             imageUrl: product.imageUrl
               ? `http://localhost:3002${product.imageUrl}`
-              : "default-image.jpg", // Placeholder image if none provided
+              : "default-image.jpg",
           }));
       } catch (error) {
         console.error("Error loading products:", error);
+      }
+    },
+    async fetchPurchaseCounts() {
+      try {
+        // Fetch transaction history items
+        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const items = response.data;
+
+        // Count how many times each product appears in the transaction history
+        this.productPurchaseCounts = items.reduce((acc, item) => {
+          acc[item.itemid] = (acc[item.itemid] || 0) + 1;
+          return acc;
+        }, {});
+      } catch (error) {
+        console.error("Failed to fetch purchase counts:", error);
       }
     },
     goToProductPage(productId) {
       this.$router.push({ name: "DetilProduk", params: { id: productId } });
     },
     sortProducts() {
-      // Sorting is handled by computed property, so no need to do anything here
+      // Sorting is handled by computed property
     },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
@@ -133,7 +154,7 @@ export default {
   },
   async mounted() {
     await this.loadCategory();
-    this.$store.dispatch("fetchPurchaseCounts");
+    await this.fetchPurchaseCounts();
   },
 };
 </script>
@@ -180,21 +201,45 @@ export default {
   padding: 20px;
 }
 
+.card {
+  border: 1px solid #ccc;
+  padding: 0;
+  margin: 10px;
+  width: 200px;
+  display: inline-block;
+  cursor: pointer;
+}
+
 .card:hover {
   box-shadow: 1px 1px 1px black;
 }
 
 .card-body {
-  padding: 20px;
+  padding: 10px;
 }
 
 .card-title {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: bold;
   margin: 0;
 }
 
 .card-text {
   margin: 5px 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  color: gray;
+}
+
+.discount-price {
+  color: red;
+  font-weight: bold;
+}
+
+.card img {
+  width: 100%;
+  height: auto;
 }
 </style>

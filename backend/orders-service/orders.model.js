@@ -85,17 +85,61 @@ const OrderItems = sequelize.define(
   }
 );
 
+// Define the Invoice model
+const Invoice = sequelize.define(
+  "Invoice",
+  {
+    id: {
+      type: DataTypes.STRING(255),
+      primaryKey: true,
+      allowNull: false,
+    },
+    order_id: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
+    filename: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    file: {
+      type: DataTypes.BLOB('long'),
+      allowNull: true,
+    },
+    fileUrl: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "invoice",
+    timestamps: false,
+  }
+);
+
 // Define the relationship between Orders and OrderItems
 Orders.hasMany(OrderItems, {
-  foreignKey: "order_id", // Foreign key in OrderItems
-  sourceKey: "id", // Primary key in Orders
-  as: "order_items", // Alias for the association
+  foreignKey: "order_id",
+  sourceKey: "id",
+  as: "order_items",
 });
 
 OrderItems.belongsTo(Orders, {
-  foreignKey: "order_id", // Foreign key in OrderItems
-  targetKey: "id", // Primary key in Orders
+  foreignKey: "order_id",
+  targetKey: "id",
+});
+
+// Define the relationship between Orders and Invoice
+Orders.hasMany(Invoice, {
+  foreignKey: "order_id",
+  sourceKey: "id",
+  as: "invoices",
+});
+
+Invoice.belongsTo(Orders, {
+  foreignKey: "order_id",
+  targetKey: "id",
 });
 
 // Export the models
-module.exports = { Orders, OrderItems };
+module.exports = { Orders, OrderItems, Invoice };

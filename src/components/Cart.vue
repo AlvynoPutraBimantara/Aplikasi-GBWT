@@ -19,14 +19,31 @@
             <td>{{ item.name }}</td>
             <td>{{ formatPrice(item.price) }}</td>
             <td>
-              <input
-                type="number"
-                v-model.number="item.quantity"
-                @blur="updateQuantity(item)"
-                @input="validateQuantity(item)"
-                :min="1"
-                :max="item.stock"
-              />
+              <div class="quantity-controls">
+                <button 
+                  @click="decrementItemQuantity(item)" 
+                  :disabled="item.quantity <= 1" 
+                  class="decrement-btn"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  v-model.number="item.quantity"
+                  @blur="updateQuantity(item)"
+                  @input="validateQuantity(item)"
+                  :min="1"
+                  :max="item.stock"
+                  class="quantity-input"
+                />
+                <button 
+                  @click="incrementItemQuantity(item)" 
+                  :disabled="item.quantity >= item.stock" 
+                  class="increment-btn"
+                >
+                  +
+                </button>
+              </div>
             </td>
             <td>{{ formatPrice(item.price * item.quantity) }}</td>
             <td>
@@ -68,7 +85,26 @@
       </div>
 
       <p>Total: {{ formatPrice(cartTotalPrice) }}</p>
-      <button @click="checkout">Checkout</button>
+      <button @click="checkout" :disabled="isProcessingCheckout">
+        {{ isProcessingCheckout ? 'Memproses...' : 'Checkout' }}
+      </button>
+      
+      <!-- Invoice generation error message -->
+      <div v-if="invoiceError" class="invoice-error">
+        <p class="error-title">Gagal membuat invoice untuk beberapa pesanan:</p>
+        <ul>
+          <li v-for="(error, orderId) in invoiceError" :key="orderId">
+            Pesanan {{ orderId }}: {{ error.message }}
+            <span v-if="error.retry">
+              <button @click="retryGenerateInvoice(orderId)">Coba Lagi</button>
+            </span>
+          </li>
+        </ul>
+        <p v-if="invoiceError && Object.keys(invoiceError).length > 0" class="error-note">
+          Catatan: Pesanan Anda telah berhasil dibuat, tetapi terjadi masalah saat membuat invoice.
+          Anda masih dapat melihat pesanan Anda di halaman Pesanan.
+        </p>
+      </div>
     </div>
     <div v-else>
       <p>Keranjang Kosong</p>
@@ -78,6 +114,8 @@
 
 <script>
 import axios from "axios";
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default {
   data() {
@@ -89,6 +127,8 @@ export default {
       user: null,
       guestId: null,
       warningMessage: "",
+      isProcessingCheckout: false,
+      invoiceError: null, // To track invoice generation errors
     };
   },
   computed: {
@@ -163,17 +203,24 @@ export default {
       }
     },
     async updateQuantity(item) {
-      if (item.quantity < 1) {
-        item.quantity = 1;
-      } else if (item.quantity > item.stock) {
-        item.quantity = item.stock;
-      }
-
+      this.validateQuantity(item);
       try {
         await axios.put(`http://localhost:3004/cart/${item.id}`, { quantity: item.quantity });
         console.log("Cart item quantity updated successfully.");
       } catch (error) {
         console.error("Error updating cart item quantity:", error);
+      }
+    },
+    incrementItemQuantity(item) {
+      if (item.quantity < item.stock) {
+        item.quantity++;
+        this.updateQuantity(item);
+      }
+    },
+    decrementItemQuantity(item) {
+      if (item.quantity > 1) {
+        item.quantity--;
+        this.updateQuantity(item);
       }
     },
     async removeFromCart(itemId) {
@@ -190,6 +237,205 @@ export default {
         this.cart = this.cart.filter((item) => item.id !== itemId);
       } catch (error) {
         console.error("Error removing item from cart:", error);
+      }
+    },
+    async generateInvoice(orderId) {
+      try {
+        console.log(`Starting invoice generation for order ${orderId}`);
+        
+        // 1. Try both endpoints if needed
+        let order;
+        try {
+          // First try the regular endpoint
+          const response = await axios.get(`http://localhost:3003/orders/${orderId}`);
+          order = response.data;
+        } catch (firstError) {
+          if (firstError.response?.status === 404) {
+            // Fallback to orderid-based endpoint
+            try {
+              const fallbackResponse = await axios.get(
+                `http://localhost:3003/orders/by-orderid/${orderId}`
+              );
+              order = fallbackResponse.data;
+            } catch (fallbackError) {
+              throw new Error(`Order ${orderId} not found in either ID field`);
+            }
+          } else {
+            throw firstError;
+          }
+        }
+
+        if (!order) {
+          throw new Error(`Order data not found for ID ${orderId}`);
+        }
+
+        // Ensure order_items is an array
+        if (!order.order_items) {
+          order.order_items = [];
+        } else if (!Array.isArray(order.order_items)) {
+          order.order_items = [order.order_items];
+        }
+
+        // If still no items, try to fetch them separately
+        if (order.order_items.length === 0) {
+          const itemsResponse = await axios.get(
+            `http://localhost:3003/order-items?order_id=${order.id}`
+          );
+          order.order_items = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
+          
+          if (order.order_items.length === 0) {
+            throw new Error(`No items found for order ${orderId}`);
+          }
+        }
+
+        console.log(`Fetched order data for invoice generation`, order);
+
+        // 2. Create PDF document
+        const doc = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4"
+        });
+
+        // 3. Set document properties
+        doc.setProperties({
+          title: `Invoice ${order.id}`,
+          subject: 'Purchase Invoice',
+          author: 'WarungApp',
+          keywords: 'invoice, purchase',
+          creator: 'WarungApp'
+        });
+
+        // 4. Add header
+        doc.setFontSize(20);
+        doc.setTextColor(40, 40, 40);
+        const title = "INVOICE PEMBELIAN";
+        doc.text(title, 105, 20, { align: 'center' });
+        
+        // 5. Add separator line
+        doc.setDrawColor(200, 200, 200);
+        doc.line(15, 25, 195, 25);
+
+        // 6. Order information
+        doc.setFontSize(10);
+        doc.text(`No. Invoice: ${order.id}`, 15, 35);
+        doc.text(`Tanggal: ${new Date(order.created_at).toLocaleDateString('id-ID')}`, 15, 40);
+        doc.text(`Nama Pelanggan: ${order.pemesan}`, 15, 45);
+        doc.text(`Alamat: ${order.alamat}`, 15, 50);
+        
+        // 7. Add items table
+        const headers = [
+          [
+            { content: "No", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
+            { content: "Nama Produk", styles: { halign: 'left', fillColor: [41, 128, 185], textColor: 255 } },
+            { content: "Harga", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } },
+            { content: "Qty", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
+            { content: "Subtotal", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } }
+          ]
+        ];
+        
+        const data = order.order_items.map((item, index) => [
+          { content: (index + 1).toString(), styles: { halign: 'center' } },
+          { content: item.name, styles: { halign: 'left' } },
+          { content: this.formatPrice(item.price), styles: { halign: 'right' } },
+          { content: item.quantity.toString(), styles: { halign: 'center' } },
+          { content: this.formatPrice(item.price * item.quantity), styles: { halign: 'right' } }
+        ]);
+
+        // 8. Generate the table using autoTable as a function
+        autoTable(doc, {
+          head: headers,
+          body: data,
+          startY: 60,
+          margin: { left: 15, right: 15 },
+          styles: {
+            cellPadding: 3,
+            fontSize: 9,
+            valign: 'middle'
+          },
+          columnStyles: {
+            0: { cellWidth: 10 },
+            1: { cellWidth: 80 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 15 },
+            4: { cellWidth: 30 }
+          },
+          didDrawPage: (data) => {
+            // Footer
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(
+              `Generated by WarungApp - ${new Date().toLocaleString()}`,
+              data.settings.margin.left,
+              doc.internal.pageSize.height - 10
+            );
+          }
+        });
+
+        // 9. Total section
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.text('Total Pembayaran:', 140, finalY);
+        doc.text(this.formatPrice(order.total), 170, finalY, { align: 'right' });
+
+        // 10. Terms and conditions
+        doc.setFontSize(8);
+        doc.text('Catatan:', 15, finalY + 10);
+        doc.text(order.catatan || '-', 15, finalY + 15);
+
+        // 11. Convert to base64
+        const pdfData = doc.output("datauristring").split(",")[1];
+        const filename = `invoice_${order.id}.pdf`;
+        
+        console.log(`Attempting to save invoice for order ${orderId}`);
+        
+        // 12. Save to server
+        const saveResponse = await axios.post("http://localhost:3003/invoices", {
+          order_id: order.id,
+          filename,
+          pdfData
+        });
+        
+        if (!saveResponse.data || !saveResponse.data.invoiceId) {
+          throw new Error('Failed to save invoice to server');
+        }
+        
+        console.log(`Successfully generated and saved invoice for order ${orderId}`);
+        
+        return { success: true, orderId: order.id };
+      } catch (error) {
+        console.error(`Error generating invoice for order ${orderId}:`, error);
+        
+        const errorInfo = {
+          message: error.response 
+            ? error.response.data?.error || error.response.statusText || 'Unknown server error'
+            : error.message || 'Unknown error',
+          retry: true
+        };
+        
+        throw { orderId, error: errorInfo };
+      }
+    },
+    async retryGenerateInvoice(orderId) {
+      try {
+        this.isProcessingCheckout = true;
+        const result = await this.generateInvoice(orderId);
+        
+        // Remove the error from the list if successful
+        if (this.invoiceError && this.invoiceError[orderId]) {
+          delete this.invoiceError[orderId];
+          if (Object.keys(this.invoiceError).length === 0) {
+            this.invoiceError = null;
+            alert("Invoice berhasil dibuat setelah percobaan ulang!");
+          }
+        }
+        return result;
+      } catch (error) {
+        console.error(`Retry failed for order ${orderId}:`, error);
+        this.showWarning(`Gagal membuat invoice untuk pesanan ${orderId} saat percobaan ulang`);
+        throw error;
+      } finally {
+        this.isProcessingCheckout = false;
       }
     },
     async checkout() {
@@ -210,6 +456,9 @@ export default {
         }
       }
 
+      this.isProcessingCheckout = true;
+      this.invoiceError = null;
+
       const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
       const orders = [];
       const orderIds = {};
@@ -222,7 +471,7 @@ export default {
         }
 
         orders.push({
-          id: orderIds[item.pedagang],
+          temporaryId: orderIds[item.pedagang],
           orderid: orderIds[item.pedagang],
           itemid: item.itemid,
           name: item.name,
@@ -239,14 +488,64 @@ export default {
       });
 
       try {
-        await axios.post("http://localhost:3003/orders", { orders });
+        // 1. Create orders
+        const createResponse = await axios.post("http://localhost:3003/orders", { orders });
+        const createdOrders = createResponse.data.orders || [];
+
+        // 2. Clear cart
         await axios.delete(`http://localhost:3004/cart?user=${this.user ? this.user.Nama : this.guestId}`);
-        this.cart = [];
-        alert("Checkout successful!");
-        this.$router.push({ name: "Orders" });
+
+        // 3. Generate invoices for each unique order
+        const invoiceResults = await Promise.allSettled(
+          createdOrders.map(order => 
+            this.generateInvoice(order.id)
+              .catch(e => ({ success: false, orderId: order.id, error: e }))
+          )
+        );
+
+        // Check for failed invoices
+        const failedInvoices = invoiceResults
+          .filter(result => 
+            result.status === 'rejected' || 
+            (result.status === 'fulfilled' && !result.value.success)
+          )
+          .reduce((acc, result) => {
+            const error = result.status === 'rejected' ? result.reason : result.value.error;
+            acc[error.orderId] = error.error;
+            return acc;
+          }, {});
+
+        if (Object.keys(failedInvoices).length > 0) {
+          this.invoiceError = failedInvoices;
+          console.warn('Some invoices failed to generate:', failedInvoices);
+        }
+        
+        // 4. Clear local cart and redirect if all invoices succeeded
+        if (!this.invoiceError) {
+          this.cart = [];
+          alert("Checkout berhasil! Invoice telah dibuat.");
+          this.$router.push({ name: "Orders" });
+        } else {
+          // Partial success - orders created but some invoices failed
+          this.cart = [];
+          this.showWarning("Pesanan berhasil dibuat tetapi beberapa invoice gagal digenerate. Silakan coba generate ulang.");
+        }
       } catch (error) {
         console.error("Error during checkout:", error);
-        alert("Checkout failed. Please try again.");
+        
+        if (error.response) {
+          // Server responded with error status
+          if (error.response.status === 400) {
+            this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
+          } else if (error.response.status === 500) {
+            this.showWarning("Server error. Silakan coba lagi nanti.");
+          }
+        } else {
+          // Network error or other issues
+          this.showWarning("Checkout gagal. Silakan cek koneksi internet Anda dan coba lagi.");
+        }
+      } finally {
+        this.isProcessingCheckout = false;
       }
     },
     formatPrice(value) {
@@ -270,6 +569,7 @@ export default {
 </script>
 
 <style scoped>
+/* Your existing styles remain unchanged */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -278,7 +578,7 @@ table {
 th,
 td {
   border: 1px solid #ddd;
-  padding: 4px;
+  padding: 8px;
 }
 
 th {
@@ -286,14 +586,30 @@ th {
   text-align: left;
 }
 
-td input {
-  width: 50px;
-}
-
 .warning {
   color: red;
   font-weight: bold;
   margin-top: 5px;
+}
+
+.invoice-error {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid #ff6b6b;
+  border-radius: 4px;
+  background-color: #fff5f5;
+}
+
+.error-title {
+  font-weight: bold;
+  color: #c92a2a;
+  margin-bottom: 10px;
+}
+
+.error-note {
+  margin-top: 10px;
+  font-style: italic;
+  color: #495057;
 }
 
 div {
@@ -318,5 +634,88 @@ textarea {
 textarea {
   min-height: 100px;
   resize: vertical;
+}
+
+/* Quantity controls styling */
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
+.decrement-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid black;
+  background-color: red;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.decrement-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.decrement-btn:not(:disabled):hover {
+  background-color: #c82333;
+  border-color: #c82333;
+}
+
+.increment-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid black;
+  background-color: green;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.increment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.increment-btn:not(:disabled):hover {
+  background-color: #218838;
+  border-color: #218838;
+}
+
+.quantity-input {
+  width: 50px;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  text-align: center;
+}
+
+button {
+  padding: 8px 16px;
+  background-color: blue;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: darkblue;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #6c757d;
 }
 </style>

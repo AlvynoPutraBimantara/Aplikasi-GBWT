@@ -7,11 +7,9 @@
           <h1>{{ product.Nama }}</h1>
         </div>
         <div class="detail-item">
-          <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
           <p :class="{ 'strikethrough': product.Harga_diskon }">
             Harga: {{ formatPrice(product.Harga) }}
           </p>
-          <!-- Display Harga_diskon in red if it exists -->
           <p v-if="product.Harga_diskon" class="discount-price">
             Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
           </p>
@@ -29,19 +27,47 @@
           <p>Stok: {{ product.Stok }}</p>
         </div>
         <div class="detail-item quantity-form">
-          <label for="quantity">Jumlah:</label>
-          <input
-            type="number"
-            id="quantity"
-            v-model.number="quantity"
-            min="1"
-            :max="product.Stok"
-          />
-          <button @click="addToCart" :disabled="isOwnProduct && user">
-            Tambah ke Keranjang
-          </button>
-          <p v-if="isOwnProduct && user">
+          <div class="form-row">
+            <label for="quantity">Jumlah:</label>
+            <div class="quantity-controls">
+              <button 
+                @click="decrementQuantity" 
+                :disabled="quantity <= 1 || !product.Stok" 
+                class="decrement-btn"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                id="quantity"
+                v-model.number="quantity"
+                min="1"
+                :max="product.Stok"
+                @input="validateQuantity"
+                class="quantity-input"
+                :disabled="!product.Stok"
+              />
+              <button 
+                @click="incrementQuantity" 
+                :disabled="quantity >= product.Stok || !product.Stok" 
+                class="increment-btn"
+              >
+                +
+              </button>
+            </div>
+            <button 
+              @click="addToCart" 
+              :disabled="(isOwnProduct && user) || !product.Stok" 
+              class="add-to-cart-btn"
+            >
+              Tambah ke Keranjang
+            </button>
+          </div>
+          <p v-if="isOwnProduct && user" class="warning-message">
             Anda tidak dapat memesan produk anda sendiri.
+          </p>
+          <p v-if="!product.Stok" class="warning-message">
+            Stok habis.
           </p>
         </div>
       </div>
@@ -55,10 +81,10 @@ import axios from "axios";
 export default {
   data() {
     return {
-      product: {}, // Stores the product details
-      quantity: 1, // User-selected quantity
-      user: JSON.parse(localStorage.getItem("user-info")), // Current logged-in user
-      guestId: localStorage.getItem("guestId") || null, // Guest ID
+      product: {},
+      quantity: 1,
+      user: JSON.parse(localStorage.getItem("user-info")),
+      guestId: localStorage.getItem("guestId") || null,
     };
   },
   computed: {
@@ -73,65 +99,79 @@ export default {
         `http://localhost:3002/products/${productId}`
       );
       this.product = response.data;
-      this.product.Harga = parseFloat(this.product.Harga); // Ensure Harga is numeric
+      this.product.Harga = parseFloat(this.product.Harga);
       if (this.product.Harga_diskon) {
-        this.product.Harga_diskon = parseFloat(this.product.Harga_diskon); // Ensure Harga_diskon is numeric
+        this.product.Harga_diskon = parseFloat(this.product.Harga_diskon);
       }
     } catch (error) {
       console.error("Error loading product details:", error);
     }
   },
   methods: {
+    incrementQuantity() {
+      if (this.quantity < this.product.Stok) {
+        this.quantity++;
+      }
+    },
+    decrementQuantity() {
+      if (this.quantity > 1) {
+        this.quantity--;
+      }
+    },
+    validateQuantity() {
+      if (this.quantity < 1) {
+        this.quantity = 1;
+      } else if (this.quantity > this.product.Stok) {
+        this.quantity = this.product.Stok;
+      }
+    },
     generateRandomId() {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
       return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     },
     async addToCart() {
-  if (
-    this.quantity > 0 &&
-    this.quantity <= this.product.Stok &&
-    !(this.isOwnProduct && this.user)
-  ) {
-    try {
-      // Generate or retrieve guest ID if the user is a guest
-      if (!this.user) {
-        if (!this.guestId) {
-          this.guestId = `Guest_${this.generateRandomId()}`;
-          localStorage.setItem("guestId", this.guestId);
+      if (
+        this.quantity > 0 &&
+        this.quantity <= this.product.Stok &&
+        !(this.isOwnProduct && this.user) &&
+        this.product.Stok
+      ) {
+        try {
+          if (!this.user) {
+            if (!this.guestId) {
+              this.guestId = `Guest_${this.generateRandomId()}`;
+              localStorage.setItem("guestId", this.guestId);
+            }
+          }
+
+          const user = this.user ? this.user.Nama : this.guestId;
+          const payload = {
+            user: user,
+            itemid: this.product.id,
+            name: this.product.Nama,
+            price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
+            quantity: this.quantity,
+            pedagang: this.product.Pedagang,
+          };
+
+          const cartResponse = await axios.post("http://localhost:3004/cart", payload);
+          console.log("Cart response:", cartResponse.data);
+
+          if (cartResponse.status === 201 || cartResponse.status === 200) {
+            this.product.Stok -= this.quantity;
+            alert("Pesanan berhasil dimasukkan dalam keranjang!");
+            this.$router.push("/cart");
+          } else {
+            throw new Error("Unexpected response from the server.");
+          }
+        } catch (error) {
+          console.error("Error adding to cart:", error);
+          alert("Failed to add product to cart. Please try again.");
         }
-      }
-
-      const user = this.user ? this.user.Nama : this.guestId;
-      const payload = {
-        user: user,
-        itemid: this.product.id,
-        name: this.product.Nama,
-        // Use Harga_diskon if available, otherwise use Harga
-        price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
-        quantity: this.quantity,
-        pedagang: this.product.Pedagang,
-      };
-
-      // Add the item to the cart
-      const cartResponse = await axios.post("http://localhost:3004/cart", payload);
-      console.log("Cart response:", cartResponse.data);
-
-      if (cartResponse.status === 201 || cartResponse.status === 200) {
-        // Update the local product stock to reflect the change
-        this.product.Stok -= this.quantity;
-        alert("Pesanan berhasil dimasukkan dalam keranjang!");
-        this.$router.push("/cart");
       } else {
-        throw new Error("Unexpected response from the server.");
+        alert("Invalid quantity selected.");
       }
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      alert("Failed to add product to cart. Please try again.");
-    }
-  } else {
-    alert("Invalid quantity selected.");
-  }
-},
+    },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -192,32 +232,108 @@ export default {
 
 .quantity-form {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-row {
+  display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 15px;
 }
 
-.quantity-form label {
-  margin-right: 10px;
+.form-row label {
+  min-width: 80px;
+  text-align: right;
 }
 
-.quantity-form input {
-  width: 60px;
-  padding: 5px;
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
+.decrement-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid black;
+  background-color: red;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.decrement-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.decrement-btn:not(:disabled):hover {
+  background-color: #c82333;
+  border-color: #c82333;
+}
+
+.increment-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid black;
+  background-color: green;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.increment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.increment-btn:not(:disabled):hover {
+  background-color: #218838;
+  border-color: #218838;
+}
+
+.quantity-input {
+  width: 50px;
+  padding: 6px;
   border: 1px solid #ddd;
-  border-radius: 8px;
-  margin-right: 10px;
+  border-radius: 4px;
+  text-align: center;
 }
 
-.quantity-form button {
-  padding: 10px 20px;
-  background-color: #28a745;
+.add-to-cart-btn {
+  padding: 10px 18px;
+  background-color: green;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  font-size: 16px;
+  margin-left: auto; /* Changed from fixed margin to auto */
 }
 
-.quantity-form button:hover {
+.add-to-cart-btn:hover {
   background-color: #218838;
+}
+
+.add-to-cart-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.warning-message {
+  color: #dc3545;
+  font-size: 14px;
+  margin-left: 95px;
+  margin-top: -5px;
 }
 </style>

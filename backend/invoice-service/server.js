@@ -2,15 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const moment = require("moment-timezone");
-const { Orders, OrderItems, Invoice } = require("./orders.model");
+const { Orders, OrderItems } = require("./orders.model");
 const { Produk } = require("./produk.model"); // Import the Produk model
-const NodeCache = require('node-cache'); // Added for caching
 
 const app = express();
-const port = 3003;
-
-// Initialize cache with 60 second TTL
-const orderCache = new NodeCache({ stdTTL: 60 });
+const port = 3007;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -44,81 +40,8 @@ app.get("/orders", async (req, res) => {
   }
 });
 
-// Get single order by ID with caching
-// Update the /orders/:id endpoint
-app.get("/orders/:id", async (req, res) => {
-  try {
-    const cachedOrder = orderCache.get(req.params.id);
-    if (cachedOrder) {
-      // Ensure order_items is an array
-      if (!Array.isArray(cachedOrder.order_items)) {
-        cachedOrder.order_items = [];
-      }
-      return res.json(cachedOrder);
-    }
-    
-    const order = await Orders.findOne({
-      where: { id: req.params.id },
-      include: [{
-        model: OrderItems,
-        as: "order_items",
-        required: false // Make this optional
-      }],
-      raw: true,
-      nest: true
-    });
-    
-    if (!order) return res.status(404).json({ error: "Order not found" });
-    
-    // Ensure order_items is an array
-    if (!order.order_items) {
-      order.order_items = [];
-    } else if (!Array.isArray(order.order_items)) {
-      order.order_items = [order.order_items];
-    }
-    
-    const cleanOrder = JSON.parse(JSON.stringify(order));
-    orderCache.set(req.params.id, cleanOrder);
-    res.json(cleanOrder);
-  } catch (error) {
-    console.error("Error fetching order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Get order by orderid (either direct match or through order_items)
-app.get("/orders/by-orderid/:orderid", async (req, res) => {
-  try {
-    // First try direct match
-    let order = await Orders.findOne({
-      where: { id: req.params.orderid },
-      include: [{ model: OrderItems, as: "order_items" }],
-      raw: true,
-      nest: true
-    });
-
-    // If not found, try searching by orderid field
-    if (!order) {
-      order = await Orders.findOne({
-        where: { '$order_items.order_id$': req.params.orderid },
-        include: [{ model: OrderItems, as: "order_items" }],
-        raw: true,
-        nest: true
-      });
-      
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-    }
-
-    // Create a clean plain object
-    const cleanOrder = JSON.parse(JSON.stringify(order));
-    res.json(cleanOrder);
-  } catch (error) {
-    console.error("Error fetching order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+// Create a new order with items
+// ... (previous code remains the same until the POST /orders endpoint)
 
 app.post("/orders", async (req, res) => {
   const { orders } = req.body;
@@ -134,12 +57,11 @@ app.post("/orders", async (req, res) => {
           user: order.user,
           total: 0,
           catatan: order.catatan,
-          alamat: order.Alamat,
-          pemesan: order.pemesan,
+          alamat: order.Alamat, // Now properly passed from frontend
+          pemesan: order.pemesan, // Now properly passed from frontend
           created_at: getCurrentTimestamp(),
-          status: "pending",
+          status: "pending", // Default status
           order_items: [],
-          temporaryId: order.orderid // Store the original ID
         };
       }
       acc[order.orderid].total += order.total;
@@ -155,15 +77,9 @@ app.post("/orders", async (req, res) => {
       return acc;
     }, {});
 
-    const createdOrders = [];
-    
     for (const orderId of Object.keys(ordersGroupedByPedagang)) {
       const orderData = ordersGroupedByPedagang[orderId];
-      const createdOrder = await Orders.create(orderData);
-      createdOrders.push({
-        id: createdOrder.id,
-        temporaryId: orderId
-      });
+      await Orders.create(orderData);
 
       for (const item of orderData.order_items) {
         await OrderItems.create(item);
@@ -177,15 +93,14 @@ app.post("/orders", async (req, res) => {
       }
     }
 
-    res.status(201).json({ 
-      message: "Orders added successfully!",
-      orders: createdOrders
-    });
+    res.status(201).json({ message: "Orders added successfully!" });
   } catch (error) {
     console.error("Error adding orders:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+
 
 // Delete an order by ID
 app.delete("/orders/:id", async (req, res) => {
@@ -195,8 +110,6 @@ app.delete("/orders/:id", async (req, res) => {
     const deletedOrder = await Orders.destroy({ where: { id: orderId } });
 
     if (deletedOrder) {
-      // Clear the cache for this order
-      orderCache.del(orderId);
       res.status(204).end();
     } else {
       res.status(404).send("Order not found");
@@ -235,15 +148,15 @@ app.post("/orders/:id/refund", async (req, res) => {
     await OrderItems.destroy({ where: { order_id: orderId } });
     await Orders.destroy({ where: { id: orderId } });
 
-    // Clear the cache for this order
-    orderCache.del(orderId);
-
     res.status(200).json({ message: "Order refunded and stock updated successfully!" });
   } catch (error) {
     console.error("Error refunding order:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+
+// Add this to orders-service/server.js before the app.listen call
 
 // Delete all orders for a specific user
 app.delete("/orders/user/:userId", async (req, res) => {
@@ -258,60 +171,12 @@ app.delete("/orders/user/:userId", async (req, res) => {
     for (const order of orders) {
       await OrderItems.destroy({ where: { order_id: order.id } });
       await Orders.destroy({ where: { id: order.id } });
-      // Clear the cache for each order
-      orderCache.del(order.id);
     }
     
     res.status(204).end();
   } catch (error) {
     console.error("Error deleting user orders:", error);
     res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Save invoice PDF
-app.post('/invoices', async (req, res) => {
-  try {
-    const { order_id, filename, pdfData } = req.body;
-    
-    // Create the invoice record
-    const invoice = await Invoice.create({
-      id: generateRandomId(),
-      order_id,
-      filename,
-      file: Buffer.from(pdfData, 'base64')
-    });
-
-    res.status(201).json({ 
-      message: 'Invoice created successfully',
-      invoiceId: invoice.id
-    });
-  } catch (error) {
-    console.error('Error creating invoice:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Get invoice by order ID
-app.get('/orders/:id/invoice', async (req, res) => {
-  try {
-    const invoice = await Invoice.findOne({
-      where: { order_id: req.params.id }
-    });
-
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
-
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=${invoice.filename}`
-    });
-
-    res.send(invoice.file);
-  } catch (error) {
-    console.error('Error fetching invoice:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

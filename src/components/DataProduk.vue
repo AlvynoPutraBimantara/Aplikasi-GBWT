@@ -9,6 +9,7 @@
             <th>Gambar</th>
             <th>Nama</th>
             <th>Harga</th>
+            <th>Harga Diskon</th>
             <th>Kategori</th>
             <th>Keterangan</th>
             <th>Pedagang</th>
@@ -23,7 +24,10 @@
               <img :src="`http://localhost:3002/images/${item.id}`" alt="Product Image" class="product-image" />
             </td>
             <td>{{ item.Nama }}</td>
-            <td>{{ item.Harga }}</td>
+            <td>{{ formatPrice(item.Harga) }}</td>
+            <td :class="{ 'discounted': item.Harga_diskon }">
+              {{ item.Harga_diskon ? formatPrice(item.Harga_diskon) : '-' }}
+            </td>
             <td>{{ item.Kategori }}</td>
             <td>{{ item.Keterangan }}</td>
             <td>{{ item.Pedagang }}</td>
@@ -74,6 +78,13 @@ export default {
         }
       }
     },
+    formatPrice(value) {
+      if (!value) return '-';
+      return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+      }).format(value);
+    },
   },
   mounted() {
     this.fetchData();
@@ -90,6 +101,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow-x: auto;
 }
 
 table {
@@ -121,5 +133,10 @@ button {
 
 .btn-delete {
   margin-left: 10px;
+}
+
+.discounted {
+  color: red;
+  font-weight: bold;
 }
 </style>

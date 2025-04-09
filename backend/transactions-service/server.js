@@ -1,10 +1,9 @@
-
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const moment = require("moment-timezone"); // Import moment-timezone
-const { Transactions, TransactionItems, TransactionsHistory, TransactionHistoryItems } = require("./transactions.model"); // Import all models
-const { Produk } = require("./produk.model"); // Import the Produk model
+const moment = require("moment-timezone");
+const { Transactions, TransactionItems, TransactionsHistory, TransactionHistoryItems } = require("./transactions.model");
+const { Produk } = require("./produk.model");
 
 const app = express();
 const port = 3005;
@@ -30,7 +29,7 @@ function generateRandomId() {
 
 // Create a new transaction with items
 app.post("/transactions", async (req, res) => {
-  const { order } = req.body;
+  const { order, invoice_url } = req.body;
 
   if (!order || !order.user || !order.order_items || order.order_items.length === 0) {
     return res.status(400).json({ error: "Invalid transaction data." });
@@ -62,7 +61,35 @@ app.post("/transactions", async (req, res) => {
       });
     }
 
-    res.status(201).json({ message: "Transaction created successfully!", transactionId });
+    // Immediately move to history with the invoice URL
+    await TransactionsHistory.create({
+      id: transactionId,
+      user: order.user,
+      total: order.total,
+      catatan: order.catatan,
+      alamat: order.alamat,
+      description: "Pesanan Diterima",
+      created_at: getCurrentTimestamp(),
+      invoice_url: invoice_url || null,
+    });
+
+    // Move transaction items to history
+    for (const item of order.order_items) {
+      await TransactionHistoryItems.create({
+        id: generateRandomId(),
+        transaction_id: transactionId,
+        itemid: item.itemid,
+        name: item.name,
+        pedagang: item.pedagang,
+        price: item.price,
+        quantity: item.quantity,
+      });
+    }
+
+    res.status(201).json({ 
+      message: "Transaction created and moved to history successfully!", 
+      transactionId 
+    });
   } catch (error) {
     console.error("Error creating transaction:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -103,6 +130,7 @@ app.delete("/transactions/:id", async (req, res) => {
 // Refund a transaction and update stock
 app.post("/transactions/:id/refund", async (req, res) => {
   const transactionId = req.params.id;
+  const { invoice_url } = req.body;
 
   try {
     // Fetch the transaction and its items
@@ -124,7 +152,7 @@ app.post("/transactions/:id/refund", async (req, res) => {
       }
     }
 
-    // Move the transaction to history with a "Pesanan Dikembalikan" description
+    // Move the transaction to history with invoice_url
     await TransactionsHistory.create({
       id: transaction.id,
       user: transaction.user,
@@ -133,13 +161,14 @@ app.post("/transactions/:id/refund", async (req, res) => {
       alamat: transaction.alamat,
       description: "Pesanan Dikembalikan",
       created_at: transaction.created_at,
+      invoice_url: invoice_url || null,
     });
 
     // Move transaction items to transactions_history_items
     for (const item of transaction.transaction_items) {
       await TransactionHistoryItems.create({
         id: item.id,
-        transaction_id: transactionId, // Updated to match the new field name
+        transaction_id: transactionId,
         itemid: item.itemid,
         name: item.name,
         pedagang: item.pedagang,
@@ -162,7 +191,7 @@ app.post("/transactions/:id/refund", async (req, res) => {
 // Move transaction to history and delete from main tables
 app.post("/transactions/:id/move-to-history", async (req, res) => {
   const transactionId = req.params.id;
-  const { description } = req.body; // "Pesanan Diterima" or "Kasbon"
+  const { description, invoice_url } = req.body;
 
   try {
     // Fetch the transaction and its items
@@ -175,7 +204,7 @@ app.post("/transactions/:id/move-to-history", async (req, res) => {
       return res.status(404).json({ error: "Transaction not found" });
     }
 
-    // Create a new entry in transactions_history
+    // Create a new entry in transactions_history with invoice_url
     await TransactionsHistory.create({
       id: transaction.id,
       user: transaction.user,
@@ -184,13 +213,14 @@ app.post("/transactions/:id/move-to-history", async (req, res) => {
       alamat: transaction.alamat,
       description: description,
       created_at: transaction.created_at,
+      invoice_url: invoice_url || null,
     });
 
     // Move transaction items to transactions_history_items
     for (const item of transaction.transaction_items) {
       await TransactionHistoryItems.create({
         id: item.id,
-        transaction_id: transactionId, // Updated to match the new field name
+        transaction_id: transactionId,
         itemid: item.itemid,
         name: item.name,
         pedagang: item.pedagang,
@@ -226,7 +256,7 @@ app.get("/transactions-history-items/:transactionId", async (req, res) => {
   const transactionId = req.params.transactionId;
   try {
     const items = await TransactionHistoryItems.findAll({
-      where: { transaction_id: transactionId }, // Updated to match the new field name
+      where: { transaction_id: transactionId },
     });
     res.json(items);
   } catch (error) {

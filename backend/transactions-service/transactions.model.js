@@ -112,6 +112,10 @@ const TransactionsHistory = sequelize.define(
       type: DataTypes.DATE, // Changed from STRING to DATE
       allowNull: false,
     },
+    invoice_url: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
   },
   {
     tableName: "transactions_history",

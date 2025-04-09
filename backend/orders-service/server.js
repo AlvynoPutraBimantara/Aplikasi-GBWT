@@ -269,7 +269,7 @@ app.delete("/orders/user/:userId", async (req, res) => {
   }
 });
 
-// Save invoice PDF
+// In backend\orders-service\server.js
 app.post('/invoices', async (req, res) => {
   try {
     const { order_id, filename, pdfData } = req.body;
@@ -282,9 +282,19 @@ app.post('/invoices', async (req, res) => {
       file: Buffer.from(pdfData, 'base64')
     });
 
+    // Generate the invoice URL
+    const invoiceUrl = `/orders/${order_id}/invoice`;
+
+    // Update the order with the invoice URL
+    await Orders.update(
+      { invoice_url: invoiceUrl },
+      { where: { id: order_id } }
+    );
+
     res.status(201).json({ 
       message: 'Invoice created successfully',
-      invoiceId: invoice.id
+      invoiceId: invoice.id,
+      invoiceUrl
     });
   } catch (error) {
     console.error('Error creating invoice:', error);
@@ -303,9 +313,15 @@ app.get('/orders/:id/invoice', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
+    // Set proper headers for inline display with caching prevention
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=${invoice.filename}`
+      'Content-Disposition': 'inline; filename="invoice.pdf"', // Changed from attachment to inline
+      'Content-Length': invoice.file.length,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'X-Content-Type-Options': 'nosniff' // Prevent MIME type sniffing
     });
 
     res.send(invoice.file);

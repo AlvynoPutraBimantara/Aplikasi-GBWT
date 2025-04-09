@@ -38,6 +38,11 @@ const Orders = sequelize.define(
       allowNull: true,
       defaultValue: DataTypes.NOW,
     },
+    invoice_url: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     tableName: "orders", // Explicitly set the table name

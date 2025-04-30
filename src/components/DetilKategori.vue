@@ -110,20 +110,20 @@ export default {
       }
     },
     async loadProducts(categoryName) {
-      try {
-        const response = await axios.get("http://localhost:3002/products");
-        this.products = response.data
-          .filter((product) => product.Kategori === categoryName)
-          .map((product) => ({
-            ...product,
-            imageUrl: product.imageUrl
-              ? `http://localhost:3002${product.imageUrl}`
-              : "default-image.jpg",
-          }));
-      } catch (error) {
-        console.error("Error loading products:", error);
-      }
-    },
+  try {
+    const response = await axios.get("http://localhost:3002/products");
+    this.products = response.data
+      .filter((product) => product.Kategori === categoryName)
+      .map((product) => ({
+        ...product,
+        imageUrl: product.imageUrl
+          ? `http://localhost:3002/images/${product.id}`  // Changed this line
+          : "default-image.jpg",
+      }));
+  } catch (error) {
+    console.error("Error loading products:", error);
+  }
+},
     async fetchPurchaseCounts() {
       try {
         // Fetch transaction history items

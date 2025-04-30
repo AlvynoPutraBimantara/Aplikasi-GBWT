@@ -50,10 +50,10 @@ app.get("/orders/:id", async (req, res) => {
   try {
     const cachedOrder = orderCache.get(req.params.id);
     if (cachedOrder) {
-      // Ensure order_items is an array
-      if (!Array.isArray(cachedOrder.order_items)) {
-        cachedOrder.order_items = [];
-      }
+      // Ensure order_items is always an array
+      cachedOrder.order_items = Array.isArray(cachedOrder.order_items) 
+        ? cachedOrder.order_items 
+        : cachedOrder.order_items ? [cachedOrder.order_items] : [];
       return res.json(cachedOrder);
     }
     
@@ -62,24 +62,20 @@ app.get("/orders/:id", async (req, res) => {
       include: [{
         model: OrderItems,
         as: "order_items",
-        required: false // Make this optional
-      }],
-      raw: true,
-      nest: true
+        required: false
+      }]
     });
     
     if (!order) return res.status(404).json({ error: "Order not found" });
     
-    // Ensure order_items is an array
-    if (!order.order_items) {
-      order.order_items = [];
-    } else if (!Array.isArray(order.order_items)) {
-      order.order_items = [order.order_items];
-    }
+    // Convert to plain object and ensure order_items is an array
+    const plainOrder = order.get({ plain: true });
+    plainOrder.order_items = Array.isArray(plainOrder.order_items) 
+      ? plainOrder.order_items 
+      : plainOrder.order_items ? [plainOrder.order_items] : [];
     
-    const cleanOrder = JSON.parse(JSON.stringify(order));
-    orderCache.set(req.params.id, cleanOrder);
-    res.json(cleanOrder);
+    orderCache.set(req.params.id, plainOrder);
+    res.json(plainOrder);
   } catch (error) {
     console.error("Error fetching order:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -187,7 +183,6 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-// Delete an order by ID
 app.delete("/orders/:id", async (req, res) => {
   const orderId = req.params.id;
   try {
@@ -302,7 +297,7 @@ app.post('/invoices', async (req, res) => {
   }
 });
 
-// Get invoice by order ID
+// Get invoice by order ID - Enhanced version
 app.get('/orders/:id/invoice', async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
@@ -313,21 +308,54 @@ app.get('/orders/:id/invoice', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    // Set proper headers for inline display with caching prevention
+    // Verify the PDF data is valid
+    if (!invoice.file || !(invoice.file instanceof Buffer)) {
+      return res.status(500).json({ error: 'Invalid PDF data' });
+    }
+
+    // Set comprehensive headers
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'inline; filename="invoice.pdf"', // Changed from attachment to inline
+      'Content-Disposition': `inline; filename="${encodeURIComponent(invoice.filename)}"`,
       'Content-Length': invoice.file.length,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
-      'X-Content-Type-Options': 'nosniff' // Prevent MIME type sniffing
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'ALLOW-FROM *', // Allow iframe embedding
+      'Content-Security-Policy': "frame-ancestors 'self' *", // Modern alternative to X-Frame-Options
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length'
     });
 
+    // Send the PDF data
     res.send(invoice.file);
   } catch (error) {
     console.error('Error fetching invoice:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Add this new endpoint for completing orders without refund
+app.delete("/orders/:id/complete", async (req, res) => {
+  const orderId = req.params.id;
+  try {
+    // Delete order items first
+    await OrderItems.destroy({ where: { order_id: orderId } });
+    
+    // Then delete the order
+    const deletedOrder = await Orders.destroy({ where: { id: orderId } });
+
+    if (deletedOrder) {
+      // Clear the cache for this order
+      orderCache.del(orderId);
+      res.status(204).end();
+    } else {
+      res.status(404).send("Order not found");
+    }
+  } catch (error) {
+    console.error("Error completing order:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 

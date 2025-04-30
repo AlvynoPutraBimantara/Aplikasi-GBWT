@@ -1,93 +1,125 @@
 <template>
+  <!-- Template remains exactly the same -->
   <div>
-    <h2>Shopping Cart</h2>
+    <h2>Keranjang Belanja</h2>
     <div v-if="filteredCart.length">
-      <table>
-        <thead>
-          <tr>
-            <th>Warung</th>
-            <th>Produk</th>
-            <th>Harga</th>
-            <th>Jumlah</th>
-            <th>Subtotal</th>
-            <th>Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in filteredCart" :key="item.id">
-            <td>{{ item.pedagang }}</td>
-            <td>{{ item.name }}</td>
-            <td>{{ formatPrice(item.price) }}</td>
-            <td>
-              <div class="quantity-controls">
-                <button 
-                  @click="decrementItemQuantity(item)" 
-                  :disabled="item.quantity <= 1" 
-                  class="decrement-btn"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  v-model.number="item.quantity"
-                  @blur="updateQuantity(item)"
-                  @input="validateQuantity(item)"
-                  :min="1"
-                  :max="item.stock"
-                  class="quantity-input"
-                />
-                <button 
-                  @click="incrementItemQuantity(item)" 
-                  :disabled="item.quantity >= item.stock" 
-                  class="increment-btn"
-                >
-                  +
-                </button>
-              </div>
-            </td>
-            <td>{{ formatPrice(item.price * item.quantity) }}</td>
-            <td>
-              <button @click="removeFromCart(item.id)">Hapus</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Group cart items by pedagang -->
+      <div v-for="(group, pedagang) in groupedCart" :key="pedagang" class="pedagang-group">
+        <h3>{{ pedagang }}</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Produk</th>
+              <th>Harga</th>
+              <th>Jumlah</th>
+              <th>Subtotal</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in group" :key="item.id">
+              <td>{{ item.name }}</td>
+              <td>{{ formatPrice(item.price) }}</td>
+              <td>
+                <div class="quantity-controls">
+                  <button 
+                    @click="decrementItemQuantity(item)" 
+                    :disabled="item.quantity <= 1" 
+                    class="decrement-btn"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    v-model.number="item.quantity"
+                    @blur="updateQuantity(item)"
+                    @input="validateQuantity(item)"
+                    :min="1"
+                    :max="item.stock"
+                    class="quantity-input"
+                  />
+                  <button 
+                    @click="incrementItemQuantity(item)" 
+                    :disabled="item.quantity >= item.stock" 
+                    class="increment-btn"
+                  >
+                    +
+                  </button>
+                </div>
+              </td>
+              <td>{{ formatPrice(item.price * item.quantity) }}</td>
+              <td>
+                <button @click="removeFromCart(item.id)">Hapus</button>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="text-right">Total {{ pedagang }}:</td>
+              <td>{{ formatPrice(groupTotalPrice(group)) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Input component for each pedagang group -->
+        <div class="pedagang-inputs">
+          <div>
+            <label :for="`catatan-${pedagang}`">Catatan untuk {{ pedagang }}:</label>
+            <textarea 
+              :id="`catatan-${pedagang}`" 
+              v-model="pedagangNotes[pedagang]"
+              :placeholder="`Masukkan catatan`"
+            ></textarea>
+          </div>
+
+          <!-- Guest-specific inputs (only shown for non-logged in users) -->
+          <div v-if="!user" class="guest-inputs">
+            <div>
+              <label :for="`pemesan-${pedagang}`">Nama Pemesan:</label>
+              <input 
+                type="text" 
+                :id="`pemesan-${pedagang}`" 
+                v-model="pedagangPemesan[pedagang]" 
+                required
+                :placeholder="`Masukkan nama Anda`"
+              >
+            </div>
+            <div>
+              <label :for="`alamat-${pedagang}`">Alamat Pengiriman:</label>
+              <textarea 
+                :id="`alamat-${pedagang}`" 
+                v-model="pedagangAlamat[pedagang]" 
+                required
+                :placeholder="`Masukkan alamat`"
+              ></textarea>
+            </div>
+          </div>
+
+          <button 
+            @click="checkoutPedagang(pedagang)" 
+            :disabled="isProcessingCheckout"
+            class="checkout-btn"
+          >
+            {{ isProcessingCheckout ? 'Memproses...' : `Checkout ${pedagang}` }}
+          </button>
+        </div>
+      </div>
 
       <!-- Display Warning Message -->
       <p v-if="warningMessage" class="warning">{{ warningMessage }}</p>
 
-      <div>
-        <label for="catatan">Catatan:</label>
-        <textarea id="catatan" v-model="catatan"></textarea>
+      <!-- Combined checkout button -->
+      <div class="combined-checkout">
+        <p>Total Semua Pesanan: {{ formatPrice(cartTotalPrice) }}</p>
+        <button 
+          @click="checkoutAll" 
+          :disabled="isProcessingCheckout"
+          class="checkout-all-btn"
+        >
+          {{ isProcessingCheckout ? 'Memproses...' : 'Checkout Semua' }}
+        </button>
       </div>
-
-      <!-- Guest-specific inputs (only shown for non-logged in users) -->
-      <div v-if="!user">
-        <div>
-          <label for="pemesan">Nama Pemesan:</label>
-          <input 
-            type="text" 
-            id="pemesan" 
-            v-model="pemesan" 
-            required
-            placeholder="Masukkan nama Anda"
-          >
-        </div>
-        <div>
-          <label for="alamat">Alamat Pengiriman:</label>
-          <textarea 
-            id="alamat" 
-            v-model="alamat" 
-            required
-            placeholder="Masukkan alamat lengkap pengiriman"
-          ></textarea>
-        </div>
-      </div>
-
-      <p>Total: {{ formatPrice(cartTotalPrice) }}</p>
-      <button @click="checkout" :disabled="isProcessingCheckout">
-        {{ isProcessingCheckout ? 'Memproses...' : 'Checkout' }}
-      </button>
       
       <!-- Invoice generation error message -->
       <div v-if="invoiceError" class="invoice-error">
@@ -116,24 +148,43 @@
 import axios from "axios";
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { reactive } from 'vue';
 
 export default {
   data() {
+    const state = reactive({
+      pedagangNotes: {},
+      pedagangPemesan: {},
+      pedagangAlamat: {},
+    });
+
     return {
       cart: [],
-      catatan: "",
-      pemesan: "", // For guest name
-      alamat: "",  // For guest address
       user: null,
       guestId: null,
       warningMessage: "",
       isProcessingCheckout: false,
-      invoiceError: null, // To track invoice generation errors
+      invoiceError: null,
+      ...state,
     };
   },
   computed: {
     filteredCart() {
       return this.cart;
+    },
+    groupedCart() {
+      // Group items by pedagang
+      return this.cart.reduce((groups, item) => {
+        if (!groups[item.pedagang]) {
+          groups[item.pedagang] = [];
+          // Initialize input values for this pedagang
+          this.pedagangNotes[item.pedagang] = "";
+          this.pedagangPemesan[item.pedagang] = "";
+          this.pedagangAlamat[item.pedagang] = "";
+        }
+        groups[item.pedagang].push(item);
+        return groups;
+      }, {});
     },
     cartTotalPrice() {
       return this.cart.reduce(
@@ -143,6 +194,10 @@ export default {
     },
   },
   methods: {
+    // All methods remain exactly the same
+    groupTotalPrice(group) {
+      return group.reduce((total, item) => total + item.price * item.quantity, 0);
+    },
     async fetchUser() {
       try {
         const userInfo = JSON.parse(localStorage.getItem("user-info"));
@@ -243,15 +298,16 @@ export default {
       try {
         console.log(`Starting invoice generation for order ${orderId}`);
         
-        // 1. Try both endpoints if needed
         let order;
         try {
-          // First try the regular endpoint
-          const response = await axios.get(`http://localhost:3003/orders/${orderId}`);
+          const response = await axios.get(`http://localhost:3003/orders/${orderId}`, {
+            params: {
+              include_items: true
+            }
+          });
           order = response.data;
         } catch (firstError) {
           if (firstError.response?.status === 404) {
-            // Fallback to orderid-based endpoint
             try {
               const fallbackResponse = await axios.get(
                 `http://localhost:3003/orders/by-orderid/${orderId}`
@@ -269,61 +325,49 @@ export default {
           throw new Error(`Order data not found for ID ${orderId}`);
         }
 
-        // Ensure order_items is an array
         if (!order.order_items) {
-          order.order_items = [];
-        } else if (!Array.isArray(order.order_items)) {
-          order.order_items = [order.order_items];
-        }
-
-        // If still no items, try to fetch them separately
-        if (order.order_items.length === 0) {
           const itemsResponse = await axios.get(
             `http://localhost:3003/order-items?order_id=${order.id}`
           );
           order.order_items = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
-          
-          if (order.order_items.length === 0) {
-            throw new Error(`No items found for order ${orderId}`);
-          }
+        } else if (!Array.isArray(order.order_items)) {
+          order.order_items = [order.order_items];
         }
 
-        console.log(`Fetched order data for invoice generation`, order);
+        if (order.order_items.length === 0) {
+          throw new Error(`No items found for order ${orderId}`);
+        }
 
-        // 2. Create PDF document
+        console.log(`Fetched order data with ${order.order_items.length} items`, order);
+
         const doc = new jsPDF({
           orientation: "portrait",
           unit: "mm",
           format: "a4"
         });
 
-        // 3. Set document properties
         doc.setProperties({
           title: `Invoice ${order.id}`,
           subject: 'Purchase Invoice',
-          author: 'WarungApp',
+          author: 'GBWT',
           keywords: 'invoice, purchase',
-          creator: 'WarungApp'
+          creator: 'GBWT'
         });
 
-        // 4. Add header
         doc.setFontSize(20);
         doc.setTextColor(40, 40, 40);
-        const title = "INVOICE PEMBELIAN";
+        const title = "STRUK PEMESANAN";
         doc.text(title, 105, 20, { align: 'center' });
         
-        // 5. Add separator line
         doc.setDrawColor(200, 200, 200);
         doc.line(15, 25, 195, 25);
 
-        // 6. Order information
         doc.setFontSize(10);
-        doc.text(`No. Invoice: ${order.id}`, 15, 35);
+        doc.text(`Kode pemesanan: ${order.id}`, 15, 35);
         doc.text(`Tanggal: ${new Date(order.created_at).toLocaleDateString('id-ID')}`, 15, 40);
         doc.text(`Nama Pelanggan: ${order.pemesan}`, 15, 45);
         doc.text(`Alamat: ${order.alamat}`, 15, 50);
         
-        // 7. Add items table
         const headers = [
           [
             { content: "No", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
@@ -342,7 +386,6 @@ export default {
           { content: this.formatPrice(item.price * item.quantity), styles: { halign: 'right' } }
         ]);
 
-        // 8. Generate the table using autoTable as a function
         autoTable(doc, {
           head: headers,
           body: data,
@@ -361,35 +404,64 @@ export default {
             4: { cellWidth: 30 }
           },
           didDrawPage: (data) => {
-            // Footer
             doc.setFontSize(8);
             doc.setTextColor(100);
+            
+            const options = {
+              timeZone: 'Asia/Jakarta',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            };
+            
+            const jakartaTime = new Date().toLocaleString('id-ID', options);
             doc.text(
-              `Generated by WarungApp - ${new Date().toLocaleString()}`,
+              `Dipesan pada - ${jakartaTime}`,
               data.settings.margin.left,
               doc.internal.pageSize.height - 10
             );
           }
         });
 
-        // 9. Total section
         const finalY = doc.lastAutoTable.finalY + 10;
-        doc.setFontSize(12);
-        doc.text('Total Pembayaran:', 140, finalY);
-        doc.text(this.formatPrice(order.total), 170, finalY, { align: 'right' });
+        autoTable(doc, {
+          body: [
+            [
+              { 
+                content: 'Total Pembayaran:', 
+                styles: { halign: 'right', fontStyle: 'bold' } 
+              },
+              { 
+                content: this.formatPrice(order.total),
+                styles: { halign: 'right', fontStyle: 'bold' } 
+              }
+            ]
+          ],
+          startY: finalY,
+          margin: { left: 80, right: 15 },
+          tableWidth: 110,
+          columnStyles: {
+            0: { cellWidth: 70 },
+            1: { cellWidth: 40 }
+          },
+          styles: {
+            cellPadding: 3,
+            fontSize: 12
+          }
+        });
 
-        // 10. Terms and conditions
         doc.setFontSize(8);
         doc.text('Catatan:', 15, finalY + 10);
         doc.text(order.catatan || '-', 15, finalY + 15);
 
-        // 11. Convert to base64
         const pdfData = doc.output("datauristring").split(",")[1];
         const filename = `invoice_${order.id}.pdf`;
         
         console.log(`Attempting to save invoice for order ${orderId}`);
         
-        // 12. Save to server
         const saveResponse = await axios.post("http://localhost:3003/invoices", {
           order_id: order.id,
           filename,
@@ -402,7 +474,11 @@ export default {
         
         console.log(`Successfully generated and saved invoice for order ${orderId}`);
         
-        return { success: true, orderId: order.id };
+        return { 
+          success: true, 
+          orderId: order.id,
+          invoiceUrl: saveResponse.data.invoiceUrl
+        };
       } catch (error) {
         console.error(`Error generating invoice for order ${orderId}:`, error);
         
@@ -421,7 +497,6 @@ export default {
         this.isProcessingCheckout = true;
         const result = await this.generateInvoice(orderId);
         
-        // Remove the error from the list if successful
         if (this.invoiceError && this.invoiceError[orderId]) {
           delete this.invoiceError[orderId];
           if (Object.keys(this.invoiceError).length === 0) {
@@ -438,20 +513,104 @@ export default {
         this.isProcessingCheckout = false;
       }
     },
-    async checkout() {
+    validatePedagangInputs(pedagang) {
+      if (!this.user) {
+        if (!this.pedagangPemesan[pedagang]?.trim()) {
+          alert(`Harap isi nama pemesan untuk ${pedagang}`);
+          return false;
+        }
+        if (!this.pedagangAlamat[pedagang]?.trim()) {
+          alert(`Harap isi alamat pengiriman untuk ${pedagang}`);
+          return false;
+        }
+      }
+      return true;
+    },
+    async checkoutPedagang(pedagang) {
+      if (!this.validatePedagangInputs(pedagang)) {
+        return;
+      }
+
+      this.isProcessingCheckout = true;
+      this.invoiceError = null;
+
+      const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+      const orders = [];
+      const orderId = generateRandomId();
+      const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+      this.cart
+        .filter(item => item.pedagang === pedagang)
+        .forEach((item) => {
+          orders.push({
+            temporaryId: orderId,
+            orderid: orderId,
+            itemid: item.itemid,
+            name: item.name,
+            pedagang: item.pedagang,
+            price: item.price,
+            quantity: item.quantity,
+            total: item.price * item.quantity,
+            user: this.user ? this.user.Nama : this.guestId,
+            Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+            pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+            catatan: this.pedagangNotes[pedagang],
+            timestamp,
+          });
+        });
+
+      try {
+        // 1. Create order for this pedagang
+        const createResponse = await axios.post("http://localhost:3003/orders", { orders });
+        const createdOrders = createResponse.data.orders || [];
+
+        // 2. Remove these items from cart
+        const itemIdsToRemove = this.cart
+          .filter(item => item.pedagang === pedagang)
+          .map(item => item.id);
+        
+        await Promise.all(
+          itemIdsToRemove.map(id => axios.delete(`http://localhost:3004/cart/${id}`))
+        );
+
+        // 3. Update local cart
+        this.cart = this.cart.filter(item => item.pedagang !== pedagang);
+
+        // 4. Generate invoice for this order
+        if (createdOrders.length > 0) {
+          const invoiceResult = await this.generateInvoice(createdOrders[0].id);
+          
+          if (!invoiceResult.success) {
+            throw invoiceResult.error;
+          }
+        }
+
+        alert(`Checkout berhasil untuk ${pedagang}! Invoice telah dibuat.`);
+      } catch (error) {
+        console.error(`Error during checkout for ${pedagang}:`, error);
+        
+        if (error.response) {
+          if (error.response.status === 400) {
+            this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
+          } else if (error.response.status === 500) {
+            this.showWarning("Server error. Silakan coba lagi nanti.");
+          }
+        } else {
+          this.showWarning(`Checkout gagal untuk ${pedagang}. Silakan cek koneksi internet Anda dan coba lagi.`);
+        }
+      } finally {
+        this.isProcessingCheckout = false;
+      }
+    },
+    async checkoutAll() {
       if (!this.user && !this.guestId) {
         alert("Anda harus login atau melanjutkan sebagai tamu.");
         return;
       }
 
-      // Validate guest inputs if not logged in
-      if (!this.user) {
-        if (!this.pemesan.trim()) {
-          alert("Harap isi nama pemesan untuk tamu.");
-          return;
-        }
-        if (!this.alamat.trim()) {
-          alert("Harap isi alamat pengiriman untuk tamu.");
+      // Validate all pedagang inputs
+      for (const pedagang in this.groupedCart) {
+        if (!this.validatePedagangInputs(pedagang)) {
           return;
         }
       }
@@ -460,36 +619,36 @@ export default {
       this.invoiceError = null;
 
       const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
-      const orders = [];
+      const allOrders = [];
       const orderIds = {};
-
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
-      this.cart.forEach((item) => {
-        if (!orderIds[item.pedagang]) {
-          orderIds[item.pedagang] = generateRandomId();
-        }
-
-        orders.push({
-          temporaryId: orderIds[item.pedagang],
-          orderid: orderIds[item.pedagang],
-          itemid: item.itemid,
-          name: item.name,
-          pedagang: item.pedagang,
-          price: item.price,
-          quantity: item.quantity,
-          total: item.price * item.quantity,
-          user: this.user ? this.user.Nama : this.guestId,
-          Alamat: this.user ? this.user.Alamat : this.alamat,
-          pemesan: this.user ? this.user.Nama : this.pemesan,
-          catatan: this.catatan,
-          timestamp,
+      // Prepare orders for each pedagang
+      for (const pedagang in this.groupedCart) {
+        orderIds[pedagang] = generateRandomId();
+        
+        this.groupedCart[pedagang].forEach((item) => {
+          allOrders.push({
+            temporaryId: orderIds[pedagang],
+            orderid: orderIds[pedagang],
+            itemid: item.itemid,
+            name: item.name,
+            pedagang: item.pedagang,
+            price: item.price,
+            quantity: item.quantity,
+            total: item.price * item.quantity,
+            user: this.user ? this.user.Nama : this.guestId,
+            Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+            pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+            catatan: this.pedagangNotes[pedagang],
+            timestamp,
+          });
         });
-      });
+      }
 
       try {
-        // 1. Create orders
-        const createResponse = await axios.post("http://localhost:3003/orders", { orders });
+        // 1. Create all orders
+        const createResponse = await axios.post("http://localhost:3003/orders", { orders: allOrders });
         const createdOrders = createResponse.data.orders || [];
 
         // 2. Clear cart
@@ -499,9 +658,12 @@ export default {
         const invoiceResults = await Promise.allSettled(
           createdOrders.map(order => 
             this.generateInvoice(order.id)
+              .then(result => {
+                order.invoiceUrl = result.invoiceUrl;
+                return result;
+              })
               .catch(e => ({ success: false, orderId: order.id, error: e }))
-          )
-        );
+        ));
 
         // Check for failed invoices
         const failedInvoices = invoiceResults
@@ -534,14 +696,12 @@ export default {
         console.error("Error during checkout:", error);
         
         if (error.response) {
-          // Server responded with error status
           if (error.response.status === 400) {
             this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
           } else if (error.response.status === 500) {
             this.showWarning("Server error. Silakan coba lagi nanti.");
           }
         } else {
-          // Network error or other issues
           this.showWarning("Checkout gagal. Silakan cek koneksi internet Anda dan coba lagi.");
         }
       } finally {
@@ -569,7 +729,76 @@ export default {
 </script>
 
 <style scoped>
-/* Your existing styles remain unchanged */
+/* All styles remain exactly the same */
+.pedagang-group {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: lightblue;
+}
+
+.pedagang-group h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.5rem;
+  background-color: lightblue;
+}
+
+.pedagang-inputs {
+  margin-top: 1rem;
+  padding: 1rem;
+  
+  border-radius: 4px;
+  background-color: lightblue;
+}
+
+.guest-inputs {
+  margin-top: 1rem;
+}
+
+.checkout-btn {
+  margin-top: 1rem;
+  background-color: #4caf50;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkout-btn:hover {
+  background-color: #388e3c;
+}
+
+.combined-checkout {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.checkout-all-btn {
+  background-color: #2196f3;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 1rem;
+}
+
+.checkout-all-btn:hover {
+  background-color: #1976d2;
+}
+
+.text-right {
+  text-align: right;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -624,7 +853,7 @@ label {
 
 input[type="text"],
 textarea {
-  width: 50%;
+  width: 100%;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -636,7 +865,6 @@ textarea {
   resize: vertical;
 }
 
-/* Quantity controls styling */
 .quantity-controls {
   display: flex;
   align-items: center;

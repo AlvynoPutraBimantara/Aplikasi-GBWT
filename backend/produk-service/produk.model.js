@@ -17,6 +17,10 @@ const Produk = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
+    Harga_diskon: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
     Kategori: {
       type: DataTypes.STRING(255),
       allowNull: true,
@@ -28,6 +32,7 @@ const Produk = sequelize.define(
     Pedagang: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      index: true, // MUL index in database
     },
     Stok: {
       type: DataTypes.INTEGER,
@@ -37,10 +42,15 @@ const Produk = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: DataTypes.NOW, // Maps to CURRENT_TIMESTAMP
+    }
   },
   {
     tableName: "dataproduk",
-    timestamps: false,
+    timestamps: false, // We're handling created_at manually
   }
 );
 
@@ -68,7 +78,4 @@ const ProdukImages = sequelize.define("ProdukImages", {
   },
 });
 
-
 module.exports = { Produk, ProdukImages };
-
-

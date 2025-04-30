@@ -1,4 +1,3 @@
-
 // Import dependencies
 const express = require("express");
 const cors = require("cors");
@@ -21,13 +20,31 @@ const logWarning = (message) => {
 
 // CRUD Routes
 
-// Get all products
+// In backend\produk-service\server.js (alternative version)
 app.get("/products", async (req, res) => {
   try {
-    const [products] = await pool.query("SELECT * FROM dataproduk");
-    res.json(products);
+    let query = "SELECT * FROM dataproduk";
+    let params = [];
+    
+    // Check if this is a request for new products
+    if (req.query.newSince) {
+      query = "SELECT * FROM dataproduk WHERE created_at >= ? ORDER BY created_at DESC";
+      params = [req.query.newSince];
+    }
+    
+    const [products] = await pool.query(query, params);
+    
+    // Process products to include full image URLs
+    const processedProducts = products.map(product => ({
+      ...product,
+      imageUrl: product.imageUrl 
+        ? `http://localhost:3002${product.imageUrl}`
+        : 'default-image.jpg'
+    }));
+    
+    res.json(processedProducts);
   } catch (error) {
-    logWarning(`Error fetching products: ${error.message}`);
+    console.error("Error fetching products:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -52,7 +69,7 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-
+// In the POST /products route in server.js
 app.post("/products", upload.single("image"), async (req, res) => {
   const { Nama, Harga, Kategori, Keterangan, Pedagang, Stok } = req.body;
 
@@ -65,14 +82,14 @@ app.post("/products", upload.single("image"), async (req, res) => {
 
     // Insert product data into 'dataproduk'
     const productQuery = `
-      INSERT INTO dataproduk (id, Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO dataproduk (id, Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     const imageUrl = req.file ? `/images/${productId}` : null;
     const productValues = [productId, Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl];
     await pool.query(productQuery, productValues);
 
-    // If image is uploaded, store it in 'productimages' with the same id as 'productId'
+    // Rest of the code remains the same...
     if (req.file) {
       const imageQuery = `
         INSERT INTO productimages (id, filename, data, mimetype)
@@ -104,7 +121,6 @@ app.get("/images/:id", async (req, res) => {
   } catch (error) {
     console.error(`Error fetching image for product (${id}):`, error.message);
     res.status(500).json({ error: "Internal server error" });
-
   }
 });
 
@@ -118,7 +134,6 @@ app.put("/products/:id", upload.single("image"), async (req, res) => {
     if (req.file) {
       const sanitizedMimetype = req.file.mimetype.replace(/[^\w.-]/g, "");
 
-      // Store the updated image in the 'productimages' table
       const imageQuery = `
         INSERT INTO productimages (id, filename, data, mimetype)
         VALUES (?, ?, ?, ?)
@@ -132,18 +147,33 @@ app.put("/products/:id", upload.single("image"), async (req, res) => {
 
       imageUrl = `/images/${id}`;
     } else {
-      // Retain the existing image URL if no new image is uploaded
       const [rows] = await pool.query("SELECT imageUrl FROM dataproduk WHERE id = ?", [id]);
       imageUrl = rows[0]?.imageUrl || null;
     }
 
-    // Update the product details, including Harga_diskon
+    // Convert empty string, "0", or "null" to NULL for Harga_diskon
+    const discountValue = !Harga_diskon || Harga_diskon === '0' || Harga_diskon === 'null' || Harga_diskon === '' 
+      ? null 
+      : parseFloat(Harga_diskon);
+
     const updateQuery = `
       UPDATE dataproduk 
-      SET Nama = ?, Harga = ?, Kategori = ?, Keterangan = ?, Pedagang = ?, Stok = ?, imageUrl = ?, Harga_diskon = ?
+      SET Nama = ?, Harga = ?, Kategori = ?, Keterangan = ?, Pedagang = ?, Stok = ?, imageUrl = ?, 
+      Harga_diskon = ?
       WHERE id = ?
     `;
-    const updateValues = [Nama, Harga, Kategori, Keterangan, Pedagang, Stok, imageUrl, Harga_diskon, id];
+    const updateValues = [
+      Nama, 
+      Harga, 
+      Kategori, 
+      Keterangan, 
+      Pedagang, 
+      Stok, 
+      imageUrl, 
+      discountValue, 
+      id
+    ];
+    
     await pool.query(updateQuery, updateValues);
 
     res.json({ message: "Product updated successfully" });
@@ -152,8 +182,6 @@ app.put("/products/:id", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-
 
 // Delete product
 app.delete("/products/:id", async (req, res) => {
@@ -166,9 +194,6 @@ app.delete("/products/:id", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-
-
 
 // Fetch all users
 app.get("/users", async (req, res) => {
@@ -201,6 +226,41 @@ app.put("/products/:id/reset-discount", async (req, res) => {
   }
 });
 
+
+app.get("/products/new", async (req, res) => {
+  try {
+    // Get the since date from query parameter or default to 3 days ago
+    let sinceDate = req.query.since;
+    
+    if (!sinceDate) {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      sinceDate = threeDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    // Query to get products created after the specified date
+    const query = `
+      SELECT * FROM dataproduk 
+      WHERE created_at >= ? 
+      ORDER BY created_at DESC
+    `;
+    
+    const [products] = await pool.query(query, [sinceDate]);
+    
+    // Map products to include full image URLs
+    const productsWithImageUrls = products.map(product => ({
+      ...product,
+      imageUrl: product.imageUrl 
+        ? `http://localhost:3002${product.imageUrl}`
+        : null
+    }));
+    
+    res.json(productsWithImageUrls);
+  } catch (error) {
+    console.error("Error fetching new products:", error.message);
+    res.status(500).json({ error: "Failed to fetch new products" });
+  }
+});
 
 // Start server
 app.listen(3002, () => {

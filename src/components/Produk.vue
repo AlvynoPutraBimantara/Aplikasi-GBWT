@@ -99,7 +99,7 @@ export default {
         this.products = response.data.map((product) => ({
           ...product,
           imageUrl: product.imageUrl
-            ? `http://localhost:3002${product.imageUrl}`
+            ? `http://localhost:3002/images/${product.id}`
             : "default-image.jpg", // Placeholder image if none provided
         }));
       } catch (error) {

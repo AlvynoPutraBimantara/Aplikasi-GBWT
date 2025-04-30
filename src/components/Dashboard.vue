@@ -5,13 +5,103 @@
       class="product"
       v-for="(product, index) in products"
       :key="index"
-      @click="goToProductPage(product.id)"
+      @click="handleMainProductClick(product.name)"
       :style="{
         backgroundImage: `url(${require(`@/assets/images/${product.name.toLowerCase()}.jpg`)})`,
       }"
     >
       <h3>{{ product.name }}</h3>
     </div>
+
+    <!-- Section for new products (added within last 3 days) -->
+    <section class="section-new" v-if="newProducts.length > 0">
+      <h4 class="section-title">Produk Baru</h4>
+      <div class="carousel-container">
+        <!-- Single product display -->
+        <div v-if="newProducts.length === 1" class="single-product-container">
+          <div 
+            class="card"
+            v-for="(product, index) in newProducts"
+            :key="index"
+            @click="goToProductPage(product.id)"
+          >
+            <div class="card-body">
+              <img
+                :src="product.imageUrl"
+                alt="Product Image"
+                class="product-image"
+              />
+              <h5 class="card-title">{{ product.Nama }}</h5>
+              <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+                Harga: {{ formatPrice(product.Harga) }}
+              </p>
+              <p v-if="product.Harga_diskon" class="card-text discount-price">
+                Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+              </p>
+              <p class="card-text">
+                {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
+              </p>
+              <p class="card-text new-badge" v-if="isNewProduct(product.created_at)">
+                Baru!
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Carousel display for multiple products -->
+        <div 
+          v-else
+          class="carousel-wrapper"
+          ref="carousel"
+          @mouseenter="pauseAutoScroll"
+          @mouseleave="resumeAutoScroll"
+          @scroll="handleScroll"
+        >
+          <div class="carousel">
+            <div
+              class="card"
+              v-for="(product, index) in getCarouselItems()"
+              :key="`${index}-${product.id}`"
+              @click="goToProductPage(product.id)"
+              :data-index="index % newProducts.length"
+            >
+              <div class="card-body">
+                <img
+                  :src="product.imageUrl"
+                  alt="Product Image"
+                  class="product-image"
+                />
+                <h5 class="card-title">{{ product.Nama }}</h5>
+                <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
+                  Harga: {{ formatPrice(product.Harga) }}
+                </p>
+                <p v-if="product.Harga_diskon" class="card-text discount-price">
+                  Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
+                </p>
+                <p class="card-text">
+                  {{ product.Stok > 0 ? '(Tersedia)' : '(Kosong)' }}
+                </p>
+                <p class="card-text new-badge" v-if="isNewProduct(product.created_at)">
+                  Baru!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Navigation buttons (only show when more than 1 product) -->
+        <button 
+          v-if="newProducts.length > 1"
+          class="carousel-button prev" 
+          @click="scroll(-1)"
+        >❮</button>
+        <button 
+          v-if="newProducts.length > 1"
+          class="carousel-button next" 
+          @click="scroll(1)"
+        >❯</button>
+      </div>
+    </section>
 
     <!-- Section for popular products -->
     <section class="section-popular" v-if="popularProducts.length > 0">
@@ -31,11 +121,9 @@
               style="width: 100%; height: auto"
             />
             <h5 class="card-title">{{ product.Nama }}</h5>
-            <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
             <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
               Harga: {{ formatPrice(product.Harga) }}
             </p>
-            <!-- Display Harga_diskon in red if it exists -->
             <p v-if="product.Harga_diskon" class="card-text discount-price">
               Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
             </p>
@@ -65,11 +153,9 @@
               style="width: 100%; height: auto"
             />
             <h5 class="card-title">{{ product.Nama }}</h5>
-            <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
             <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
               Harga: {{ formatPrice(product.Harga) }}
             </p>
-            <!-- Display Harga_diskon in red if it exists -->
             <p v-if="product.Harga_diskon" class="card-text discount-price">
               Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
             </p>
@@ -96,35 +182,86 @@ export default {
       ],
       previousProducts: [],
       popularProducts: [],
+      newProducts: [],
+      currentIndex: 0,
+      autoScrollInterval: null,
+      scrollAmount: 300,
+      isScrolling: false,
     };
   },
   methods: {
+    getCarouselItems() {
+      // Only duplicate items if we have more than 1 but less than 4 products
+      return this.newProducts.length > 1 && this.newProducts.length < 4 
+        ? [...this.newProducts, ...this.newProducts] 
+        : this.newProducts;
+    },
+    handleMainProductClick(productName) {
+      switch(productName) {
+        case 'WARUNG':
+          this.$router.push('/Warung');
+          break;
+        case 'PRODUK':
+          this.$router.push('/Produk');
+          break;
+        case 'KATEGORI':
+          this.$router.push('/Kategori');
+          break;
+        default:
+          // eslint-disable-next-line no-undef
+          this.goToProductPage(product.id);
+      }
+    },
     goToProductPage(productId) {
       this.$router.push(`/DetilProduk/${productId}`);
     },
     async fetchProducts(productIds) {
+      const fetchedProducts = [];
+      for (const id of productIds) {
+        try {
+          const response = await axios.get(`http://localhost:3002/products/${id}`);
+          fetchedProducts.push({
+            ...response.data,
+            imageUrl: response.data.imageUrl
+              ? `http://localhost:3002/images/${response.data.id}`
+              : "default-image.jpg",
+          });
+        } catch (error) {
+          console.warn(`Product ID ${id} could not be fetched: ${error.message}`);
+        }
+      }
+      return fetchedProducts;
+    },
+    async fetchNewProducts() {
       try {
-        const productPromises = productIds.map((id) =>
-          axios.get(`http://localhost:3002/products/${id}`)
-        );
-        const products = await Promise.all(productPromises);
-        return products.map((response) => ({
-          ...response.data,
-          imageUrl: response.data.imageUrl
-            ? `http://localhost:3002/images/${response.data.id}` // Construct URL for serving images
-            : "default-image.jpg", // Placeholder image if none provided
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const formattedDate = threeDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
+        
+        const response = await axios.get('http://localhost:3002/products', {
+          params: { newSince: formattedDate }
+        });
+        
+        this.newProducts = response.data.map(product => ({
+          ...product,
+          imageUrl: product.imageUrl || 'default-image.jpg'
         }));
       } catch (error) {
-        console.error("Failed to fetch products:", error);
-        return [];
+        console.error("Error fetching new products:", error);
       }
+    },
+    isNewProduct(createdAt) {
+      if (!createdAt) return false;
+      const productDate = new Date(createdAt);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      return productDate > threeDaysAgo;
     },
     async fetchRiwayatTransaksi() {
       try {
         const response = await axios.get("http://localhost:3005/transactions-history");
         const transactions = response.data;
 
-        // Fetch items for each transaction
         const transactionsWithItems = await Promise.all(
           transactions.map(async (transaction) => {
             const itemsResponse = await axios.get(
@@ -147,15 +284,11 @@ export default {
       const user = JSON.parse(localStorage.getItem("user-info"));
       if (user && user.Nama) {
         try {
-          // Fetch transaction history for the user
           const transactions = await this.fetchRiwayatTransaksi();
-
-          // Filter transactions for the current user
           const userTransactions = transactions.filter(
             (transaction) => transaction.user === user.Nama
           );
 
-          // Extract unique product IDs from the user's transactions
           const productIds = [
             ...new Set(
               userTransactions.flatMap((transaction) =>
@@ -164,7 +297,6 @@ export default {
             ),
           ];
 
-          // Fetch product details for the unique product IDs
           this.previousProducts = await this.fetchProducts(productIds);
         } catch (error) {
           console.error("Error fetching previous products:", error);
@@ -173,22 +305,18 @@ export default {
     },
     async fetchPopularProducts() {
       try {
-        // Fetch all transaction history items
         const response = await axios.get("http://localhost:3005/transactions-history-items");
         const items = response.data;
 
-        // Count how many times each product appears in the transaction history
         const productCountMap = items.reduce((acc, item) => {
           acc[item.itemid] = (acc[item.itemid] || 0) + 1;
           return acc;
         }, {});
 
-        // Filter products that appear more than 3 times
         const popularProductIds = Object.keys(productCountMap).filter(
           (productId) => productCountMap[productId] > 3
         );
 
-        // Fetch product details for popular products
         this.popularProducts = await this.fetchProducts(popularProductIds);
       } catch (error) {
         console.error("Error fetching popular products:", error);
@@ -200,16 +328,118 @@ export default {
         currency: "IDR",
       }).format(value);
     },
+    setupAutoScroll() {
+      if (this.newProducts.length <= 1) return;
+      
+      this.autoScrollInterval = setInterval(() => {
+        if (!this.isScrolling) {
+          this.scroll(1);
+        }
+      }, 3000);
+    },
+    pauseAutoScroll() {
+      if (this.autoScrollInterval) {
+        clearInterval(this.autoScrollInterval);
+        this.autoScrollInterval = null;
+      }
+    },
+    resumeAutoScroll() {
+      if (!this.autoScrollInterval && this.newProducts.length > 1) {
+        this.setupAutoScroll();
+      }
+    },
+    handleScroll() {
+      if (this.newProducts.length <= 1) return;
+      
+      const carousel = this.$refs.carousel;
+      if (!carousel) return;
+
+      const scrollWidth = carousel.scrollWidth / 2;
+      const scrollLeft = carousel.scrollLeft;
+
+      if (scrollLeft < scrollWidth / 2) {
+        this.isScrolling = true;
+        carousel.scrollTo({
+          left: scrollLeft + scrollWidth,
+          behavior: 'auto'
+        });
+        this.isScrolling = false;
+      }
+      else if (scrollLeft > scrollWidth + scrollWidth / 2) {
+        this.isScrolling = true;
+        carousel.scrollTo({
+          left: scrollLeft - scrollWidth,
+          behavior: 'auto'
+        });
+        this.isScrolling = false;
+      }
+
+      const cardWidth = this.scrollAmount;
+      this.currentIndex = Math.round((scrollLeft % scrollWidth) / cardWidth) % this.newProducts.length;
+    },
+    scroll(direction) {
+      if (this.newProducts.length <= 1) return;
+      
+      const carousel = this.$refs.carousel;
+      if (carousel && !this.isScrolling) {
+        this.isScrolling = true;
+        
+        let newScrollLeft = carousel.scrollLeft + (direction * this.scrollAmount);
+        const scrollWidth = carousel.scrollWidth / 2;
+        
+        if (direction === 1 && newScrollLeft >= scrollWidth * 1.5) {
+          newScrollLeft = scrollWidth / 2 + (newScrollLeft - scrollWidth * 1.5);
+          carousel.scrollTo({
+            left: scrollWidth * 1.5,
+            behavior: 'auto'
+          });
+        }
+        else if (direction === -1 && newScrollLeft <= scrollWidth / 2) {
+          newScrollLeft = scrollWidth * 1.5 - (scrollWidth / 2 - newScrollLeft);
+          carousel.scrollTo({
+            left: scrollWidth / 2,
+            behavior: 'auto'
+          });
+        }
+        
+        carousel.scrollTo({
+          left: newScrollLeft,
+          behavior: 'smooth'
+        });
+        
+        this.currentIndex = (this.currentIndex + direction + this.newProducts.length) % this.newProducts.length;
+        
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 500);
+      }
+    },
   },
   mounted() {
     this.fetchPopularProducts();
     this.fetchPreviousProducts();
+    this.fetchNewProducts().then(() => {
+      if (this.newProducts.length > 0) {
+        this.$nextTick(() => {
+          const carousel = this.$refs.carousel;
+          if (carousel) {
+            carousel.scrollLeft = carousel.scrollWidth / 4;
+          }
+        });
+        if (this.newProducts.length > 1) {
+          this.setupAutoScroll();
+        }
+      }
+    });
+  },
+  beforeUnmount() {
+    this.pauseAutoScroll();
   },
 };
 </script>
 
 <style scoped>
-/* Add styles from Produk.vue for consistency */
+/* Your existing styles remain exactly the same */
 .products-container {
   display: flex;
   flex-wrap: wrap;
@@ -278,14 +508,114 @@ export default {
   cursor: pointer;
   text-align: center;
   background-size: cover;
-  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.5); /* Add shadow effect */
+  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.5);
 }
 
 .product h3 {
   font-size: 50px;
   font-weight: bold;
   margin: 0;
-  color: white; /* Change text color to white for better visibility */
-  text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5); /* Add text shadow for better readability */
+  color: white;
+  text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.section-new {
+  margin: 30px 0;
+}
+
+.new-badge {
+  background-color: #4CAF50;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.carousel-container {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.carousel-wrapper {
+  display: flex;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.carousel-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.carousel {
+  display: flex;
+  flex-wrap: nowrap;
+  padding: 20px 0;
+}
+
+.card {
+  flex: 0 0 auto;
+  width: 15rem;
+  margin: 0 10px;
+  scroll-snap-align: start;
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: scale(1.05);
+}
+
+.carousel-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-button.prev {
+  left: 10px;
+}
+
+.carousel-button.next {
+  right: 10px;
+}
+
+.carousel-button:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.product-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.single-product-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.single-product-container .card {
+  margin: 0 auto;
 }
 </style>

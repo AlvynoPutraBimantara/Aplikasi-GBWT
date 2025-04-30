@@ -14,6 +14,17 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Generate an 8-character random string for ID
+function generateRandomId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < 8; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    result += chars[randomIndex];
+  }
+  return result;
+}
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -50,8 +61,6 @@ app.delete("/images/:id", (req, res) => {
       res.status(500).send("Server error");
     });
 });
-
-// Get image by ID
 app.get("/images/:id", (req, res) => {
   const { id } = req.params;
   const query = "SELECT data, mimetype FROM appimages WHERE id = ?";
@@ -62,7 +71,8 @@ app.get("/images/:id", (req, res) => {
       } else {
         const { data, mimetype } = results[0];
         res.setHeader("Content-Type", mimetype);
-        res.send(data);
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin"); // Add this line
+        res.send(Buffer.from(data, 'binary'));
       }
     })
     .catch((err) => {
@@ -70,7 +80,6 @@ app.get("/images/:id", (req, res) => {
       res.status(500).send("Server error");
     });
 });
-
 
 app.get("/categories/:id", (req, res) => {
   const { id } = req.params;
@@ -106,12 +115,13 @@ app.get("/categories", (req, res) => {
 app.post("/images", upload.single("image"), (req, res) => {
   const { originalname, mimetype } = req.file;
   const data = req.file.buffer;
+  const id = generateRandomId();
 
-  const query = "INSERT INTO appimages (filename, data, mimetype) VALUES (?, ?, ?)";
-  db.query(query, [originalname, data, mimetype])
-    .then(([result]) => {
-      const imageUrl = `http://localhost:${port}/images/${result.insertId}`; // Generate imageUrl
-      res.status(201).send({ id: result.insertId, imageUrl });
+  const query = "INSERT INTO appimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)";
+  db.query(query, [id, originalname, data, mimetype])
+    .then(() => {
+      const imageUrl = `http://localhost:${port}/images/${id}`;
+      res.status(201).send({ id, imageUrl });
     })
     .catch((err) => {
       console.error("Error uploading image:", err);
@@ -127,8 +137,7 @@ app.post("/categories", (req, res) => {
     return res.status(400).send("Category and imageUrl are required.");
   }
 
-  // Generate a random 8-character ID
-  const categoryId = crypto.randomBytes(4).toString("hex");
+  const categoryId = generateRandomId(); // Use the ID generator function
 
   const query = "INSERT INTO categories (id, category, imageUrl) VALUES (?, ?, ?)";
   db.query(query, [categoryId, category, imageUrl])
@@ -142,19 +151,19 @@ app.post("/categories", (req, res) => {
 // Update a category
 app.put("/categories/:id", (req, res) => {
   const { id } = req.params;
-  const { category, imageurl } = req.body;
+  const { category, imageurl } = req.body;  // Changed from imageurl to imageUrl for consistency
 
   if (!category) {
     return res.status(400).send("Category name is required");
   }
 
-  const query = "UPDATE categories SET category = ?, imageurl = ? WHERE id = ?";
+  const query = "UPDATE categories SET category = ?, imageUrl = ? WHERE id = ?";
   db.query(query, [category, imageurl || null, id])
     .then(([results]) => {
       if (results.affectedRows === 0) {
         res.status(404).send("Category not found");
       } else {
-        res.send("Category updated successfully");
+        res.send({ message: "Category updated successfully", id });  // Return the ID for confirmation
       }
     })
     .catch((err) => {
@@ -162,7 +171,6 @@ app.put("/categories/:id", (req, res) => {
       res.status(500).send("Server error");
     });
 });
-
 
 
 // Delete a category

@@ -34,7 +34,8 @@
             type="text"
             id="Harga"
             placeholder="Ubah Harga Produk"
-            v-model="DataProduk.Harga"
+            v-model="formattedHarga"
+            @input="formatHarga"
           />
         </div>
         <!-- Category Dropdown -->
@@ -141,8 +142,9 @@ export default {
         Pedagang: "",
         Stok: "",
         imageUrl: "",
-        Harga_diskon: "",
+        Harga_diskon: null,
       },
+      formattedHarga: "",
       kategoriList: [],
       warungList: [],
       imageFile: null,
@@ -151,6 +153,41 @@ export default {
     };
   },
   methods: {
+    calculateDiscountedPrice() {
+      // Ensure we're working with a clean numeric value
+      const rawHarga = this.DataProduk.Harga.toString().replace(/[^\d]/g, '');
+      const harga = parseFloat(rawHarga);
+      const discount = parseFloat(this.discountPercentage);
+      
+      if (!isNaN(harga)) {
+        if (!isNaN(discount) && discount > 0) {
+          const discountedPrice = harga - (harga * discount) / 100;
+          this.DataProduk.Harga_diskon = discountedPrice.toFixed(2);
+        } else {
+          this.DataProduk.Harga_diskon = null;
+          this.discountPercentage = 0;
+        }
+      } else {
+        this.DataProduk.Harga_diskon = null;
+        this.discountPercentage = 0;
+      }
+    },
+
+    formatHarga(event) {
+      // Get the input value and remove all non-digit characters
+      let value = event.target.value.replace(/[^\d]/g, '');
+      
+      // Store the raw numeric value
+      this.DataProduk.Harga = value;
+      
+      // Format with thousand separators if value is not empty
+      if (value.length > 0) {
+        this.formattedHarga = parseInt(value).toLocaleString('id-ID');
+      } else {
+        this.formattedHarga = '';
+      }
+    },
+
     async fetchKategori() {
       try {
         const response = await axios.get("http://localhost:3006/categories");
@@ -187,20 +224,10 @@ export default {
       }
       this.calculateDiscountedPrice();
     },
-    calculateDiscountedPrice() {
-      const harga = parseFloat(this.DataProduk.Harga);
-      const discount = parseFloat(this.discountPercentage);
-      if (!isNaN(harga) && !isNaN(discount)) {
-        const discountedPrice = harga - (harga * discount) / 100;
-        this.DataProduk.Harga_diskon = discountedPrice.toFixed(2);
-      } else {
-        this.DataProduk.Harga_diskon = "";
-      }
-    },
     async resetDiscount() {
       try {
         this.discountPercentage = 0;
-        this.DataProduk.Harga_diskon = "";
+        this.DataProduk.Harga_diskon = null;
         await axios.put(
           `http://localhost:3002/products/${this.DataProduk.id}/reset-discount`
         );
@@ -220,12 +247,21 @@ export default {
       try {
         const formData = new FormData();
         formData.append("Nama", this.DataProduk.Nama);
-        formData.append("Harga", this.DataProduk.Harga);
+        // Remove thousand separators before submitting
+        formData.append("Harga", this.DataProduk.Harga.replace(/\./g, ''));
         formData.append("Kategori", this.DataProduk.Kategori);
         formData.append("Keterangan", this.DataProduk.Keterangan);
         formData.append("Pedagang", this.DataProduk.Pedagang);
         formData.append("Stok", this.DataProduk.Stok);
-        formData.append("Harga_diskon", this.DataProduk.Harga_diskon || "");
+        
+        // Handle discount value properly
+        const discountValue = this.discountPercentage === 0 || 
+                           this.discountPercentage === '' || 
+                           !this.DataProduk.Harga_diskon ? 
+                           null : 
+                           this.DataProduk.Harga_diskon;
+        formData.append("Harga_diskon", discountValue === null ? '' : discountValue);
+        
         if (this.imageFile) {
           formData.append("image", this.imageFile);
         }
@@ -238,7 +274,7 @@ export default {
 
         alert("Product updated successfully!");
         this.$router.push("/DataProduk");
-        setTimeout(() => window.location.reload(), 0.1);
+        setTimeout(() => window.location.reload(), 100);
       } catch (error) {
         console.error("Error updating product:", error.message);
         alert("Failed to update product.");
@@ -262,6 +298,15 @@ export default {
         `http://localhost:3002/products/${productId}`
       );
       this.DataProduk = response.data;
+      
+      // Initialize formatted price with proper handling
+      if (this.DataProduk.Harga) {
+        // Convert the DECIMAL value to a string and remove any existing formatting
+        const rawHarga = parseFloat(this.DataProduk.Harga).toString();
+        this.DataProduk.Harga = rawHarga.replace(/\./g, ''); // Store the raw numeric value
+        this.formattedHarga = parseInt(rawHarga).toLocaleString('id-ID');
+      }
+      
       if (this.DataProduk.Harga_diskon) {
         const harga = parseFloat(this.DataProduk.Harga);
         const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);

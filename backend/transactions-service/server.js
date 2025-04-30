@@ -4,6 +4,7 @@ const bodyParser = require("body-parser");
 const moment = require("moment-timezone");
 const { Transactions, TransactionItems, TransactionsHistory, TransactionHistoryItems } = require("./transactions.model");
 const { Produk } = require("./produk.model");
+//const { sequelize } = require("./db");
 
 const app = express();
 const port = 3005;
@@ -27,6 +28,17 @@ function generateRandomId() {
   return result;
 }
 
+// Get all transaction items
+app.get("/transactions-items", async (req, res) => {
+  try {
+    const items = await TransactionItems.findAll();
+    res.json(items);
+  } catch (error) {
+    console.error("Error fetching transaction items:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // Create a new transaction with items
 app.post("/transactions", async (req, res) => {
   const { order, invoice_url } = req.body;
@@ -45,7 +57,9 @@ app.post("/transactions", async (req, res) => {
       total: order.total,
       catatan: order.catatan,
       alamat: order.alamat,
+      pemesan: order.pemesan || order.user, // Include pemesan field
       created_at: getCurrentTimestamp(),
+      invoice_url: invoice_url || null
     });
 
     // Create transaction items
@@ -61,33 +75,8 @@ app.post("/transactions", async (req, res) => {
       });
     }
 
-    // Immediately move to history with the invoice URL
-    await TransactionsHistory.create({
-      id: transactionId,
-      user: order.user,
-      total: order.total,
-      catatan: order.catatan,
-      alamat: order.alamat,
-      description: "Pesanan Diterima",
-      created_at: getCurrentTimestamp(),
-      invoice_url: invoice_url || null,
-    });
-
-    // Move transaction items to history
-    for (const item of order.order_items) {
-      await TransactionHistoryItems.create({
-        id: generateRandomId(),
-        transaction_id: transactionId,
-        itemid: item.itemid,
-        name: item.name,
-        pedagang: item.pedagang,
-        price: item.price,
-        quantity: item.quantity,
-      });
-    }
-
     res.status(201).json({ 
-      message: "Transaction created and moved to history successfully!", 
+      message: "Transaction created successfully!", 
       transactionId 
     });
   } catch (error) {
@@ -161,13 +150,13 @@ app.post("/transactions/:id/refund", async (req, res) => {
       alamat: transaction.alamat,
       description: "Pesanan Dikembalikan",
       created_at: transaction.created_at,
-      invoice_url: invoice_url || null,
+      invoice_url: invoice_url || transaction.invoice_url || null
     });
 
     // Move transaction items to transactions_history_items
     for (const item of transaction.transaction_items) {
       await TransactionHistoryItems.create({
-        id: item.id,
+        id: generateRandomId(),
         transaction_id: transactionId,
         itemid: item.itemid,
         name: item.name,
@@ -211,15 +200,16 @@ app.post("/transactions/:id/move-to-history", async (req, res) => {
       total: transaction.total,
       catatan: transaction.catatan,
       alamat: transaction.alamat,
+      pemesan: transaction.pemesan, // Include pemesan field
       description: description,
       created_at: transaction.created_at,
-      invoice_url: invoice_url || null,
+      invoice_url: invoice_url || transaction.invoice_url || null
     });
 
     // Move transaction items to transactions_history_items
     for (const item of transaction.transaction_items) {
       await TransactionHistoryItems.create({
-        id: item.id,
+        id: generateRandomId(),
         transaction_id: transactionId,
         itemid: item.itemid,
         name: item.name,

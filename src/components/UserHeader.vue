@@ -24,6 +24,16 @@
             {{ orderCount }}
           </span>
         </template>
+        <!-- Dollar Icon for Penjualan -->
+        <template v-else-if="route.name === 'Penjualan'">
+          <font-awesome-icon :icon="['fas', 'circle-dollar-to-slot']" />
+          <span v-if="transactionCount > 0" class="badge badge-red">
+            {{ transactionCount }}
+          </span>
+          <span v-if="kasbonCount > 0" class="badge badge-yellow">
+            {{ kasbonCount }}
+          </span>
+        </template>
         <!-- Default Route Name -->
         <span v-else>{{ route.name }}</span>
       </div>
@@ -46,9 +56,12 @@ export default {
         { name: "Kategori", path: "/Kategori" },
         { name: "STRUK", path: "/Orders" },
         { name: "Cart", path: "/Cart" },
+        { name: "Penjualan", path: "/Penjualan" },
       ],
-      cartItemCount: 0, // Store the number of items in the cart
-      orderCount: 0, // Store the number of orders (receipts)
+      cartItemCount: 0,
+      orderCount: 0,
+      transactionCount: 0,
+      kasbonCount: 0,
     };
   },
   computed: {
@@ -78,17 +91,14 @@ export default {
       }
       return route.path;
     },
-    // Fetch cart items for the logged-in user
     async fetchCartItems() {
-      if (!this.user) return; // Exit if no user is logged in
+      if (!this.user) return;
 
       try {
         const response = await axios.get("http://localhost:3004/cart", {
           params: { user: this.user.Nama },
         });
         const cartItems = response.data;
-
-        // Calculate the total number of items in the cart
         this.cartItemCount = cartItems.reduce(
           (total, item) => total + item.quantity,
           0
@@ -97,30 +107,77 @@ export default {
         console.error("Error fetching cart items:", error);
       }
     },
-    // Fetch orders (receipts) for the logged-in user
     async fetchOrders() {
-      if (!this.user) return; // Exit if no user is logged in
+      if (!this.user) return;
 
       try {
         const response = await axios.get("http://localhost:3003/orders");
         const orders = response.data;
-
-        // Filter orders for the logged-in user
         const userOrders = orders.filter(
           (order) => order.user === this.user.Nama
         );
-
-        // Calculate the total number of orders
         this.orderCount = userOrders.length;
       } catch (error) {
         console.error("Error fetching orders:", error);
       }
     },
+    async fetchTransactions() {
+  if (!this.user) return;
+
+  try {
+    // Fetch all data in parallel
+    const [
+      // eslint-disable-next-line no-unused-vars
+      transactionsResponse,
+      transactionItemsResponse,
+      historyResponse,
+      historyItemsResponse
+    ] = await Promise.all([
+      axios.get("http://localhost:3005/transactions"),
+      axios.get("http://localhost:3005/transactions-items"), // Changed from transactions-history-items
+      axios.get("http://localhost:3005/transactions-history"),
+      axios.get("http://localhost:3005/transactions-history-items")
+    ]);
+
+    // Count regular transactions where user is the pedagang
+    const transactionItemsForPedagang = transactionItemsResponse.data.filter(
+      item => item.pedagang === this.user.NamaWarung
+    );
+    
+    // Get unique transaction IDs where user is pedagang
+    const uniqueTransactionIds = [...new Set(
+      transactionItemsForPedagang.map(item => item.transactions_id)
+    )];
+    this.transactionCount = uniqueTransactionIds.length;
+
+    // Count Kasbon transactions where user is the pedagang
+    const kasbonTransactions = historyResponse.data.filter(
+      transaction => transaction.description === "Kasbon"
+    );
+    
+    const kasbonItemsForPedagang = historyItemsResponse.data.filter(
+      item => item.pedagang === this.user.NamaWarung && 
+             kasbonTransactions.some(t => t.id === item.transaction_id)
+    );
+    
+    // Get unique Kasbon transaction IDs where user is pedagang
+    const uniqueKasbonIds = [...new Set(
+      kasbonItemsForPedagang.map(item => item.transaction_id)
+    )];
+    this.kasbonCount = uniqueKasbonIds.length;
+
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+  }
+},
+  
+
   },
   mounted() {
     if (this.user) {
-      this.fetchCartItems(); // Fetch cart items when the component is mounted
-      this.fetchOrders(); // Fetch orders when the component is mounted
+      this.fetchCartItems();
+      this.fetchOrders();
+      this.fetchTransactions();
     }
   },
 };
@@ -171,7 +228,6 @@ export default {
   color: white;
 }
 
-/* Styles for the badge */
 .icon-container {
   position: relative;
   display: inline-block;
@@ -181,11 +237,22 @@ export default {
   position: absolute;
   top: -8px;
   right: -8px;
-  background-color: red;
+  background-color: red; /* Add this line to match the old version */
   color: white;
   border-radius: 50%;
   padding: 2px 6px;
   font-size: 12px;
   font-weight: bold;
+}
+
+.badge-red {
+  background-color: red;
+  right: -8px;
+}
+
+.badge-yellow {
+  background-color: #ffcc00;
+  right: 8px;
+  color: black;
 }
 </style>

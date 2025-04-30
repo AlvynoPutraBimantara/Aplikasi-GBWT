@@ -10,24 +10,24 @@ const Invoice = sequelize.define(
       primaryKey: true,
       allowNull: false,
     },
+    order_id: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
     filename: {
       type: DataTypes.STRING(255),
       allowNull: true,
     },
     file: {
-      type: DataTypes.BLOB('long'), // Using BLOB('long') for longblob type
+      type: DataTypes.BLOB('long'),
       allowNull: true,
     },
-    fileUrl: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-    }
   },
   {
-    tableName: "invoice", // Explicitly set the table name to match your schema
-    timestamps: false, // Disable Sequelize's automatic timestamps
+    tableName: "invoice",
+    timestamps: false,
   }
 );
 
 // Export the model
-module.exports = Invoice;
+module.exports = { Invoice };

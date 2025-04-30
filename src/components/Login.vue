@@ -3,12 +3,30 @@
     <h1 class="title">Login</h1>
     <div class="login-box">
       <div class="login">
-        <input type="text" v-model="Nama" placeholder="Masukan nama" />
-        <input
-          type="password"
-          v-model="Password"
-          placeholder="Masukan Password"
+        <input 
+          ref="nameInput"
+          type="text" 
+          v-model="Nama" 
+          placeholder="Masukan nama"
+          @keydown.enter="login"
+          @keydown.down="focusPassword"
         />
+        
+        <!-- Password Input with Toggle -->
+        <div class="password-input">
+          <input
+            ref="passwordInput"
+            :type="showPassword ? 'text' : 'password'"
+            v-model="Password"
+            placeholder="Masukan Password"
+            @keydown.enter="login"
+            @keydown.up="focusName"
+          />
+          <span @click="togglePasswordVisibility">
+            <font-awesome-icon :icon="showPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
+          </span>
+        </div>
+        
         <button @click="login">Login</button>
         <p>
           <router-link to="/sign-up">Daftar</router-link>
@@ -27,46 +45,65 @@ export default {
     return {
       Nama: "",
       Password: "",
+      showPassword: false,
     };
   },
   methods: {
-  async login() {
-    if (this.Nama === "" || this.Password === "") {
-      alert("Please enter both name and password");
-      return;
-    }
+    togglePasswordVisibility() {
+      this.showPassword = !this.showPassword;
+    },
+    focusName() {
+      this.$refs.nameInput.focus();
+    },
+    focusPassword() {
+      this.$refs.passwordInput.focus();
+    },
+    async login() {
+      // Trim whitespace from inputs
+      const nama = this.Nama.trim();
+      const password = this.Password.trim();
 
-    try {
-      const result = await axios.post("http://localhost:3001/login", {
-        Nama: this.Nama,
-        Password: this.Password,
-      });
+      if (!nama || !password) {
+        alert("Harap masukkan nama dan password");
+        return;
+      }
 
-      if (result.status === 200) {
-        const user = result.data;
-        localStorage.setItem("user-info", JSON.stringify(user));
+      try {
+        const result = await axios.post("http://localhost:3001/login", {
+          Nama: nama,
+          Password: password,
+        });
 
-        if (user.role === "admin") {
-          this.$router.push({ name: "DataUser" });
+        // Strict credential checking
+        if (result.status === 200 && result.data && result.data.Nama === nama) {
+          const user = result.data;
+          localStorage.setItem("user-info", JSON.stringify(user));
+
+          if (user.role === "admin") {
+            this.$router.push({ name: "DataUser" });
+          } else {
+            this.$router.push({ name: "Dashboard" });
+          }
+
+          // Reload the page after redirection
+          setTimeout(() => window.location.reload(), 1);
         } else {
-          this.$router.push({ name: "Dashboard" });
+          throw new Error("Invalid credentials");
         }
-
-        // Reload the page after redirection
-        setTimeout(() => window.location.reload(), 1);
+      } catch (error) {
+        console.error("Error during login:", error);
+        if (error.response && error.response.status === 401) {
+          alert("Nama atau password salah");
+        } else {
+          alert("Terjadi kesalahan. Silakan coba lagi.");
+        }
       }
-    } catch (error) {
-      console.error("Error during login:", error);
-      if (error.response && error.response.status === 401) {
-        alert("Invalid credentials");
-      } else {
-        alert("An error occurred. Please try again later.");
-      }
-    }
+    },
   },
-},
-
   mounted() {
+    // Focus name input on component mount
+    this.$refs.nameInput.focus();
+    
     const user = localStorage.getItem("user-info");
     if (user) {
       const parsedUser = JSON.parse(user);
@@ -100,7 +137,7 @@ export default {
 
 .login-box {
   font-size: 20px;
-  background: rgba(255, 255, 255, 0.5); /* White with 20% opacity */
+  background: rgba(255, 255, 255, 0.5);
   padding: 30px;
   border-radius: 15px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);
@@ -122,6 +159,31 @@ export default {
   margin-right: auto;
   margin-left: auto;
   border: 1px solid skyblue;
+  padding-left: 10px;
+  padding-right: 40px;
+}
+
+.password-input {
+  position: relative;
+  width: 300px;
+  margin-bottom: 10px;
+}
+
+.password-input input {
+  width: 100%;
+  height: 40px;
+  padding-left: 10px;
+  padding-right: 40px;
+  border: 1px solid skyblue;
+}
+
+.password-input span {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  cursor: pointer;
+  color: rgb(10, 10, 10);
+  opacity: 0.6;
 }
 
 .login button {

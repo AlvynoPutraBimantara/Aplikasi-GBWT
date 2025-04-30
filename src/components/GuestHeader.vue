@@ -13,14 +13,14 @@
         <!-- Cart Icon and Badge -->
         <template v-if="route.name === 'Cart'">
           <font-awesome-icon :icon="['fas', 'shopping-cart']" />
-          <span v-if="cartItemCount > 0" class="badge">
+          <span v-if="cartItemCount > 0" class="badge badge-red">
             {{ cartItemCount }}
           </span>
         </template>
         <!-- Receipt Icon and Badge -->
         <template v-else-if="route.name === 'STRUK'">
           <font-awesome-icon :icon="['fas', 'receipt']" />
-          <span v-if="orderCount > 0" class="badge">
+          <span v-if="orderCount > 0" class="badge badge-red">
             {{ orderCount }}
           </span>
         </template>
@@ -64,31 +64,31 @@ export default {
       document.getElementById("wrapper").classList.toggle("toggled");
     },
     async logout() {
-  const guestId = this.guestId;
-  
-  try {
-    // Delete cart and cart items
-    await axios.delete(`http://localhost:3004/cart`, {
-      params: { user: guestId }
-    });
+      const guestId = this.guestId;
+      
+      try {
+        // Delete cart and cart items
+        await axios.delete(`http://localhost:3004/cart`, {
+          params: { user: guestId }
+        });
 
-    // Delete all orders and order items for this user
-    await axios.delete(`http://localhost:3003/orders/user/${guestId}`);
+        // Delete all orders and order items for this user
+        await axios.delete(`http://localhost:3003/orders/user/${guestId}`);
 
-    // Clear local storage and redirect
-    localStorage.clear();
-    this.$router.push({ name: "LandingPage" }).then(() => {
-      window.location.reload();
-    });
-  } catch (error) {
-    console.error("Error during logout cleanup:", error);
-    // Still proceed with logout even if cleanup fails
-    localStorage.clear();
-    this.$router.push({ name: "LandingPage" }).then(() => {
-      window.location.reload();
-    });
-  }
-},
+        // Clear local storage and redirect
+        localStorage.clear();
+        this.$router.push({ name: "LandingPage" }).then(() => {
+          window.location.reload();
+        });
+      } catch (error) {
+        console.error("Error during logout cleanup:", error);
+        // Still proceed with logout even if cleanup fails
+        localStorage.clear();
+        this.$router.push({ name: "LandingPage" }).then(() => {
+          window.location.reload();
+        });
+      }
+    },
     isActive(route) {
       return this.$route.path === route;
     },
@@ -177,7 +177,6 @@ export default {
   color: white;
 }
 
-/* Styles for the badge */
 .icon-container {
   position: relative;
   display: inline-block;
@@ -186,12 +185,15 @@ export default {
 .badge {
   position: absolute;
   top: -8px;
-  right: -8px;
-  background-color: red;
   color: white;
   border-radius: 50%;
   padding: 2px 6px;
   font-size: 12px;
   font-weight: bold;
+}
+
+.badge-red {
+  background-color: red;
+  right: -8px;
 }
 </style>

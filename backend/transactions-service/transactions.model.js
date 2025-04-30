@@ -31,6 +31,15 @@ const Transactions = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
+    invoice_url: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    pemesan: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+    }
   },
   {
     tableName: "transactions",
@@ -68,7 +77,7 @@ const TransactionItems = sequelize.define(
       allowNull: false,
     },
     quantity: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
   },
@@ -109,12 +118,17 @@ const TransactionsHistory = sequelize.define(
       allowNull: false,
     },
     created_at: {
-      type: DataTypes.DATE, // Changed from STRING to DATE
+      type: DataTypes.DATE,
       allowNull: false,
     },
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
+    },
+    pemesan: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
     },
   },
   {
@@ -133,7 +147,6 @@ const TransactionHistoryItems = sequelize.define(
       allowNull: false,
     },
     transaction_id: {
-      // Renamed from transactions_id to transaction_id
       type: DataTypes.STRING(255),
       allowNull: false,
     },
@@ -154,7 +167,7 @@ const TransactionHistoryItems = sequelize.define(
       allowNull: false,
     },
     quantity: {
-      type: DataTypes.INTEGER, // Changed from STRING to INTEGER
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
   },
@@ -177,15 +190,20 @@ TransactionItems.belongsTo(Transactions, {
 });
 
 TransactionsHistory.hasMany(TransactionHistoryItems, {
-  foreignKey: "transaction_id", // Updated to match the new field name
+  foreignKey: "transaction_id",
   sourceKey: "id",
   as: "transaction_history_items",
 });
 
 TransactionHistoryItems.belongsTo(TransactionsHistory, {
-  foreignKey: "transaction_id", // Updated to match the new field name
+  foreignKey: "transaction_id",
   targetKey: "id",
 });
 
 // Export the models
-module.exports = { Transactions, TransactionItems, TransactionsHistory, TransactionHistoryItems };
+module.exports = {
+  Transactions,
+  TransactionItems,
+  TransactionsHistory,
+  TransactionHistoryItems,
+};

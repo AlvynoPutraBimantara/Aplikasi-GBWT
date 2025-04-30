@@ -103,11 +103,11 @@ export default {
         });
       }
       return sortedProducts.map((product) => ({
-        ...product,
-        imageUrl: product.imageUrl
-          ? `http://localhost:3002${product.imageUrl}`
-          : "default-image.jpg",
-      }));
+    ...product,
+    imageUrl: product.imageUrl
+      ? `http://localhost:3002/images/${product.id}`  // Changed this line
+      : "default-image.jpg",
+  }));
     },
   },
   methods: {

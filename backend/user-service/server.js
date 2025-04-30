@@ -1,6 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const multer = require("multer"); // Move this line here
+const multer = require("multer");
 const pool = require("./db");
 const app = express();
 const cors = require("cors");
@@ -66,47 +66,100 @@ app.get("/user/:id", async (req, res) => {
   }
 });
 
-// Update user with image handling
+// Update user with image handling and related tables update
 app.put("/user/:id", async (req, res) => {
   const { id } = req.params;
   const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
   let previousImageId = null;
 
-  // Get current user details to remove old image if necessary
-  try {
-    const [userResults] = await pool.query("SELECT imageUrl FROM user WHERE id = ?", [id]);
-    if (userResults.length === 0) {
-      return res.status(404).json({ message: "User not found." });
+  // Check if NamaWarung is being updated and if it already exists
+  if (NamaWarung) {
+    try {
+      const [existing] = await pool.query(
+        "SELECT id FROM user WHERE NamaWarung = ? AND id != ?",
+        [NamaWarung, id]
+      );
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
+        });
+      }
+    } catch (error) {
+      console.error("Error checking NamaWarung:", error);
+      return res.status(500).json({ success: false, message: "Internal server error." });
     }
+  }
+
+  // Get current user details
+  try {
+    const [userResults] = await pool.query("SELECT NamaWarung, imageUrl FROM user WHERE id = ?", [id]);
+    if (userResults.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+    
     const user = userResults[0];
+    const oldNamaWarung = user.NamaWarung;
+    
     if (user.imageUrl) {
       const urlParts = user.imageUrl.split("/");
       previousImageId = urlParts[urlParts.length - 1];
     }
-  } catch (error) {
-    console.error("Error fetching current user:", error);
-    return res.status(500).json({ message: "Internal server error." });
-  }
 
-  try {
+    // Start transaction
+    await pool.query('START TRANSACTION');
+
+    // Update user table
     const [updateResult] = await pool.query(
       "UPDATE user SET NamaWarung = ?, Nama = ?, Telp = ?, Alamat = ?, Password = ?, imageUrl = ? WHERE id = ?",
       [NamaWarung, Nama, Telp, Alamat, Password, imageUrl, id]
     );
 
     if (!updateResult.affectedRows) {
-      return res.status(404).json({ message: "User not found." });
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // If NamaWarung changed, update related tables
+    if (NamaWarung && oldNamaWarung && NamaWarung !== oldNamaWarung) {
+      const tables = [
+        { name: 'dataproduk', column: 'Pedagang' },
+        { name: 'cart_items', column: 'pedagang' },
+        { name: 'order_items', column: 'pedagang' },
+        { name: 'transactions_items', column: 'pedagang' },
+        { name: 'transactions_history_items', column: 'pedagang' }
+      ];
+
+      for (const table of tables) {
+        try {
+          await pool.query(
+            `UPDATE ${table.name} SET ${table.column} = ? WHERE ${table.column} = ?`,
+            [NamaWarung, oldNamaWarung]
+          );
+        } catch (error) {
+          console.error(`Error updating ${table.name}:`, error);
+          await pool.query('ROLLBACK');
+          return res.status(500).json({ 
+            success: false,
+            message: `Failed to update ${table.name} records`
+          });
+        }
+      }
     }
 
     // Remove previous image if a new one was uploaded
-    if (previousImageId && previousImageId !== imageUrl.split("/").pop()) {
+    if (previousImageId && imageUrl && previousImageId !== imageUrl.split("/").pop()) {
       await pool.query("DELETE FROM userimages WHERE id = ?", [previousImageId]);
     }
 
-    res.status(200).json({ message: "User updated successfully." });
+    // Commit transaction
+    await pool.query('COMMIT');
+    res.status(200).json({ success: true, message: "User updated successfully." });
   } catch (error) {
+    await pool.query('ROLLBACK');
     console.error("Error updating user:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ success: false, message: "Internal server error." });
   }
 });
 // Create New User
@@ -115,6 +168,25 @@ app.post("/user", async (req, res) => {
 
   if (!Nama || !Password) {
     return res.status(400).json({ message: "Name and password are required." });
+  }
+
+  // Check if NamaWarung already exists
+  if (NamaWarung) {
+    try {
+      const [existing] = await pool.query(
+        "SELECT id FROM user WHERE NamaWarung = ?",
+        [NamaWarung]
+      );
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ 
+          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
+        });
+      }
+    } catch (error) {
+      console.error("Error checking NamaWarung:", error);
+      return res.status(500).json({ message: "Internal server error." });
+    }
   }
 
   const userid = generateRandomId();
@@ -137,7 +209,7 @@ app.post("/user", async (req, res) => {
     // Fetch the newly created user
     const [userResults] = await pool.query("SELECT * FROM User WHERE id = ?", [userid]);
 
-    res.status(201).json(userResults[0]); // Send back the newly created user data
+    res.status(201).json(userResults[0]);
   } catch (err) {
     console.error("Error creating user:", err);
     res.status(500).json({ message: "Internal server error." });
@@ -197,7 +269,6 @@ app.get("/users", async (req, res) => {
   }
 });
 
-
 // Delete User by ID
 app.delete("/user/:id", async (req, res) => {
   const { id } = req.params;
@@ -213,8 +284,6 @@ app.delete("/user/:id", async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
-
-// Add routes to upload and manage images
 
 // Upload user image
 app.post("/uploads", upload.single("image"), async (req, res) => {
@@ -291,6 +360,7 @@ app.post('/guest-signin', async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
+
 // Delete Guest User
 app.delete('/guest/:id', async (req, res) => {
   const { id } = req.params;

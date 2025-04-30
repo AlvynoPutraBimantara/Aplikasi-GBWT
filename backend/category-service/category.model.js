@@ -3,7 +3,7 @@ const sequelize = require("./db");
 
 const AppImage = sequelize.define("AppImage", {
   id: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING(255),
     primaryKey: true,
     autoIncrement: true,
     allowNull: false,

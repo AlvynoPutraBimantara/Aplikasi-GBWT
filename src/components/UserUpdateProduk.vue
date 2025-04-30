@@ -20,6 +20,15 @@
       </button>
       <form class="update" @submit.prevent="updateProduk">
         <div class="form-row">
+          <label for="image">Gambar Produk:</label>
+          <input 
+            type="file" 
+            id="image" 
+            @change="onImageChange" 
+            class="file-input"
+          />
+        </div>
+        <div class="form-row">
           <label for="Nama">Nama Produk:</label>
           <input
             type="text"
@@ -34,7 +43,9 @@
             type="text"
             id="Harga"
             placeholder="Ubah Harga Produk"
-            v-model="DataProduk.Harga"
+            v-model="formattedHarga"
+            @input="formatHarga"
+            @blur="validateHarga"
           />
         </div>
         <!-- Category Dropdown -->
@@ -80,10 +91,7 @@
             v-model="DataProduk.Stok"
           />
         </div>
-        <div class="form-row">
-          <label for="image">Gambar Produk:</label>
-          <input type="file" id="image" @change="onImageChange" />
-        </div>
+
         <!-- Discount Percentage Input -->
         <div class="form-row">
           <label for="Discount">Diskon (%):</label>
@@ -109,7 +117,7 @@
         </div>
         <!-- Display Discounted Price -->
         <div v-if="DataProduk.Harga_diskon" class="discounted-price">
-          <strong>Harga Diskon:</strong> {{ DataProduk.Harga_diskon }}
+          <strong>Harga Diskon:</strong> {{ formatCurrency(DataProduk.Harga_diskon) }}
         </div>
         <div class="form-actions">
           <button type="submit">Update Data Produk</button>
@@ -145,6 +153,8 @@ export default {
       imageFile: null,
       previewImage: null,
       discountPercentage: 0,
+      formattedHarga: "",
+      rawHarga: "",
     };
   },
   methods: {
@@ -185,7 +195,7 @@ export default {
       this.calculateDiscountedPrice();
     },
     calculateDiscountedPrice() {
-      const harga = parseFloat(this.DataProduk.Harga);
+      const harga = parseFloat(this.rawHarga);
       const discount = parseFloat(this.discountPercentage);
       if (!isNaN(harga) && !isNaN(discount)) {
         const discountedPrice = harga - (harga * discount) / 100;
@@ -193,6 +203,35 @@ export default {
       } else {
         this.DataProduk.Harga_diskon = "";
       }
+    },
+    formatHarga(event) {
+      // Remove all non-digit characters
+      const numericValue = event.target.value.replace(/[^0-9]/g, '');
+      this.rawHarga = numericValue;
+      
+      // Format with thousand separators
+      if (numericValue) {
+        this.formattedHarga = this.formatCurrency(numericValue);
+        this.DataProduk.Harga = numericValue;
+      } else {
+        this.formattedHarga = '';
+        this.DataProduk.Harga = '';
+      }
+      
+      // Recalculate discount if needed
+      if (this.discountPercentage > 0) {
+        this.calculateDiscountedPrice();
+      }
+    },
+    validateHarga() {
+      // Ensure we always have a valid number
+      if (!this.rawHarga) {
+        this.formattedHarga = '';
+        this.DataProduk.Harga = '';
+      }
+    },
+    formatCurrency(value) {
+      return parseInt(value, 10).toLocaleString('id-ID');
     },
     async resetDiscount() {
       try {
@@ -239,7 +278,7 @@ export default {
       try {
         await axios.delete(`http://localhost:3002/products/${this.DataProduk.id}`);
         alert("Product deleted successfully!");
-        this.$router.push("/DataProduk");
+        this.$router.push("/Dagangan");
       } catch (error) {
         console.error("Error deleting product:", error.message);
         alert("Failed to delete product.");
@@ -253,6 +292,13 @@ export default {
         `http://localhost:3002/products/${productId}`
       );
       this.DataProduk = response.data;
+      
+      // Format existing price
+      if (this.DataProduk.Harga) {
+        this.rawHarga = this.DataProduk.Harga;
+        this.formattedHarga = this.formatCurrency(this.DataProduk.Harga);
+      }
+      
       if (this.DataProduk.Harga_diskon) {
         const harga = parseFloat(this.DataProduk.Harga);
         const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
@@ -287,6 +333,7 @@ export default {
   height: auto;
   margin-bottom: 20px;
 }
+
 .update {
   display: flex;
   flex-direction: column;
@@ -310,11 +357,34 @@ export default {
 }
 
 .form-row input,
-.form-row select {
+.form-row select,
+.form-row .file-input {
   flex: 1;
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
+}
+
+/* Style specifically for file input to match other inputs */
+.file-input {
+  box-sizing: border-box;
+  width: 100%;
+  background-color: white;
+  cursor: pointer;
+}
+
+/* Optional: Style the file input button text */
+.file-input::file-selector-button {
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.file-input::file-selector-button:hover {
+  background-color: #e0e0e0;
 }
 
 .discount-input-container {

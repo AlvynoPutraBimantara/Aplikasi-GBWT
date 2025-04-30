@@ -28,6 +28,7 @@
     "mysql2": "^3.14.0",
     "node-cache": "^5.1.2",
     "path": "^0.12.7",
+    "pdf-to-img": "^4.4.0",
     "puppeteer": "^24.4.0",
     "sequelize": "^6.37.5",
     "uuid": "^11.1.0"

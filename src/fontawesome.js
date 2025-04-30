@@ -5,9 +5,21 @@ import {
   faShoppingCart,
   faReceipt,
   faCircleInfo,
+  faCircleDollarToSlot,
+  faEye,
+  faEyeSlash
 } from "@fortawesome/free-solid-svg-icons";
-import { faWhatsapp } from "@fortawesome/free-brands-svg-icons"; // Add this import
+import { faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 
-library.add(faHome, faShoppingCart, faWhatsapp, faReceipt, faCircleInfo);
+library.add(
+  faHome, 
+  faShoppingCart, 
+  faWhatsapp, 
+  faReceipt, 
+  faCircleInfo, 
+  faCircleDollarToSlot,
+  faEye,
+  faEyeSlash
+);
 
 export default FontAwesomeIcon;

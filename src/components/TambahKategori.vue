@@ -2,34 +2,45 @@
   <div>
     <h1>Tambah Kategori</h1>
     <div class="update-container">
-      <!-- Image Display -->
-      <div v-if="previewImage">
+      <!-- Preview Image Section -->
+      <div v-if="previewImage" class="image-container">
         <img
           :src="previewImage"
-          alt="Category Image"
-          style="width: 400px; height: auto; margin-bottom: 10px"
+          alt="Category Preview"
+          class="product-image"
         />
       </div>
+      <!-- Cancel Preview Button -->
       <button
         v-if="previewImage"
         @click="cancelImageSelection"
-        style="margin-bottom: 10px"
+        class="cancel-preview-btn"
       >
         Batalkan Pilihan Gambar
       </button>
       <form class="update" @submit.prevent="addKategori">
-        <input
-          type="text"
-          name="Kategori"
-          placeholder="Nama Kategori"
-          v-model="DataKategori.Kategori"
-        />
-        <input
-          type="file"
-          @change="onImageChange"
-          accept="image/*"
-        />
-        <button type="submit">Tambah Kategori</button>
+        <div class="form-row">
+          <label for="Kategori">Nama Kategori:</label>
+          <input
+            type="text"
+            id="Kategori"
+            placeholder="Masukan Nama Kategori"
+            v-model="DataKategori.Kategori"
+          />
+        </div>
+        <div class="form-row">
+          <label for="image">Gambar Kategori:</label>
+          <input 
+            type="file" 
+            id="image" 
+            @change="onImageChange" 
+            accept="image/*"
+            class="file-input"
+          />
+        </div>
+        <div class="form-actions">
+          <button type="submit">Tambah Kategori</button>
+        </div>
       </form>
     </div>
   </div>
@@ -46,53 +57,44 @@ export default {
         Kategori: "",
         imageUrl: "",
       },
-      previewImage: null, // Stores preview of the selected image
+      previewImage: null,
       imageFile: null,
     };
   },
   methods: {
     async addKategori() {
-  try {
-    if (!this.imageFile || !this.DataKategori.Kategori) {
-      alert("Kategori name and image are required!");
-      return;
-    }
+      try {
+        if (!this.imageFile || !this.DataKategori.Kategori) {
+          alert("Nama kategori dan gambar wajib diisi!");
+          return;
+        }
 
-    // Upload the image
-    const formData = new FormData();
-    formData.append("image", this.imageFile);
-    const imageResponse = await axios.post("http://localhost:3006/images", formData);
-    const imageUrl = imageResponse.data.imageUrl;
+        // Upload the image
+        const formData = new FormData();
+        formData.append("image", this.imageFile);
+        const imageResponse = await axios.post("http://localhost:3006/images", formData);
+        const imageUrl = imageResponse.data.imageUrl;
 
-    // Add category with the uploaded image URL
-    await axios.post("http://localhost:3006/categories", {
-      category: this.DataKategori.Kategori,
-      imageUrl,
-    });
+        // Add category with the uploaded image URL
+        await axios.post("http://localhost:3006/categories", {
+          category: this.DataKategori.Kategori,
+          imageUrl,
+        });
 
-    alert("Kategori successfully added!");
-    this.$router.push({ name: "DataKategori" });
-  } catch (error) {
-    console.error("Error adding category:", error);
-    alert("Failed to add category. Please try again.");
-  }
-}
-,
-
+        alert("Kategori berhasil ditambahkan!");
+        this.$router.push({ name: "DataKategori" });
+      } catch (error) {
+        console.error("Error adding category:", error);
+        alert("Gagal menambahkan kategori. Silakan coba lagi.");
+      }
+    },
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
         this.imageFile = file;
-
-        // Generate preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          this.previewImage = e.target.result;
-        };
-        reader.readAsDataURL(file);
+        this.previewImage = URL.createObjectURL(file);
       }
     },
-
     cancelImageSelection() {
       this.previewImage = null;
       this.imageFile = null;
@@ -101,41 +103,101 @@ export default {
 };
 </script>
 
-
-
 <style scoped>
 .update-container {
   max-width: 800px;
-  margin: 20px auto;
+  margin: 0 auto;
   padding: 20px;
-  background-color: #fff;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  text-align: center;
+}
+
+.image-container {
+  margin-bottom: 20px;
+}
+
+.product-image {
+  width: 50%;
+  height: auto;
+  margin-bottom: 20px;
+}
+
+.update {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
-.update input,
-.update button {
-  display: block;
-  margin-bottom: 10px;
+.form-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.form-row label {
+  width: 150px;
+  text-align: right;
+  margin-right: 15px;
+  font-weight: bold;
+}
+
+.form-row input,
+.form-row select,
+.form-row .file-input {
+  flex: 1;
   padding: 10px;
-  width: 400px;
-  box-sizing: border-box;
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 16px;
 }
 
-.update button {
-  background-color: #007bff;
-  color: white;
-  border: none;
+.file-input {
+  box-sizing: border-box;
+  width: 100%;
+  background-color: white;
   cursor: pointer;
 }
 
-.update button:hover {
-  background-color: #0056b3;
+.file-input::file-selector-button {
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.file-input::file-selector-button:hover {
+  background-color: #e0e0e0;
+}
+
+.cancel-preview-btn {
+  margin-bottom: 20px;
+  padding: 10px 15px;
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-preview-btn:hover {
+  background-color: #f57c00;
+}
+
+.form-actions button {
+  padding: 12px 20px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-top: 20px;
+}
+
+.form-actions button:hover {
+  background-color: #388e3c;
 }
 </style>

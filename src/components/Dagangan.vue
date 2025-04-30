@@ -63,22 +63,22 @@ export default {
     },
     // Load products and filter based on user's "NamaWarung"
     async loadProducts() {
-      if (this.user && this.user.NamaWarung) {
-        try {
-          const response = await axios.get("http://localhost:3002/products");
-          this.products = response.data
-            .filter((product) => product.Pedagang === this.user.NamaWarung)
-            .map((product) => ({
-              ...product,
-              imageUrl: product.imageUrl
-                ? `http://localhost:3002${product.imageUrl}`
-                : "default-image.jpg", // Placeholder image if none provided
-            }));
-        } catch (error) {
-          console.error("Error loading products:", error);
-        }
-      }
-    },
+  if (this.user && this.user.NamaWarung) {
+    try {
+      const response = await axios.get("http://localhost:3002/products");
+      this.products = response.data
+        .filter((product) => product.Pedagang === this.user.NamaWarung)
+        .map((product) => ({
+          ...product,
+          imageUrl: product.imageUrl 
+            ? `http://localhost:3002/images/${product.id}`
+            : "default-image.jpg",
+        }));
+    } catch (error) {
+      console.error("Error loading products:", error);
+    }
+  }
+},
     // Navigate to product update page
     goToProductPage(productId) {
       this.$router.push({

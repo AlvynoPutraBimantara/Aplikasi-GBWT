@@ -1,6 +1,10 @@
 <template>
   <div class="bg-light border-right" id="sidebar-wrapper">
     <div class="sidebar-heading">Aplikasi GBWT</div>
+    <!-- Profile Image Display -->
+    <div class="profile-image-container" v-if="userImage">
+      <img :src="userImage" alt="Profile Image" class="profile-image" />
+    </div>
     <div class="list-group list-group-flush">
       <router-link
         :to="`/Profil/${userId}`"
@@ -10,7 +14,7 @@
       <router-link
         to="/Orders"
         class="list-group-item list-group-item-action bg-light"
-        >Pesanan</router-link
+        >Pesanan saya</router-link
       >
       <router-link
         to="/Dagangan"
@@ -20,7 +24,7 @@
       <router-link
         to="/Penjualan"
         class="list-group-item list-group-item-action bg-light"
-        >Penjualan</router-link
+        >Penjualan saya</router-link
       >
       <router-link
         to="/RiwayatTransaksi"
@@ -43,6 +47,10 @@ export default {
       const user = JSON.parse(localStorage.getItem("user-info"));
       return user ? user.id : null;
     },
+    userImage() {
+      const user = JSON.parse(localStorage.getItem("user-info"));
+      return user ? user.imageUrl : null;
+    }
   },
   methods: {
     logout() {
@@ -63,11 +71,36 @@ export default {
 }
 #sidebar-wrapper {
   min-height: 100vh;
-  margin-left: -300px; /* Hidden by default */
+  margin-left: -300px;
   transition: margin 0.25s ease-out;
 }
 
 #wrapper.toggled #sidebar-wrapper {
   margin-left: 0;
+}
+
+/* Profile Image Styles */
+.profile-image-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;  /* Reduced from previous value */
+  margin-bottom: 1rem; /* Reduced from previous value */
+}
+
+.profile-image {
+  width: 7vw;
+  height: 7vw;
+  max-width: 7vw;  /* Added to prevent image from getting too large */
+  max-height: 7vw; /* Added to prevent image from getting too large */
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Override the padding from App.css */
+#sidebar-wrapper .sidebar-heading {
+  padding: 1rem 1rem !important; /* Reduced padding */
+  margin-bottom: 0 !important;   /* Remove any default margin */
 }
 </style>

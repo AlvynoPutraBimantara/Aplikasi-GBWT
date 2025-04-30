@@ -124,4 +124,22 @@ td {
   display: block;
   margin: 0 auto;
 }
+
+button:first-of-type {
+  background-color: #2ecc71;
+  color: white;
+}
+
+button:first-of-type:hover {
+  background-color: #27ae60;
+}
+
+button:last-of-type {
+  background-color: #e74c3c;
+  color: white;
+}
+
+button:last-of-type:hover {
+  background-color: #c0392b;
+}
 </style>

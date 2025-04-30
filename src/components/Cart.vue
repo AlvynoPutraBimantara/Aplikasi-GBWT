@@ -1,5 +1,4 @@
 <template>
-  <!-- Template remains exactly the same -->
   <div>
     <h2>Keranjang Belanja</h2>
     <div v-if="filteredCart.length">
@@ -96,7 +95,9 @@
             </div>
           </div>
 
+          <!-- Only show individual checkout button if there are multiple pedagang groups -->
           <button 
+            v-if="Object.keys(groupedCart).length > 1"
             @click="checkoutPedagang(pedagang)" 
             :disabled="isProcessingCheckout"
             class="checkout-btn"
@@ -117,7 +118,7 @@
           :disabled="isProcessingCheckout"
           class="checkout-all-btn"
         >
-          {{ isProcessingCheckout ? 'Memproses...' : 'Checkout Semua' }}
+          {{ isProcessingCheckout ? 'Memproses...' : checkoutButtonText }}
         </button>
       </div>
       
@@ -192,9 +193,11 @@ export default {
         0
       );
     },
+    checkoutButtonText() {
+      return Object.keys(this.groupedCart).length > 1 ? 'Checkout Semua' : 'Checkout';
+    }
   },
   methods: {
-    // All methods remain exactly the same
     groupTotalPrice(group) {
       return group.reduce((total, item) => total + item.price * item.quantity, 0);
     },
@@ -729,7 +732,6 @@ export default {
 </script>
 
 <style scoped>
-/* All styles remain exactly the same */
 .pedagang-group {
   margin-bottom: 2rem;
   padding: 1rem;
@@ -749,7 +751,6 @@ export default {
 .pedagang-inputs {
   margin-top: 1rem;
   padding: 1rem;
-  
   border-radius: 4px;
   background-color: lightblue;
 }

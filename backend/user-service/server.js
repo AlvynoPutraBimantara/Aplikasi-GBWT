@@ -12,17 +12,19 @@ const port = process.env.PORT || 3001;
 
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const cors = require('cors');
-// In backend/user-service/server.js, update corsOptions:
+
 const corsOptions = {
-  origin: true, // Allow all origins in development
+  origin: 'http://localhost:8080', // Match your frontend origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));

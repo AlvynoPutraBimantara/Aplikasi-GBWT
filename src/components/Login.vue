@@ -58,9 +58,8 @@ export default {
     focusPassword() {
       this.$refs.passwordInput.focus();
     },
-    // In src/components/Login.vue, update the login method:
-// In src/components/Login.vue, update the login method:
-async login() {
+    
+    async login() {
   const nama = this.Nama.trim();
   const password = this.Password.trim();
 
@@ -70,6 +69,7 @@ async login() {
   }
 
   try {
+    console.log("Sending login request...");
     const response = await axios.post(
       'http://localhost:3000/user-service/login', 
       {
@@ -84,6 +84,8 @@ async login() {
       }
     );
 
+    console.log("Login response:", response);
+    
     if (response.data && response.data.success) {
       const { token, user, imageUrl } = response.data.data;
       
@@ -105,7 +107,9 @@ async login() {
       throw new Error(response.data.message || "Login failed");
     }
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Full login error:", error);
+    console.error("Error response:", error.response);
+    
     let message = "Login failed. Please try again.";
     
     if (error.response) {
@@ -113,7 +117,11 @@ async login() {
         message = error.response.data.message;
       } else if (error.response.status === 401) {
         message = "Invalid username or password";
+      } else if (error.response.status === 500) {
+        message = "Server error. Please try again later.";
       }
+    } else if (error.request) {
+      message = "No response received from server. Please check your connection.";
     }
     
     alert(message);

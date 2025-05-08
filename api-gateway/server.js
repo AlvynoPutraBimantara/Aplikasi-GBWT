@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const fetch = require('node-fetch');
+const bodyParser = require('body-parser');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,15 +24,18 @@ const apiLimiter = rateLimit({
   }
 });
 
-// Middleware - Removed duplicate express.json() as per patch
-app.use(express.json({ limit: '10mb' }));
+// Middleware
+app.use(bodyParser.json({
+  limit: '10mb',
+
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
 app.use(helmet());
 
 // CORS configuration
 const corsOptions = {
-  origin: true, // Allow all origins in development
+  origin: 'http://localhost:8080',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
@@ -85,12 +90,9 @@ const services = {
   }
 };
 
-// JWT Authentication Middleware - Updated to properly skip login
+// JWT Authentication Middleware
 const authenticate = async (req, res, next) => {
-  // Skip OPTIONS requests and public routes
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
+  if (req.method === 'OPTIONS') return next();
 
   const publicRoutes = [
     '/user-service/login',
@@ -99,18 +101,17 @@ const authenticate = async (req, res, next) => {
     '/status'
   ];
 
-  // Normalize path by removing trailing slash and query params
   const normalizedPath = req.path.replace(/\/$/, '').split('?')[0];
-  
+
   if (publicRoutes.some(route => normalizedPath === route)) {
     return next();
   }
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       success: false,
-      message: 'Authorization token required' 
+      message: 'Authorization token required'
     });
   }
 
@@ -120,17 +121,14 @@ const authenticate = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       success: false,
-      message: 'Invalid or expired token' 
+      message: 'Invalid or expired token'
     });
   }
 };
 
-app.use(authenticate);
-
-// Updated proxy middleware configuration from patch
-// In api-gateway/server.js, update the createServiceProxy function:
+// Proxy creation function
 const createServiceProxy = (serviceName) => {
   return createProxyMiddleware({
     ...services[serviceName],
@@ -140,10 +138,15 @@ const createServiceProxy = (serviceName) => {
     onProxyReq: (proxyReq, req) => {
       console.log(`Proxying to ${serviceName}: ${req.method} ${req.path}`);
       proxyReq.setHeader('X-Forwarded-For', req.ip);
+    
+  
+    
       if (req.headers.cookie) {
         proxyReq.setHeader('cookie', req.headers.cookie);
       }
     },
+    
+    
     onProxyRes: (proxyRes, req, res) => {
       proxyRes.headers['Access-Control-Allow-Origin'] = req.headers.origin || corsOptions.origin;
       proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
@@ -162,11 +165,28 @@ const createServiceProxy = (serviceName) => {
   });
 };
 
-
-// Mount services
+// Mount service proxies
 Object.entries(services).forEach(([name, config]) => {
   app.use(`/${name}-service`, createServiceProxy(name));
   console.log(`Mounted ${name}-service at /${name}-service -> ${config.target}`);
+});
+
+// Authentication middleware (after proxies to allow public access to /login, etc.)
+app.use((req, res, next) => {
+  const publicRoutes = [
+    '/user-service/login',
+    '/user-service/register',
+    '/health',
+    '/status'
+  ];
+
+  const normalizedPath = req.path.replace(/\/$/, '').split('?')[0];
+
+  if (req.method === 'OPTIONS' || publicRoutes.includes(normalizedPath)) {
+    return next();
+  }
+
+  authenticate(req, res, next);
 });
 
 // Health endpoints
@@ -220,7 +240,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Error Handling
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -229,6 +249,7 @@ app.use((req, res) => {
   });
 });
 
+// Error handler
 app.use((err, req, res, next) => {
   console.error('[Gateway Error]', err.stack);
   res.status(500).json({

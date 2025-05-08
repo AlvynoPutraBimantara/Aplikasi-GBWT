@@ -1,199 +1,235 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const db = require("./db"); // Importing the database connection from db.js
-const crypto = require("crypto");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const multer = require('multer');
+// eslint-disable-next-line no-unused-vars
+const path = require('path');
+const { AppImage, Category } = require('./category.model');
 
 const app = express();
-const port = 3006;
+const port = process.env.PORT || 3006;
+const sequelize = require('./db');
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE']
+}));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Generate an 8-character random string for ID
-function generateRandomId() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
-}
-
-// Configure multer for file uploads
+// Multer configuration for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// CRUD Operations for appimages
+// Service router
+const router = express.Router();
 
-// Get all images
-app.get("/images", (req, res) => {
-  const query = "SELECT id, filename, mimetype, upload_date FROM appimages";
-  db.query(query)
-    .then(([results]) => res.json(results))
-    .catch((err) => {
-      console.error("Error fetching images:", err);
-      res.status(500).send("Server error");
-    });
-});
-
-
-// Delete an image by ID
-app.delete("/images/:id", (req, res) => {
-  const { id } = req.params;
-  const query = "DELETE FROM appimages WHERE id = ?";
-
-  db.query(query, [id])
-    .then(([results]) => {
-      if (results.affectedRows === 0) {
-        res.status(404).send("Image not found");
-      } else {
-        res.send({ message: "Image deleted successfully" });
+// Health check endpoint
+router.get('/health', async (req, res) => {
+  try {
+    await Category.findOne();
+    res.status(200).json({
+      success: true,
+      data: {
+        status: 'healthy',
+        service: 'category-service',
+        timestamp: new Date().toISOString()
       }
-    })
-    .catch((err) => {
-      console.error("Error deleting image:", err);
-      res.status(500).send("Server error");
     });
-});
-app.get("/images/:id", (req, res) => {
-  const { id } = req.params;
-  const query = "SELECT data, mimetype FROM appimages WHERE id = ?";
-  db.query(query, [id])
-    .then(([results]) => {
-      if (results.length === 0) {
-        res.status(404).send("Image not found");
-      } else {
-        const { data, mimetype } = results[0];
-        res.setHeader("Content-Type", mimetype);
-        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin"); // Add this line
-        res.send(Buffer.from(data, 'binary'));
-      }
-    })
-    .catch((err) => {
-      console.error("Error fetching image:", err);
-      res.status(500).send("Server error");
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Database connection error'
     });
-});
-
-app.get("/categories/:id", (req, res) => {
-  const { id } = req.params;
-  const query = "SELECT * FROM categories WHERE id = ?";
-  db.query(query, [id])
-    .then(([results]) => {
-      if (results.length === 0) {
-        res.status(404).send("Category not found");
-      } else {
-        res.json(results[0]);
-      }
-    })
-    .catch((err) => {
-      console.error("Error fetching category:", err);
-      res.status(500).send("Server error");
-    });
-});
-
-// CRUD Operations for categories
-
-// Get all categories
-app.get("/categories", (req, res) => {
-  const query = "SELECT * FROM categories";
-  db.query(query)
-    .then(([results]) => res.json(results))
-    .catch((err) => {
-      console.error("Error fetching categories:", err);
-      res.status(500).send("Server error");
-    });
-});
-
-// Upload a new image
-app.post("/images", upload.single("image"), (req, res) => {
-  const { originalname, mimetype } = req.file;
-  const data = req.file.buffer;
-  const id = generateRandomId();
-
-  const query = "INSERT INTO appimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)";
-  db.query(query, [id, originalname, data, mimetype])
-    .then(() => {
-      const imageUrl = `http://localhost:${port}/images/${id}`;
-      res.status(201).send({ id, imageUrl });
-    })
-    .catch((err) => {
-      console.error("Error uploading image:", err);
-      res.status(500).send("Server error");
-    });
-});
-
-// Add a new category with an image URL
-app.post("/categories", (req, res) => {
-  const { category, imageUrl } = req.body;
-
-  if (!category || !imageUrl) {
-    return res.status(400).send("Category and imageUrl are required.");
   }
-
-  const categoryId = generateRandomId(); // Use the ID generator function
-
-  const query = "INSERT INTO categories (id, category, imageUrl) VALUES (?, ?, ?)";
-  db.query(query, [categoryId, category, imageUrl])
-    .then(() => res.status(201).send({ id: categoryId, category, imageUrl }))
-    .catch((err) => {
-      console.error("Error adding category:", err);
-      res.status(500).send("Server error");
-    });
 });
 
-// Update a category
-app.put("/categories/:id", (req, res) => {
-  const { id } = req.params;
-  const { category, imageurl } = req.body;  // Changed from imageurl to imageUrl for consistency
+// Helper function to generate random ID
+const generateRandomId = () => Math.random().toString(36).substr(2, 8);
 
-  if (!category) {
-    return res.status(400).send("Category name is required");
+// Image endpoints
+router.post('/images', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const image = await AppImage.create({
+      id: generateRandomId(),
+      filename: req.file.originalname,
+      data: req.file.buffer,
+      mimetype: req.file.mimetype
+    });
+
+    const imageUrl = `${process.env.SERVICE_URL}/images/${image.id}`;
+    
+    res.status(201).json({
+      success: true,
+      data: {
+        id: image.id,
+        imageUrl
+      }
+    });
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload image'
+    });
   }
+});
 
-  const query = "UPDATE categories SET category = ?, imageUrl = ? WHERE id = ?";
-  db.query(query, [category, imageurl || null, id])
-    .then(([results]) => {
-      if (results.affectedRows === 0) {
-        res.status(404).send("Category not found");
-      } else {
-        res.send({ message: "Category updated successfully", id });  // Return the ID for confirmation
-      }
-    })
-    .catch((err) => {
-      console.error("Error updating category:", err);
-      res.status(500).send("Server error");
+router.get('/images/:id', async (req, res) => {
+  try {
+    const image = await AppImage.findByPk(req.params.id);
+    if (!image) {
+      return res.status(404).json({
+        success: false,
+        message: 'Image not found'
+      });
+    }
+
+    res.set({
+      'Content-Type': image.mimetype,
+      'Content-Disposition': `inline; filename="${image.filename}"`,
+      'Cross-Origin-Resource-Policy': 'cross-origin'
     });
-});
-
-
-// Delete a category
-app.delete("/categories/:id", (req, res) => {
-  const { id } = req.params;
-  const query = "DELETE FROM categories WHERE id = ?";
-  db.query(query, [id])
-    .then(([results]) => {
-      if (results.affectedRows === 0) {
-        res.status(404).send("Category not found");
-      } else {
-        res.send("Category deleted successfully");
-      }
-    })
-    .catch((err) => {
-      console.error("Error deleting category:", err);
-      res.status(500).send("Server error");
+    res.send(image.data);
+  } catch (error) {
+    console.error('Image fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch image'
     });
+  }
 });
 
-
-
-// Start server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// Category endpoints
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await Category.findAll();
+    res.json({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    console.error('Categories fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories'
+    });
+  }
 });
+
+router.post('/categories', async (req, res) => {
+  try {
+    const { category, imageUrl } = req.body;
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category name is required'
+      });
+    }
+
+    const newCategory = await Category.create({
+      id: generateRandomId(),
+      category,
+      imageUrl
+    });
+
+    res.status(201).json({
+      success: true,
+      data: newCategory
+    });
+  } catch (error) {
+    console.error('Category creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create category'
+    });
+  }
+});
+
+router.put('/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category, imageUrl } = req.body;
+
+    const [updated] = await Category.update(
+      { category, imageUrl },
+      { where: { id } }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    const updatedCategory = await Category.findByPk(id);
+    res.json({
+      success: true,
+      data: updatedCategory
+    });
+  } catch (error) {
+    console.error('Category update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update category'
+    });
+  }
+});
+
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Category.destroy({ where: { id } });
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    res.status(204).end();
+  } catch (error) {
+    console.error('Category deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete category'
+    });
+  }
+});
+
+// Mount service router
+app.use('/category-service', router);
+
+// Error handling middleware
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Category service error:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
+});
+
+// Connect to DB and start server
+sequelize.authenticate()
+  .then(() => {
+    console.log('Database connection established');
+    app.listen(port, () => {
+      console.log(`Category service running on port ${port}`);
+      console.log(`Service endpoint: http://localhost:${port}/category-service`);
+    });
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+  });

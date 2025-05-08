@@ -1,7 +1,5 @@
 <template>
   <div class="data-warung-container">
-
-
     <h1>Data User</h1>
     <div class="table-container">
       <table border="1">
@@ -18,10 +16,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in User" :key="item.id">
+          <tr v-for="item in users" :key="item.id">
             <td>{{ item.id }}</td>
             <td>
-              <img :src="item.imageUrl" alt="User Image" class="user-image" />
+              <img v-if="item.imageUrl" :src="item.imageUrl" alt="User Image" class="user-image" />
+              <span v-else>No Image</span>
             </td>
             <td>{{ item.NamaWarung }}</td>
             <td>{{ item.Nama }}</td>
@@ -30,7 +29,7 @@
             <td>{{ item.Password }}</td>
 
             <td>
-              <button @click="UpdateUser(item.id)">Edit</button>
+              <button @click="updateUser(item.id)">Edit</button>
               <button @click="confirmDelete(item.id)">Hapus</button>
             </td>
           </tr>
@@ -41,49 +40,67 @@
 </template>
 
 <script>
-
 import axios from "axios";
 
 export default {
   name: "DataUser",
   data() {
     return {
-      User: [],
+      users: [],
     };
   },
-  components: {
-  
-  },
   methods: {
-    UpdateUser(id) {
+    updateUser(id) {
       this.$router.push({ name: "ProfilAdmin", params: { id: id } });
     },
-    async HapusUser(id) {
+    async deleteUser(id) {
       try {
-        let result = await axios.delete(`http://localhost:3001/user/${id}`);
+        const userInfo = JSON.parse(localStorage.getItem("user-info"));
+        const result = await axios.delete(`http://localhost:3000/user-service/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${userInfo.token}`
+          }
+        });
         if (result.status === 200) {
           this.loadData();
         }
       } catch (error) {
         console.error("Error deleting user:", error);
+        alert("Gagal menghapus user. Silakan coba lagi.");
       }
     },
     confirmDelete(id) {
       if (confirm("Apakah anda yakin akan menghapus?")) {
-        this.HapusUser(id);
+        this.deleteUser(id);
       }
     },
     async loadData() {
       try {
-        let user = localStorage.getItem("user-info");
-        if (!user) {
+        const userInfo = JSON.parse(localStorage.getItem("user-info"));
+        if (!userInfo) {
           this.$router.push({ name: "SignUp" });
+          return;
+        }
+
+        const response = await axios.get("http://localhost:3000/user-service", {
+          headers: {
+            'Authorization': `Bearer ${userInfo.token}`
+          }
+        });
+
+        if (response.data.success) {
+          this.users = response.data.data.filter(user => user.role !== "admin");
         } else {
-          let result = await axios.get("http://localhost:3001/users");
-          this.User = result.data.filter((user) => user.role !== "admin");
+          throw new Error(response.data.message || "Failed to load users");
         }
       } catch (error) {
         console.error("Error loading users:", error);
+        if (error.response && error.response.status === 401) {
+          alert("Sesi telah berakhir. Silakan login kembali.");
+          this.$router.push({ name: "Login" });
+        } else {
+          alert("Gagal memuat data user. Silakan coba lagi.");
+        }
       }
     },
   },

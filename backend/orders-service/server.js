@@ -1,141 +1,73 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const moment = require("moment-timezone");
-const { Orders, OrderItems, Invoice } = require("./orders.model");
-const { Produk } = require("./produk.model"); // Import the Produk model
-const NodeCache = require('node-cache'); // Added for caching
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const moment = require('moment-timezone');
+const { Orders, OrderItems, Invoice } = require('./orders.model');
+const { Produk } = require('./produk.model');
+const NodeCache = require('node-cache');
+const sequelize = require('./db');
 
 const app = express();
-const port = 3003;
+const port = process.env.PORT || 3003;
 
 // Initialize cache with 60 second TTL
 const orderCache = new NodeCache({ stdTTL: 60 });
 
-app.use(cors());
-app.use(bodyParser.json());
+// Middleware
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE']
+}));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Generate an 8-character random string for ID
-function generateRandomId() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
-}
+// Service router
+const router = express.Router();
 
-// Format date to YYYY-MM-DD HH:mm:ss in UTC+7
-function getCurrentTimestamp() {
-  return moment().tz("Asia/Jakarta").format("YYYY-MM-DD HH:mm:ss");
-}
-
-// Get all orders with their items
-app.get("/orders", async (req, res) => {
-  try {
-    const orders = await Orders.findAll({
-      include: [{ model: OrderItems, as: "order_items" }],
-    });
-    res.json(orders);
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Get single order by ID with caching
-// Update the /orders/:id endpoint
-app.get("/orders/:id", async (req, res) => {
-  try {
-    const cachedOrder = orderCache.get(req.params.id);
-    if (cachedOrder) {
-      // Ensure order_items is always an array
-      cachedOrder.order_items = Array.isArray(cachedOrder.order_items) 
-        ? cachedOrder.order_items 
-        : cachedOrder.order_items ? [cachedOrder.order_items] : [];
-      return res.json(cachedOrder);
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'healthy',
+      service: 'order-service',
+      timestamp: new Date().toISOString(),
+      dbStatus: sequelize.authenticate() ? 'connected' : 'disconnected'
     }
-    
-    const order = await Orders.findOne({
-      where: { id: req.params.id },
-      include: [{
-        model: OrderItems,
-        as: "order_items",
-        required: false
-      }]
-    });
-    
-    if (!order) return res.status(404).json({ error: "Order not found" });
-    
-    // Convert to plain object and ensure order_items is an array
-    const plainOrder = order.get({ plain: true });
-    plainOrder.order_items = Array.isArray(plainOrder.order_items) 
-      ? plainOrder.order_items 
-      : plainOrder.order_items ? [plainOrder.order_items] : [];
-    
-    orderCache.set(req.params.id, plainOrder);
-    res.json(plainOrder);
-  } catch (error) {
-    console.error("Error fetching order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+  });
 });
 
-// Get order by orderid (either direct match or through order_items)
-app.get("/orders/by-orderid/:orderid", async (req, res) => {
-  try {
-    // First try direct match
-    let order = await Orders.findOne({
-      where: { id: req.params.orderid },
-      include: [{ model: OrderItems, as: "order_items" }],
-      raw: true,
-      nest: true
-    });
+// Helper functions
+const generateRandomId = () => Math.random().toString(36).substr(2, 8);
+const getCurrentTimestamp = () => moment().tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss');
 
-    // If not found, try searching by orderid field
-    if (!order) {
-      order = await Orders.findOne({
-        where: { '$order_items.order_id$': req.params.orderid },
-        include: [{ model: OrderItems, as: "order_items" }],
-        raw: true,
-        nest: true
-      });
-      
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-    }
-
-    // Create a clean plain object
-    const cleanOrder = JSON.parse(JSON.stringify(order));
-    res.json(cleanOrder);
-  } catch (error) {
-    console.error("Error fetching order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-app.post("/orders", async (req, res) => {
+// Order endpoints
+router.post('/orders', async (req, res) => {
   const { orders } = req.body;
+
   if (!Array.isArray(orders) || orders.length === 0) {
-    return res.status(400).json({ error: "Invalid order data." });
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid order data'
+    });
   }
 
+  const transaction = await sequelize.transaction();
   try {
-    const ordersGroupedByPedagang = orders.reduce((acc, order) => {
+    const ordersGrouped = orders.reduce((acc, order) => {
       if (!acc[order.orderid]) {
         acc[order.orderid] = {
           id: generateRandomId(),
           user: order.user,
           total: 0,
           catatan: order.catatan,
-          alamat: order.Alamat,
+          alamat: order.alamat,
           pemesan: order.pemesan,
           created_at: getCurrentTimestamp(),
-          status: "pending",
+          status: 'pending',
           order_items: [],
-          temporaryId: order.orderid // Store the original ID
+          temporaryId: order.orderid
         };
       }
       acc[order.orderid].total += order.total;
@@ -153,123 +85,104 @@ app.post("/orders", async (req, res) => {
 
     const createdOrders = [];
     
-    for (const orderId of Object.keys(ordersGroupedByPedagang)) {
-      const orderData = ordersGroupedByPedagang[orderId];
-      const createdOrder = await Orders.create(orderData);
+    for (const orderData of Object.values(ordersGrouped)) {
+      const createdOrder = await Orders.create(orderData, { transaction });
+      
+      await Promise.all(orderData.order_items.map(item =>
+        OrderItems.create(item, { transaction })
+      ));
+
+      // Update product stock
+      await Promise.all(orderData.order_items.map(async item => {
+        const product = await Produk.findOne({ 
+          where: { id: item.itemid },
+          transaction
+        });
+        
+        if (product) {
+          await Produk.update(
+            { Stok: product.Stok - item.quantity },
+            { where: { id: item.itemid }, transaction }
+          );
+        }
+      }));
+
       createdOrders.push({
         id: createdOrder.id,
-        temporaryId: orderId
+        temporaryId: orderData.temporaryId
       });
-
-      for (const item of orderData.order_items) {
-        await OrderItems.create(item);
-
-        // Update the stock in the dataproduk table
-        const product = await Produk.findOne({ where: { id: item.itemid } });
-        if (product) {
-          const newStock = product.Stok - item.quantity;
-          await Produk.update({ Stok: newStock }, { where: { id: item.itemid } });
-        }
-      }
     }
 
-    res.status(201).json({ 
-      message: "Orders added successfully!",
-      orders: createdOrders
+    await transaction.commit();
+    
+    res.status(201).json({
+      success: true,
+      data: createdOrders
     });
   } catch (error) {
-    console.error("Error adding orders:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    await transaction.rollback();
+    console.error('Order creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create orders'
+    });
   }
 });
 
-app.delete("/orders/:id", async (req, res) => {
-  const orderId = req.params.id;
+router.get('/orders/:id', async (req, res) => {
   try {
-    await OrderItems.destroy({ where: { order_id: orderId } });
-    const deletedOrder = await Orders.destroy({ where: { id: orderId } });
-
-    if (deletedOrder) {
-      // Clear the cache for this order
-      orderCache.del(orderId);
-      res.status(204).end();
-    } else {
-      res.status(404).send("Order not found");
+    const cachedOrder = orderCache.get(req.params.id);
+    if (cachedOrder) {
+      return res.json({
+        success: true,
+        data: cachedOrder
+      });
     }
-  } catch (error) {
-    console.error("Error deleting order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
 
-// Refund an order and update stock
-app.post("/orders/:id/refund", async (req, res) => {
-  const orderId = req.params.id;
-
-  try {
-    // Step 1: Fetch the order and its items
     const order = await Orders.findOne({
-      where: { id: orderId },
-      include: [{ model: OrderItems, as: "order_items" }],
+      where: { id: req.params.id },
+      include: [{
+        model: OrderItems,
+        as: 'order_items',
+        required: false
+      }]
     });
 
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
     }
 
-    // Step 2: Update stock for each item in the order
-    for (const item of order.order_items) {
-      const product = await Produk.findOne({ where: { id: item.itemid } });
-      if (product) {
-        const newStock = product.Stok + parseInt(item.quantity, 10);
-        await Produk.update({ Stok: newStock }, { where: { id: item.itemid } });
-      }
-    }
-
-    // Step 3: Delete the order and its items
-    await OrderItems.destroy({ where: { order_id: orderId } });
-    await Orders.destroy({ where: { id: orderId } });
-
-    // Clear the cache for this order
-    orderCache.del(orderId);
-
-    res.status(200).json({ message: "Order refunded and stock updated successfully!" });
-  } catch (error) {
-    console.error("Error refunding order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Delete all orders for a specific user
-app.delete("/orders/user/:userId", async (req, res) => {
-  const userId = req.params.userId;
-  try {
-    // Find all orders for this user
-    const orders = await Orders.findAll({
-      where: { user: userId }
+    const orderData = order.get({ plain: true });
+    orderCache.set(req.params.id, orderData);
+    
+    res.json({
+      success: true,
+      data: orderData
     });
-    
-    // Delete each order's items and then the order itself
-    for (const order of orders) {
-      await OrderItems.destroy({ where: { order_id: order.id } });
-      await Orders.destroy({ where: { id: order.id } });
-      // Clear the cache for each order
-      orderCache.del(order.id);
-    }
-    
-    res.status(204).end();
   } catch (error) {
-    console.error("Error deleting user orders:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('Order fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch order'
+    });
   }
 });
 
-// In backend\orders-service\server.js
-app.post('/invoices', async (req, res) => {
+// Invoice endpoints
+router.post('/invoices', async (req, res) => {
+  const { order_id, filename, pdfData } = req.body;
+
+  if (!order_id || !filename || !pdfData) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields'
+    });
+  }
+
   try {
-    const { order_id, filename, pdfData } = req.body;
-    
-    // Create the invoice record
     const invoice = await Invoice.create({
       id: generateRandomId(),
       order_id,
@@ -277,88 +190,72 @@ app.post('/invoices', async (req, res) => {
       file: Buffer.from(pdfData, 'base64')
     });
 
-    // Generate the invoice URL
-    const invoiceUrl = `/orders/${order_id}/invoice`;
+    const invoiceUrl = `/order-service/orders/${order_id}/invoice`;
 
-    // Update the order with the invoice URL
     await Orders.update(
       { invoice_url: invoiceUrl },
       { where: { id: order_id } }
     );
 
-    res.status(201).json({ 
-      message: 'Invoice created successfully',
-      invoiceId: invoice.id,
-      invoiceUrl
+    res.status(201).json({
+      success: true,
+      data: {
+        invoiceId: invoice.id,
+        invoiceUrl
+      }
     });
   } catch (error) {
-    console.error('Error creating invoice:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Invoice creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create invoice'
+    });
   }
 });
 
-// Get invoice by order ID - Enhanced version
-app.get('/orders/:id/invoice', async (req, res) => {
+router.get('/orders/:id/invoice', async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
       where: { order_id: req.params.id }
     });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+    if (!invoice || !invoice.file) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found'
+      });
     }
 
-    // Verify the PDF data is valid
-    if (!invoice.file || !(invoice.file instanceof Buffer)) {
-      return res.status(500).json({ error: 'Invalid PDF data' });
-    }
-
-    // Set comprehensive headers
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${encodeURIComponent(invoice.filename)}"`,
-      'Content-Length': invoice.file.length,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'ALLOW-FROM *', // Allow iframe embedding
-      'Content-Security-Policy': "frame-ancestors 'self' *", // Modern alternative to X-Frame-Options
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length'
+      'Content-Disposition': `inline; filename="${invoice.filename}"`,
+      'Content-Length': invoice.file.length
     });
 
-    // Send the PDF data
     res.send(invoice.file);
   } catch (error) {
-    console.error('Error fetching invoice:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Invoice fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch invoice'
+    });
   }
 });
 
-// Add this new endpoint for completing orders without refund
-app.delete("/orders/:id/complete", async (req, res) => {
-  const orderId = req.params.id;
-  try {
-    // Delete order items first
-    await OrderItems.destroy({ where: { order_id: orderId } });
-    
-    // Then delete the order
-    const deletedOrder = await Orders.destroy({ where: { id: orderId } });
+// Mount service router
+app.use('/order-service', router);
 
-    if (deletedOrder) {
-      // Clear the cache for this order
-      orderCache.del(orderId);
-      res.status(204).end();
-    } else {
-      res.status(404).send("Order not found");
-    }
-  } catch (error) {
-    console.error("Error completing order:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+// Error handling middleware
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Order service error:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
 });
 
 app.listen(port, () => {
-  console.log(`Orders service is running on http://localhost:${port}`);
+  console.log(`Order service running on port ${port}`);
+  console.log(`Service endpoint: http://localhost:${port}/order-service`);
 });

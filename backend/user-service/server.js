@@ -1,80 +1,219 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const multer = require("multer");
-const pool = require("./db");
+require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const multer = require('multer');
+const pool = require('./db');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { Sequelize } = require('sequelize');
+
 const app = express();
-const cors = require("cors");
 const port = process.env.PORT || 3001;
+
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-app.use(cors());
-app.use(bodyParser.json());
+const cors = require('cors');
+// In backend/user-service/server.js, update corsOptions:
+const corsOptions = {
+  origin: true, // Allow all origins in development
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+};
 
-// Generate a 8-digit random string for ID
-function generateRandomId() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+app.get('/health', async (req, res) => {
+  try {
+    const [result] = await pool.query('SELECT 1 AS test');
+    if (result[0].test !== 1) throw new Error('Database connection test failed');
+
+    res.status(200).json({ 
+      status: 'healthy',
+      service: 'user-service',
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (err) {
+    console.error('Health check failed:', err);
+    res.status(500).json({ 
+      status: 'unhealthy',
+      service: 'user-service',
+      error: 'Database connection failed',
+      timestamp: new Date().toISOString()
+    });
   }
-  return result;
+});
+
+function generateRandomId() {
+  return Math.random().toString(36).substr(2, 8);
 }
 
-// User Login Endpoint
-app.post("/login", async (req, res) => {
+const router = express.Router();
+
+// Updated login endpoint from patch
+// Update the login endpoint to ensure consistent response format:
+router.post('/login', async (req, res) => {
   const { Nama, Password } = req.body;
 
-  if (!Nama || !Password) {
-    return res.status(400).json({ message: "Name and password are required." });
-  }
-
-  const query = "SELECT * FROM User WHERE Nama = ? AND Password = ?";
   try {
-    const [results] = await pool.query(query, [Nama, Password]);
+    // Input validation
+    if (!Nama || !Password) {
+      return res.status(400).json({
+        success: false,
+        message: "Username and password are required"
+      });
+    }
+
+    const [results] = await pool.query(
+      "SELECT id, Nama, NamaWarung, role, imageUrl, Password FROM User WHERE Nama = ?", 
+      [Nama]
+    );
 
     if (results.length === 0) {
-      return res.status(401).json({ message: "Invalid credentials." });
+      return res.status(401).json({ 
+        success: false, 
+        message: "Invalid credentials" // Generic message for security
+      });
     }
 
     const user = results[0];
-    res.status(200).json(user);
-  } catch (err) {
-    console.error("Error during login:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
+    const match = await bcrypt.compare(Password, user.Password);
 
-// Fetch User by ID
-app.get("/user/:id", async (req, res) => {
-  const { id } = req.params;
-
-  const query = "SELECT * FROM user WHERE id = ?";
-  try {
-    const [results] = await pool.query(query, [id]);
-
-    if (results.length === 0) {
-      return res.status(404).json({ message: "User not found." });
+    if (!match) {
+      return res.status(401).json({ 
+        success: false, 
+        message: "Invalid credentials" // Generic message for security
+      });
     }
 
-    res.status(200).json(results[0]);
+    const payload = {
+      id: user.id,
+      Nama: user.Nama,
+      NamaWarung: user.NamaWarung,
+      role: user.role
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    // Set CORS headers
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    return res.json({ 
+      success: true,
+      data: {
+        token,
+        user: payload,
+        imageUrl: user.imageUrl 
+      }
+    });
+
   } catch (err) {
-    console.error("Error fetching user:", err);
-    res.status(500).json({ message: "Internal server error." });
+    console.error("Login error:", err);
+    return res.status(500).json({ 
+      success: false,
+      message: "Internal server error"
+    });
   }
 });
 
-// Update user with image handling and related tables update
-app.put("/user/:id", async (req, res) => {
+// User CRUD Endpoints
+router.post('/', async (req, res) => {
+  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
+
+  if (!Nama || !Password) {
+    return res.status(400).json({ 
+      success: false,
+      message: "Name and password are required" 
+    });
+  }
+
+  try {
+    // Check if NamaWarung exists
+    if (NamaWarung) {
+      const [existing] = await pool.query(
+        "SELECT id FROM user WHERE NamaWarung = ?",
+        [NamaWarung]
+      );
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: `Warung name "${NamaWarung}" already exists`
+        });
+      }
+    }
+
+    const userId = generateRandomId();
+    const query = `
+      INSERT INTO User (id, NamaWarung, Nama, Telp, Alamat, Password, role, imageUrl)
+      VALUES (?, ?, ?, ?, ?, ?, 'user', ?)`;
+
+    await pool.query(query, [
+      userId,
+      NamaWarung || null,
+      Nama,
+      Telp || null,
+      Alamat || null,
+      Password,
+      imageUrl || null
+    ]);
+
+    const [user] = await pool.query("SELECT * FROM User WHERE id = ?", [userId]);
+    
+    res.status(201).json({
+      success: true,
+      data: user[0]
+    });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const [user] = await pool.query(
+      "SELECT id, Nama, NamaWarung, Telp, Alamat, role, imageUrl FROM user WHERE id = ?",
+      [req.params.id]
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user[0]
+    });
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+});
+
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
-  let previousImageId = null;
 
-  // Check if NamaWarung is being updated and if it already exists
-  if (NamaWarung) {
-    try {
+  try {
+    // Check if NamaWarung exists
+    if (NamaWarung) {
       const [existing] = await pool.query(
         "SELECT id FROM user WHERE NamaWarung = ? AND id != ?",
         [NamaWarung, id]
@@ -83,300 +222,202 @@ app.put("/user/:id", async (req, res) => {
       if (existing.length > 0) {
         return res.status(400).json({ 
           success: false,
-          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
+          message: `Warung name "${NamaWarung}" already exists`
         });
       }
-    } catch (error) {
-      console.error("Error checking NamaWarung:", error);
-      return res.status(500).json({ success: false, message: "Internal server error." });
     }
-  }
 
-  // Get current user details
-  try {
-    const [userResults] = await pool.query("SELECT NamaWarung, imageUrl FROM user WHERE id = ?", [id]);
-    if (userResults.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found." });
+    // Get current user data
+    const [currentUser] = await pool.query(
+      "SELECT NamaWarung, imageUrl FROM user WHERE id = ?",
+      [id]
+    );
+
+    if (currentUser.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
     }
-    
-    const user = userResults[0];
-    const oldNamaWarung = user.NamaWarung;
-    
-    if (user.imageUrl) {
-      const urlParts = user.imageUrl.split("/");
-      previousImageId = urlParts[urlParts.length - 1];
-    }
+
+    const oldNamaWarung = currentUser[0].NamaWarung;
+    const oldImageUrl = currentUser[0].imageUrl;
 
     // Start transaction
     await pool.query('START TRANSACTION');
 
-    // Update user table
-    const [updateResult] = await pool.query(
-      "UPDATE user SET NamaWarung = ?, Nama = ?, Telp = ?, Alamat = ?, Password = ?, imageUrl = ? WHERE id = ?",
-      [NamaWarung, Nama, Telp, Alamat, Password, imageUrl, id]
+    // Update user
+    const [result] = await pool.query(
+      `UPDATE user SET 
+        NamaWarung = ?, 
+        Nama = ?, 
+        Telp = ?, 
+        Alamat = ?, 
+        Password = ?, 
+        imageUrl = ? 
+      WHERE id = ?`,
+      [
+        NamaWarung || null,
+        Nama,
+        Telp || null,
+        Alamat || null,
+        Password,
+        imageUrl || null,
+        id
+      ]
     );
 
-    if (!updateResult.affectedRows) {
+    if (result.affectedRows === 0) {
       await pool.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: "User not found." });
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
     }
 
-    // If NamaWarung changed, update related tables
+    // Update related tables if warung name changed
     if (NamaWarung && oldNamaWarung && NamaWarung !== oldNamaWarung) {
       const tables = [
-        { name: 'dataproduk', column: 'Pedagang' },
-        { name: 'cart_items', column: 'pedagang' },
-        { name: 'order_items', column: 'pedagang' },
-        { name: 'transactions_items', column: 'pedagang' },
-        { name: 'transactions_history_items', column: 'pedagang' }
+        'dataproduk', 
+        'cart_items', 
+        'order_items', 
+        'transactions_items',
+        'transactions_history_items'
       ];
 
       for (const table of tables) {
         try {
           await pool.query(
-            `UPDATE ${table.name} SET ${table.column} = ? WHERE ${table.column} = ?`,
+            `UPDATE ${table} SET Pedagang = ? WHERE Pedagang = ?`,
             [NamaWarung, oldNamaWarung]
           );
         } catch (error) {
-          console.error(`Error updating ${table.name}:`, error);
           await pool.query('ROLLBACK');
+          console.error(`Error updating ${table}:`, error);
           return res.status(500).json({ 
             success: false,
-            message: `Failed to update ${table.name} records`
+            message: "Internal server error" 
           });
         }
       }
     }
 
-    // Remove previous image if a new one was uploaded
-    if (previousImageId && imageUrl && previousImageId !== imageUrl.split("/").pop()) {
-      await pool.query("DELETE FROM userimages WHERE id = ?", [previousImageId]);
+    // Delete old image if changed
+    if (oldImageUrl && imageUrl && oldImageUrl !== imageUrl) {
+      const oldImageId = oldImageUrl.split('/').pop();
+      await pool.query("DELETE FROM userimages WHERE id = ?", [oldImageId]);
     }
 
-    // Commit transaction
     await pool.query('COMMIT');
-    res.status(200).json({ success: true, message: "User updated successfully." });
+    
+    // Get updated user
+    const [updatedUser] = await pool.query(
+      "SELECT id, Nama, NamaWarung, Telp, Alamat, role, imageUrl FROM user WHERE id = ?",
+      [id]
+    );
+
+    res.status(200).json({
+      success: true,
+      data: updatedUser[0]
+    });
   } catch (error) {
     await pool.query('ROLLBACK');
     console.error("Error updating user:", error);
-    res.status(500).json({ success: false, message: "Internal server error." });
-  }
-});
-// Create New User
-app.post("/user", async (req, res) => {
-  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
-
-  if (!Nama || !Password) {
-    return res.status(400).json({ message: "Name and password are required." });
-  }
-
-  // Check if NamaWarung already exists
-  if (NamaWarung) {
-    try {
-      const [existing] = await pool.query(
-        "SELECT id FROM user WHERE NamaWarung = ?",
-        [NamaWarung]
-      );
-      
-      if (existing.length > 0) {
-        return res.status(400).json({ 
-          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
-        });
-      }
-    } catch (error) {
-      console.error("Error checking NamaWarung:", error);
-      return res.status(500).json({ message: "Internal server error." });
-    }
-  }
-
-  const userid = generateRandomId();
-
-  const query = `
-    INSERT INTO User (id, NamaWarung, Nama, Telp, Alamat, Password, role, imageUrl)
-    VALUES (?, ?, ?, ?, ?, ?, 'user', ?)`;
-
-  try {
-    await pool.query(query, [
-      userid,
-      NamaWarung || null,
-      Nama,
-      Telp || null,
-      Alamat || null,
-      Password,
-      imageUrl || null,
-    ]);
-
-    // Fetch the newly created user
-    const [userResults] = await pool.query("SELECT * FROM User WHERE id = ?", [userid]);
-
-    res.status(201).json(userResults[0]);
-  } catch (err) {
-    console.error("Error creating user:", err);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 });
 
-// Upload or Update User Image
-app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
-  const { id } = req.params;
-
+// Image handling
+router.post('/:id/image', upload.single('image'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: "No image file provided." });
+    return res.status(400).json({ 
+      success: false,
+      message: "No image provided" 
+    });
   }
 
+  const { id } = req.params;
   const { originalname, mimetype, buffer } = req.file;
   const imageId = generateRandomId();
 
   try {
-    // Save image to userimages table
+    // Check if user exists
+    const [user] = await pool.query("SELECT id FROM user WHERE id = ?", [id]);
+    if (user.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    // Save image
     await pool.query(
-      "INSERT INTO gbwt.userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
+      "INSERT INTO userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
       [imageId, originalname, buffer, mimetype]
     );
 
-    // Update user table with image URL
-    const imageUrl = `http://localhost:3001/images/${imageId}`;
-    await pool.query("UPDATE gbwt.user SET imageUrl = ? WHERE id = ?", [imageUrl, id]);
+    // Update user with image URL
+    const imageUrl = `${process.env.SERVICE_URL}/images/${imageId}`;
+    await pool.query("UPDATE user SET imageUrl = ? WHERE id = ?", [imageUrl, id]);
 
-    res.status(200).json({ message: "Image uploaded and user updated successfully." });
+    res.status(200).json({
+      success: true,
+      data: { imageUrl }
+    });
   } catch (error) {
     console.error("Error uploading image:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 });
 
-// Fetch All Users
-app.get("/users", async (req, res) => {
-  const query = "SELECT * FROM gbwt.user";
+router.get('/images/:id', async (req, res) => {
   try {
-    const [results] = await pool.query(query);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error("Error fetching users:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
-
-// Fetch All Users with NamaWarung not null
-app.get("/users", async (req, res) => {
-  const query = "SELECT * FROM gbwt.user WHERE NamaWarung IS NOT NULL";
-  try {
-    const [results] = await pool.query(query);
-    res.status(200).json(results);
-  } catch (err) {
-    console.error("Error fetching users:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
-
-// Delete User by ID
-app.delete("/user/:id", async (req, res) => {
-  const { id } = req.params;
-  const query = "DELETE FROM gbwt.user WHERE id = ?";
-  try {
-    const [results] = await pool.query(query, [id]);
-    if (results.affectedRows === 0) {
-      return res.status(404).json({ message: "User not found." });
-    }
-    res.status(200).json({ message: "User deleted successfully." });
-  } catch (err) {
-    console.error("Error deleting user:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
-
-// Upload user image
-app.post("/uploads", upload.single("image"), async (req, res) => {
-  const id = generateRandomId();
-  const { originalname, mimetype, buffer } = req.file;
-
-  try {
-    await pool.query(
-      "INSERT INTO userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
-      [id, originalname, buffer, mimetype]
+    const [image] = await pool.query(
+      "SELECT mimetype, data FROM userimages WHERE id = ?",
+      [req.params.id]
     );
 
-    res.status(201).json({ id });
-  } catch (error) {
-    console.error("Error uploading image:", error);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
-
-// Serve user image
-app.get("/uploads/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const [results] = await pool.query("SELECT * FROM userimages WHERE id = ?", [id]);
-
-    if (results.length === 0) {
-      return res.status(404).json({ message: "Image not found." });
+    if (image.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Image not found" 
+      });
     }
 
-    const image = results[0];
-    res.setHeader("Content-Type", image.mimetype);
-    res.send(image.data);
+    res.set('Content-Type', image[0].mimetype);
+    res.send(image[0].data);
   } catch (error) {
     console.error("Error fetching image:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 });
 
-// Delete Image by ID
-app.delete("/uploads/:id", async (req, res) => {
-  const { id } = req.params;
+// Mount router with service prefix
+app.use('/user-service', router);
 
-  try {
-      const [result] = await pool.execute("DELETE FROM gbwt.userimages WHERE id = ?", [id]);
-      if (!result.affectedRows) return res.status(404).json({ message: "Image not found." });
-
-      res.status(204).send();
-  } catch (error) {
-      console.error("Error deleting image:", error);
-      res.status(500).json({ message: "Database error." });
-  }
+// Error handler
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack);
+  res.status(500).json({ 
+    success: false,
+    message: 'Internal server error' 
+  });
 });
+// Mount the router at root path
+app.use('/', router);
 
-// Add a new endpoint for guest sign-in
-app.post('/guest-signin', async (req, res) => {
-  const guestId = generateRandomId();
-  const guestName = `guest_${guestId}`;
-  const guestPassword = generateRandomId();
-
-  const query = `
-    INSERT INTO User (id, Nama, Password, role)
-    VALUES (?, ?, ?, 'guest')`;
-
-  try {
-    await pool.query(query, [guestId, guestName, guestPassword]);
-
-    const [userResults] = await pool.query("SELECT * FROM User WHERE id = ?", [guestId]);
-    const guestUser = userResults[0];
-
-    res.status(201).json(guestUser);
-  } catch (err) {
-    console.error("Error creating guest user:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
-
-// Delete Guest User
-app.delete('/guest/:id', async (req, res) => {
-  const { id } = req.params;
-  const query = "DELETE FROM gbwt.user WHERE id = ? AND role = 'guest'";
-  try {
-    const [results] = await pool.query(query, [id]);
-    if (results.affectedRows === 0) {
-      return res.status(404).json({ message: "Guest user not found." });
-    }
-    res.status(200).json({ message: "Guest user deleted successfully." });
-  } catch (err) {
-    console.error("Error deleting guest user:", err);
-    res.status(500).json({ message: "Internal server error." });
-  }
-});
 
 app.listen(port, () => {
-  console.log(`User Service is running on http://localhost:${port}`);
+  console.log(`User service running on port ${port}`);
+  console.log(`Service endpoint: http://localhost:${port}/user-service`);
 });

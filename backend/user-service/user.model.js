@@ -10,10 +10,6 @@ const UserImages = sequelize.define(
       primaryKey: true,
       allowNull: false,
     },
-    userId: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-    },
     filename: {
       type: DataTypes.STRING(255),
       allowNull: false,
@@ -23,18 +19,19 @@ const UserImages = sequelize.define(
       allowNull: false,
     },
     data: {
-      type: DataTypes.BLOB("long"), // Matches 'longblob'
+      type: DataTypes.BLOB("long"),
       allowNull: false,
     },
     upload_date: {
-      type: DataTypes.DATE, // Maps to 'timestamp'
+      type: DataTypes.DATE,
       allowNull: true,
-      defaultValue: DataTypes.NOW, // Matches default 'CURRENT_TIMESTAMP'
+      defaultValue: DataTypes.NOW,
     },
   },
   {
     tableName: "userimages",
-    timestamps: false, // MySQL schema does not include createdAt/updatedAt
+    timestamps: false,
+    underscored: true
   }
 );
 
@@ -47,55 +44,47 @@ const User = sequelize.define(
       primaryKey: true,
       allowNull: false,
     },
-    NamaWarung: {
+    nama_warung: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      field: 'NamaWarung' // Map to correct column name
     },
-    Nama: {
+    nama: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      field: 'Nama' // Map to correct column name
     },
-    Telp: {
+    telp: {
       type: DataTypes.STRING(20),
       allowNull: true,
+      field: 'Telp' // Map to correct column name
     },
-    Alamat: {
+    alamat: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'Alamat' // Map to correct column name
     },
-    Password: {
+    password: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      field: 'Password' // Map to correct column name
     },
     role: {
       type: DataTypes.ENUM("user", "admin", "guest"),
       allowNull: false,
       defaultValue: "user",
     },
-    imageUrl: {
+    image_url: {
       type: DataTypes.STRING(2083),
       allowNull: true,
+      field: 'imageUrl' // Map to correct column name
     },
   },
   {
     tableName: "user",
     timestamps: false,
+    underscored: true
   }
 );
-
-// Define associations
-User.hasMany(UserImages, {
-  foreignKey: "userId",
-  sourceKey: "id",
-  onDelete: "CASCADE",
-  onUpdate: "CASCADE",
-});
-
-UserImages.belongsTo(User, {
-  foreignKey: "userId",
-  targetKey: "id",
-  onDelete: "CASCADE",
-  onUpdate: "CASCADE",
-});
 
 module.exports = { User, UserImages };

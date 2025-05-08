@@ -58,50 +58,69 @@ export default {
     focusPassword() {
       this.$refs.passwordInput.focus();
     },
-    async login() {
-      // Trim whitespace from inputs
-      const nama = this.Nama.trim();
-      const password = this.Password.trim();
+    // In src/components/Login.vue, update the login method:
+// In src/components/Login.vue, update the login method:
+async login() {
+  const nama = this.Nama.trim();
+  const password = this.Password.trim();
 
-      if (!nama || !password) {
-        alert("Harap masukkan nama dan password");
-        return;
+  if (!nama || !password) {
+    alert("Please enter both username and password");
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      'http://localhost:3000/user-service/login', 
+      {
+        Nama: nama,
+        Password: password
+      }, 
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        withCredentials: true
       }
+    );
 
-      try {
-        const result = await axios.post("http://localhost:3001/login", {
-          Nama: nama,
-          Password: password,
-        });
-
-        // Strict credential checking
-        if (result.status === 200 && result.data && result.data.Nama === nama) {
-          const user = result.data;
-          localStorage.setItem("user-info", JSON.stringify(user));
-
-          if (user.role === "admin") {
-            this.$router.push({ name: "DataUser" });
-          } else {
-            this.$router.push({ name: "Dashboard" });
-          }
-
-          // Reload the page after redirection
-          setTimeout(() => window.location.reload(), 1);
-        } else {
-          throw new Error("Invalid credentials");
-        }
-      } catch (error) {
-        console.error("Error during login:", error);
-        if (error.response && error.response.status === 401) {
-          alert("Nama atau password salah");
-        } else {
-          alert("Terjadi kesalahan. Silakan coba lagi.");
-        }
+    if (response.data && response.data.success) {
+      const { token, user, imageUrl } = response.data.data;
+      
+      // Store user info
+      localStorage.setItem("user-info", JSON.stringify({
+        ...user,
+        token,
+        imageUrl
+      }));
+      
+      // Set auth header for future requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Redirect based on role
+      this.$router.push({ 
+        name: user.role === "admin" ? "DataUser" : "Dashboard" 
+      });
+    } else {
+      throw new Error(response.data.message || "Login failed");
+    }
+  } catch (error) {
+    console.error("Login error:", error);
+    let message = "Login failed. Please try again.";
+    
+    if (error.response) {
+      if (error.response.data && error.response.data.message) {
+        message = error.response.data.message;
+      } else if (error.response.status === 401) {
+        message = "Invalid username or password";
       }
-    },
+    }
+    
+    alert(message);
+  }
+}
   },
   mounted() {
-    // Focus name input on component mount
     this.$refs.nameInput.focus();
     
     const user = localStorage.getItem("user-info");

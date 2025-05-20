@@ -6,7 +6,12 @@ const sequelize = require("./db");
 const app = express();
 const port = 3003;
 
-app.use(cors());
+app.use(cors({
+  origin: true, // or specify your frontend origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Disposition']
+}));
 app.use(bodyParser.json());
 
 // Generate an 8-character random string for ID
@@ -787,7 +792,6 @@ app.post('/invoices', async (req, res) => {
   }
 });
 
-// Add this near the other route definitions in server.js
 app.get('/invoices/:order_id/:filename', async (req, res) => {
   try {
     const { Invoice } = require('./orders.model');
@@ -802,9 +806,12 @@ app.get('/invoices/:order_id/:filename', async (req, res) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    // Set appropriate headers
+    // Set proper headers
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename=${invoice.filename}`);
+    res.setHeader('Content-Disposition', 'inline; filename="invoice.pdf"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     
     // Send the PDF data
     res.send(invoice.file);

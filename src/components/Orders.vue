@@ -1,5 +1,4 @@
 <template>
-  <!-- Template remains the same as previous version -->
   <div>
     <h2>STRUK</h2>
     <div v-if="filteredOrders.length">
@@ -17,14 +16,24 @@
           </div>
         </div>
         <div v-if="order.invoice_url" class="pdf-viewer-container">
+          <!-- Native PDF rendering -->
 <iframe 
-  v-if="order.invoice_url"
-  :src="getPdfUrl(order.invoice_url)"
+  v-show="!pdfJsFallbackOrders.has(order.id)"
+  :src="getPdfUrl(order.invoice_url) + '#toolbar=0&navpanes=0&scrollbar=0'"
   class="pdf-viewer"
   frameborder="0"
+  type="application/pdf"
   @load="pdfLoading = false"
-  @error="onPdfError"
+  @error="activatePdfJsFallback(order)"
 ></iframe>
+          
+          <!-- PDF.js fallback container -->
+          <div 
+            v-show="pdfJsFallbackOrders.has(order.id)"
+            :ref="`pdf-container-${order.id}`"
+            class="pdfjs-container"
+          ></div>
+          
           <div v-if="pdfLoading" class="pdf-loading">
             Memuat invoice...
           </div>
@@ -48,36 +57,36 @@ export default {
       userData: {},
       guestId: localStorage.getItem("guestId") || null,
       pdfLoading: false,
-      isSavingImage: false
+      isSavingImage: false,
+      pdfJsFallbackOrders: new Set()
     };
   },
   computed: {
-  filteredOrders() {
-    const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
-    return this.orders.filter((order) => order.user === user.id);
-  },
-
+    filteredOrders() {
+      const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
+      return this.orders.filter((order) => order.user === user.id);
+    },
   },
   async mounted() {
     await this.fetchOrders();
     await this.fetchUserData();
   },
   methods: {
-async fetchOrders() {
-  try {
-    const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
-    if (!user.id) {
-      console.error("No user ID available");
-      return;
-    }
-    
-    const response = await axios.get(`http://localhost:3003/orders?user=${user.id}`);
-    this.orders = response.data;
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-    this.orders = []; // Ensure empty array on error
-  }
-},
+    async fetchOrders() {
+      try {
+        const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
+        if (!user.id) {
+          console.error("No user ID available");
+          return;
+        }
+        
+        const response = await axios.get(`http://localhost:3003/orders?user=${user.id}`);
+        this.orders = response.data;
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        this.orders = []; // Ensure empty array on error
+      }
+    },
     async fetchUserData() {
       try {
         const response = await axios.get("http://localhost:3001/users");
@@ -89,41 +98,81 @@ async fetchOrders() {
         console.error("Error fetching user data:", error);
       }
     },
-  onPdfError() {
-    this.pdfLoading = false;
-    console.error('Failed to load PDF:', this.order.invoice_url);
-    // Try alternative method if iframe fails
-    this.downloadPdf(this.order);
-  },
-  
-  async downloadPdf(order) {
-    try {
-      const response = await axios.get(
-        this.getPdfUrl(order.invoice_url), 
-        { responseType: 'blob' }
-      );
-      
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      
-      // Open in new tab as fallback
-      window.open(url, '_blank');
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Gagal memuat invoice. Silakan coba lagi nanti.');
-    }
-  },
-    getPdfUrl(invoiceUrl) {
+    activatePdfJsFallback(order) {
+      this.pdfJsFallbackOrders.add(order.id);
+      this.renderWithPdfJs(order);
+    },
+    async downloadPdf(order) {
+      try {
+        const response = await axios.get(
+          this.getPdfUrl(order.invoice_url), 
+          { responseType: 'blob' }
+        );
+        
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        
+        // Open in new tab as fallback
+        window.open(url, '_blank');
+      } catch (error) {
+        console.error('Error downloading PDF:', error);
+        alert('Gagal memuat invoice. Silakan coba lagi nanti.');
+      }
+    },
+getPdfUrl(invoiceUrl) {
   // Handle both full URLs and relative paths
   if (invoiceUrl.startsWith('http')) {
     return invoiceUrl;
   }
-  // Ensure the URL is properly formatted
-  if (!invoiceUrl.startsWith('/invoices/')) {
-    return `http://localhost:3003/invoices/${invoiceUrl}`;
-  }
-  return `http://localhost:3003${invoiceUrl}`;
+  
+  // Remove any leading slashes to prevent double slashes
+  const cleanUrl = invoiceUrl.replace(/^\//, '');
+  
+  // Add timestamp to prevent caching issues
+  const timestamp = new Date().getTime();
+  return `http://localhost:3003/${cleanUrl}?t=${timestamp}`;
 },
+    async renderWithPdfJs(order) {
+      try {
+        const pdfjsLib = await this.loadPdfJs();
+        const container = this.$refs[`pdf-container-${order.id}`];
+        
+        if (!container) return;
+        
+        const response = await axios.get(this.getPdfUrl(order.invoice_url), {
+          responseType: 'arraybuffer'
+        });
+        
+        const loadingTask = pdfjsLib.getDocument({ data: response.data });
+        const pdf = await loadingTask.promise;
+        
+        // Clear container
+        container.innerHTML = '';
+        
+        // Render each page
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+          
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          
+          container.appendChild(canvas);
+          
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+        }
+        
+        this.pdfLoading = false;
+      } catch (error) {
+        console.error('PDF.js rendering failed:', error);
+        this.onPdfError();
+      }
+    },
     async saveInvoiceAsImage(order) {
       if (!order.invoice_url) {
         alert("Invoice tidak tersedia untuk disimpan");
@@ -197,63 +246,63 @@ async fetchOrders() {
       });
     },
     async acceptOrder(order) {
-  try {
-    const user = JSON.parse(localStorage.getItem("user-info")) || { 
-      Nama: this.guestId, 
-      Alamat: order.alamat || "Unknown" 
-    };
-    
-    // Ensure all required fields are included
-    const transactionData = {
-      user: user.Nama,
-      total: order.total,
-      catatan: order.catatan || '',
-      alamat: order.alamat || user.Alamat, // Ensure alamat is provided
-      pemesan: order.pemesan || user.Nama,
-      order_items: order.order_items,
-      invoice_url: order.invoice_url
-    };
+      try {
+        const user = JSON.parse(localStorage.getItem("user-info")) || { 
+          Nama: this.guestId, 
+          Alamat: order.alamat || "Unknown" 
+        };
+        
+        // Ensure all required fields are included
+        const transactionData = {
+          user: user.Nama,
+          total: order.total,
+          catatan: order.catatan || '',
+          alamat: order.alamat || user.Alamat, // Ensure alamat is provided
+          pemesan: order.pemesan || user.Nama,
+          order_items: order.order_items,
+          invoice_url: order.invoice_url
+        };
 
-    // Validate required fields
-    if (!transactionData.alamat) {
-      throw new Error("Alamat is required");
-    }
+        // Validate required fields
+        if (!transactionData.alamat) {
+          throw new Error("Alamat is required");
+        }
 
-    await axios.post("http://localhost:3005/transactions", { 
-      order: transactionData,
-      invoice_url: order.invoice_url
-    });
-    
-    await axios.delete(`http://localhost:3003/orders/${order.id}/complete`);
-    
-    this.orders = this.orders.filter(o => o.id !== order.id);
-    
-    alert("Order accepted successfully!");
-  } catch (error) {
-    console.error("Error accepting order:", error);
-    alert(`Failed to accept order: ${error.message}`);
-  }
-},
+        await axios.post("http://localhost:3005/transactions", { 
+          order: transactionData,
+          invoice_url: order.invoice_url
+        });
+        
+        await axios.delete(`http://localhost:3003/orders/${order.id}/complete`);
+        
+        this.orders = this.orders.filter(o => o.id !== order.id);
+        
+        alert("Order accepted successfully!");
+      } catch (error) {
+        console.error("Error accepting order:", error);
+        alert(`Failed to accept order: ${error.message}`);
+      }
+    },
     async deleteOrder(orderId) {
-  try {
-    const order = this.orders.find(order => order.id === orderId);
-    if (!order) throw new Error("Order not found");
+      try {
+        const order = this.orders.find(order => order.id === orderId);
+        if (!order) throw new Error("Order not found");
 
-    const response = await axios.post(
-      `http://localhost:3003/orders/${orderId}/refund`
-    );
+        const response = await axios.post(
+          `http://localhost:3003/orders/${orderId}/refund`
+        );
 
-    if (response.data.message) {
-      this.orders = this.orders.filter(order => order.id !== orderId);
-      alert(response.data.message);
-    } else {
-      throw new Error("Unexpected response from server");
-    }
-  } catch (error) {
-    console.error("Error deleting order:", error);
-    alert(`Failed to delete order: ${error.response?.data?.error || error.message}`);
-  }
-},
+        if (response.data.message) {
+          this.orders = this.orders.filter(order => order.id !== orderId);
+          alert(response.data.message);
+        } else {
+          throw new Error("Unexpected response from server");
+        }
+      } catch (error) {
+        console.error("Error deleting order:", error);
+        alert(`Failed to delete order: ${error.response?.data?.error || error.message}`);
+      }
+    },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -271,7 +320,6 @@ async fetchOrders() {
 </script>
 
 <style scoped>
-/* Styles remain the same as previous version */
 .invoice-container {
   border: 1px solid #ddd;
   border-radius: 5px;
@@ -342,8 +390,23 @@ async fetchOrders() {
 }
 
 .pdf-viewer {
-  width: 65%;
+  width: 100%;
   height: 100%;
+  border: none;
+}
+
+.pdfjs-container {
+  width: 100%;
+  height: 500px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+}
+
+.pdfjs-container canvas {
+  display: block;
+  margin: 0 auto;
+  margin-bottom: 10px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.2);
 }
 
 .pdf-loading {

@@ -16,7 +16,6 @@ function generateRandomId() {
 }
 
 // Initialize database models with proper relationships
-// Initialize database models with proper relationships
 async function initializeModels() {
   try {
     const sequelizeInstance = require('./db');
@@ -47,6 +46,11 @@ async function initializeModels() {
       WHERE order_id NOT IN (SELECT id FROM orders)
     `);
 
+    await sequelizeInstance.query(`
+      DELETE FROM order_items 
+      WHERE order_id NOT IN (SELECT id FROM orders)
+    `);
+
     // Sync models in proper dependency order
     await User.sync({ alter: true });  // Base table must sync first
     await Produk.sync({ alter: true }); // Independent product table
@@ -63,6 +67,34 @@ async function initializeModels() {
   }
 }
 
+// Get all orders for a specific user
+app.get("/orders", async (req, res) => {
+  try {
+    const { Orders, OrderItems } = require('./orders.model');
+    const user = req.query.user; // Get user ID from query params
+    
+    if (!user) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const orders = await Orders.findAll({
+      where: { user },
+      include: [{
+        model: OrderItems,
+        as: "order_items"
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json(orders);
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch orders",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
+    });
+  }
+});
 
 // Get all cart items for a specific user
 app.get("/cart", async (req, res) => {
@@ -470,19 +502,28 @@ app.get("/cart/total", async (req, res) => {
 
 // Update the POST /orders endpoint to handle stock validation
 app.post("/orders", async (req, res) => {
-  const { orders } = req.body;
+  const { orders, clearCart } = req.body;
   if (!Array.isArray(orders)) {
     return res.status(400).json({ error: "Invalid order data - expected array" });
   }
 
+  let transaction;
   try {
     const { Orders, OrderItems } = require('./orders.model');
     const { Produk } = require('./produk.model');
+    const { Cart, CartItems } = require('./cart.model');
     
+    transaction = await sequelize.transaction();
+
     // First validate all products and quantities
     for (const order of orders) {
-      const product = await Produk.findOne({ where: { id: order.itemid } });
+      const product = await Produk.findOne({ 
+        where: { id: order.itemid },
+        transaction
+      });
+      
       if (!product) {
+        await transaction.rollback();
         return res.status(404).json({ 
           error: `Product not found: ${order.itemid}`,
           itemid: order.itemid
@@ -490,6 +531,7 @@ app.post("/orders", async (req, res) => {
       }
       
       if (product.Stok < order.quantity) {
+        await transaction.rollback();
         return res.status(400).json({
           error: `Insufficient stock for product: ${order.name}`,
           itemid: order.itemid,
@@ -503,7 +545,7 @@ app.post("/orders", async (req, res) => {
     const ordersGroupedByPedagang = orders.reduce((acc, order) => {
       if (!acc[order.orderid]) {
         acc[order.orderid] = {
-          id: generateRandomId(),
+          id: order.orderid || generateRandomId(),
           user: order.user,
           total: 0,
           catatan: order.catatan,
@@ -532,27 +574,60 @@ app.post("/orders", async (req, res) => {
     const createdOrders = [];
     
     for (const orderData of Object.values(ordersGroupedByPedagang)) {
-      const createdOrder = await Orders.create(orderData);
+      const createdOrder = await Orders.create(orderData, { transaction });
       
       // Create order items
-      await OrderItems.bulkCreate(orderData.order_items);
+      await OrderItems.bulkCreate(orderData.order_items, { transaction });
       
       // Update product stocks
       for (const item of orderData.order_items) {
         await Produk.decrement('Stok', {
           by: parseInt(item.quantity),
-          where: { id: item.itemid }
+          where: { id: item.itemid },
+          transaction
         });
       }
       
-      createdOrders.push(createdOrder);
+      createdOrders.push({
+        id: createdOrder.id,
+        orderid: createdOrder.id,
+        user: createdOrder.user,
+        total: createdOrder.total
+      });
     }
 
+    // Clear cart if requested
+    if (clearCart && orders.length > 0) {
+      const userId = orders[0].user;
+      
+      // Find the user's cart
+      const cart = await Cart.findOne({ 
+        where: { user: userId },
+        transaction
+      });
+      
+      if (cart) {
+        // Delete all cart items
+        await CartItems.destroy({
+          where: { cart_id: cart.id },
+          transaction
+        });
+        
+        // Delete the cart
+        await Cart.destroy({
+          where: { id: cart.id },
+          transaction
+        });
+      }
+    }
+
+    await transaction.commit();
     res.status(201).json({ 
       message: "Orders created successfully",
-      orders: createdOrders.map(o => o.id)
+      orders: createdOrders
     });
   } catch (error) {
+    if (transaction) await transaction.rollback();
     console.error("Error processing orders:", error);
     res.status(500).json({ 
       error: "Failed to process orders",
@@ -561,22 +636,15 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-// Update the refund endpoint to properly handle stock updates
-app.post("/orders/:id/refund", async (req, res) => {
+app.get("/orders/:id", async (req, res) => {
   try {
     const { Orders, OrderItems } = require('./orders.model');
-    const { Produk } = require('./produk.model');
     
     const order = await Orders.findOne({
       where: { id: req.params.id },
       include: [{
         model: OrderItems,
-        as: "order_items",
-        include: [{
-          model: Produk,
-          as: "product",
-          attributes: ['id', 'Stok']
-        }]
+        as: "order_items"
       }]
     });
 
@@ -584,22 +652,81 @@ app.post("/orders/:id/refund", async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    res.status(200).json(order);
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch order",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
+    });
+  }
+});
+
+// Update the refund endpoint to properly handle stock updates
+// Update the refund endpoint to properly handle stock updates
+app.post("/orders/:id/refund", async (req, res) => {
+  let transaction;
+  try {
+    const { Orders, OrderItems, Invoice } = require('./orders.model');
+    const { Produk } = require('./produk.model');
+    
+    transaction = await sequelize.transaction();
+
+    // Find the order with its items and associated products
+    const order = await Orders.findOne({
+      where: { id: req.params.id },
+      include: [{
+        model: OrderItems,
+        as: "order_items",
+        include: [{
+          model: Produk,
+          as: "order_item_product", // Corrected alias
+          attributes: ['id', 'Stok']
+        }]
+      }],
+      transaction
+    });
+
+    if (!order) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Order not found" });
+    }
+
     // Update stock for each item
     await Promise.all(order.order_items.map(async (item) => {
-      if (item.product) {
+      if (item.order_item_product) { // Using correct alias
         await Produk.increment('Stok', {
-          by: parseInt(item.quantity),
-          where: { id: item.itemid }
+          by: parseInt(item.quantity), // Ensure quantity is parsed as integer
+          where: { id: item.itemid },
+          transaction
         });
       }
     }));
 
-    // Delete order items and then the order
-    await OrderItems.destroy({ where: { order_id: order.id } });
-    await Orders.destroy({ where: { id: order.id } });
+    // Delete associated invoice first (if exists)
+    if (order.invoice_url) {
+      await Invoice.destroy({ 
+        where: { order_id: order.id },
+        transaction
+      });
+    }
 
-    res.json({ message: "Order refunded and stock updated" });
+    // Delete order items
+    await OrderItems.destroy({ 
+      where: { order_id: order.id },
+      transaction
+    });
+
+    // Finally delete the order
+    await Orders.destroy({ 
+      where: { id: order.id },
+      transaction
+    });
+
+    await transaction.commit();
+    res.json({ message: "Order refunded and stock updated successfully" });
   } catch (error) {
+    if (transaction) await transaction.rollback();
     console.error("Refund error:", error);
     res.status(500).json({ 
       error: "Failed to process refund",
@@ -613,23 +740,36 @@ app.post('/invoices', async (req, res) => {
   try {
     const { Orders, Invoice } = require('./orders.model');
     
-    const { order_id, filename, file } = req.body;
+    const { order_id, filename, pdfData } = req.body;
     
+    if (!order_id || !pdfData) {
+      return res.status(400).json({ 
+        error: "order_id and pdfData are required" 
+      });
+    }
+
     // Verify order exists
     const order = await Orders.findByPk(order_id);
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    // Convert base64 to Buffer
+    const fileBuffer = Buffer.from(pdfData, 'base64');
+    
+    // Generate consistent filename if not provided
+    const finalFilename = filename || `invoice_${order_id}.pdf`;
+    const invoiceUrl = `/invoices/${order_id}/${finalFilename}`;
+
     const invoice = await Invoice.create({
       id: generateRandomId(),
       order_id,
-      filename,
-      file: Buffer.from(file, 'base64'),
-      invoice_url: `/orders/${order_id}/invoice`
+      filename: finalFilename,
+      file: fileBuffer,
+      invoice_url: invoiceUrl
     });
 
-    // Update order with invoice URL (no foreign key constraint)
+    // Update order with invoice URL
     await order.update({ 
       invoice_url: invoice.invoice_url 
     });
@@ -642,6 +782,36 @@ app.post('/invoices', async (req, res) => {
     console.error("Invoice creation error:", error);
     res.status(500).json({ 
       error: "Failed to create invoice",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
+    });
+  }
+});
+
+// Add this near the other route definitions in server.js
+app.get('/invoices/:order_id/:filename', async (req, res) => {
+  try {
+    const { Invoice } = require('./orders.model');
+    const { order_id } = req.params;
+
+    // Find the invoice in database
+    const invoice = await Invoice.findOne({
+      where: { order_id }
+    });
+
+    if (!invoice || !invoice.file) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=${invoice.filename}`);
+    
+    // Send the PDF data
+    res.send(invoice.file);
+  } catch (error) {
+    console.error("Error serving invoice:", error);
+    res.status(500).json({ 
+      error: "Failed to serve invoice",
       details: process.env.NODE_ENV === 'development' ? error.message : null
     });
   }

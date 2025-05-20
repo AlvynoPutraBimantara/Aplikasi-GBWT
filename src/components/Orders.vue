@@ -17,13 +17,14 @@
           </div>
         </div>
         <div v-if="order.invoice_url" class="pdf-viewer-container">
-          <iframe 
-            :src="`http://localhost:3003${order.invoice_url}`"
-            class="pdf-viewer"
-            frameborder="0"
-            type="application/pdf"
-            @error="onPdfError"
-          ></iframe>
+<iframe 
+  v-if="order.invoice_url"
+  :src="getPdfUrl(order.invoice_url)"
+  class="pdf-viewer"
+  frameborder="0"
+  @load="pdfLoading = false"
+  @error="onPdfError"
+></iframe>
           <div v-if="pdfLoading" class="pdf-loading">
             Memuat invoice...
           </div>
@@ -51,31 +52,32 @@ export default {
     };
   },
   computed: {
-    filteredOrders() {
-      const user = JSON.parse(localStorage.getItem("user-info")) || { Nama: this.guestId };
-      return this.orders.filter((order) => order.user === user.Nama || order.user === this.guestId);
-    },
+  filteredOrders() {
+    const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
+    return this.orders.filter((order) => order.user === user.id);
+  },
+
   },
   async mounted() {
     await this.fetchOrders();
     await this.fetchUserData();
   },
   methods: {
-    async fetchOrders() {
-      try {
-        const response = await axios.get("http://localhost:3003/orders");
-        this.orders = response.data.map(order => {
-          if (!order.order_items) {
-            order.order_items = [];
-          } else if (!Array.isArray(order.order_items)) {
-            order.order_items = [order.order_items];
-          }
-          return order;
-        });
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      }
-    },
+async fetchOrders() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user-info")) || { id: this.guestId };
+    if (!user.id) {
+      console.error("No user ID available");
+      return;
+    }
+    
+    const response = await axios.get(`http://localhost:3003/orders?user=${user.id}`);
+    this.orders = response.data;
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    this.orders = []; // Ensure empty array on error
+  }
+},
     async fetchUserData() {
       try {
         const response = await axios.get("http://localhost:3001/users");
@@ -87,10 +89,41 @@ export default {
         console.error("Error fetching user data:", error);
       }
     },
-    onPdfError() {
-      this.pdfLoading = false;
-      alert("Terjadi kesalahan saat memuat PDF.");
-    },
+  onPdfError() {
+    this.pdfLoading = false;
+    console.error('Failed to load PDF:', this.order.invoice_url);
+    // Try alternative method if iframe fails
+    this.downloadPdf(this.order);
+  },
+  
+  async downloadPdf(order) {
+    try {
+      const response = await axios.get(
+        this.getPdfUrl(order.invoice_url), 
+        { responseType: 'blob' }
+      );
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      
+      // Open in new tab as fallback
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Gagal memuat invoice. Silakan coba lagi nanti.');
+    }
+  },
+    getPdfUrl(invoiceUrl) {
+  // Handle both full URLs and relative paths
+  if (invoiceUrl.startsWith('http')) {
+    return invoiceUrl;
+  }
+  // Ensure the URL is properly formatted
+  if (!invoiceUrl.startsWith('/invoices/')) {
+    return `http://localhost:3003/invoices/${invoiceUrl}`;
+  }
+  return `http://localhost:3003${invoiceUrl}`;
+},
     async saveInvoiceAsImage(order) {
       if (!order.invoice_url) {
         alert("Invoice tidak tersedia untuk disimpan");
@@ -170,15 +203,21 @@ export default {
       Alamat: order.alamat || "Unknown" 
     };
     
+    // Ensure all required fields are included
     const transactionData = {
       user: user.Nama,
       total: order.total,
-      catatan: order.catatan,
-      alamat: order.alamat,
-      pemesan: order.pemesan, // Add the original order user as pemesan
+      catatan: order.catatan || '',
+      alamat: order.alamat || user.Alamat, // Ensure alamat is provided
+      pemesan: order.pemesan || user.Nama,
       order_items: order.order_items,
       invoice_url: order.invoice_url
     };
+
+    // Validate required fields
+    if (!transactionData.alamat) {
+      throw new Error("Alamat is required");
+    }
 
     await axios.post("http://localhost:3005/transactions", { 
       order: transactionData,
@@ -192,29 +231,29 @@ export default {
     alert("Order accepted successfully!");
   } catch (error) {
     console.error("Error accepting order:", error);
-    alert("Failed to accept order. Please try again.");
+    alert(`Failed to accept order: ${error.message}`);
   }
 },
     async deleteOrder(orderId) {
-      try {
-        const order = this.orders.find(order => order.id === orderId);
-        if (!order) throw new Error("Order not found");
+  try {
+    const order = this.orders.find(order => order.id === orderId);
+    if (!order) throw new Error("Order not found");
 
-        const refundResponse = await axios.post(
-          `http://localhost:3003/orders/${orderId}/refund`
-        );
+    const response = await axios.post(
+      `http://localhost:3003/orders/${orderId}/refund`
+    );
 
-        if (refundResponse.status === 200) {
-          this.orders = this.orders.filter(order => order.id !== orderId);
-          alert("Order deleted and stock refunded successfully!");
-        } else {
-          throw new Error("Failed to process refund.");
-        }
-      } catch (error) {
-        console.error("Error deleting order:", error);
-        alert("Failed to delete order. Please try again.");
-      }
-    },
+    if (response.data.message) {
+      this.orders = this.orders.filter(order => order.id !== orderId);
+      alert(response.data.message);
+    } else {
+      throw new Error("Unexpected response from server");
+    }
+  } catch (error) {
+    console.error("Error deleting order:", error);
+    alert(`Failed to delete order: ${error.response?.data?.error || error.message}`);
+  }
+},
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",

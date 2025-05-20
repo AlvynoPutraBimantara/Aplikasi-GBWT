@@ -66,7 +66,8 @@ export default {
   },
   computed: {
     user() {
-      return JSON.parse(localStorage.getItem("user-info"));
+      const userInfo = localStorage.getItem("user-info");
+      return userInfo ? JSON.parse(userInfo) : null;
     },
     isGuest() {
       return localStorage.getItem("guest") === "true";
@@ -91,12 +92,12 @@ export default {
       }
       return route.path;
     },
-    async fetchCartItems() {
-      if (!this.user) return;
+    async fetchCartItems(userId) {
+      if (!userId) return;
 
       try {
         const response = await axios.get("http://localhost:3004/cart", {
-          params: { user: this.user.Nama },
+          params: { user: userId },
         });
         const cartItems = response.data;
         this.cartItemCount = cartItems.reduce(
@@ -105,79 +106,75 @@ export default {
         );
       } catch (error) {
         console.error("Error fetching cart items:", error);
+        this.cartItemCount = 0;
       }
     },
-    async fetchOrders() {
-      if (!this.user) return;
+    async fetchOrders(userId) {
+      if (!userId) return;
 
       try {
-        const response = await axios.get("http://localhost:3003/orders");
-        const orders = response.data;
-        const userOrders = orders.filter(
-          (order) => order.user === this.user.Nama
-        );
-        this.orderCount = userOrders.length;
+        const response = await axios.get("http://localhost:3003/orders", {
+          params: { user: userId }
+        });
+        this.orderCount = response.data.length;
       } catch (error) {
         console.error("Error fetching orders:", error);
+        this.orderCount = 0;
       }
     },
-    async fetchTransactions() {
-  if (!this.user) return;
+    async fetchTransactions(userId) {
+      if (!userId) return;
 
-  try {
-    // Fetch all data in parallel
-    const [
-      // eslint-disable-next-line no-unused-vars
-      transactionsResponse,
-      transactionItemsResponse,
-      historyResponse,
-      historyItemsResponse
-    ] = await Promise.all([
-      axios.get("http://localhost:3005/transactions"),
-      axios.get("http://localhost:3005/transactions-items"), // Changed from transactions-history-items
-      axios.get("http://localhost:3005/transactions-history"),
-      axios.get("http://localhost:3005/transactions-history-items")
-    ]);
+      try {
+        const user = this.user || { NamaWarung: "Guest" };
+        const [
+          // eslint-disable-next-line no-unused-vars
+          transactionsResponse,
+          transactionItemsResponse,
+          historyResponse,
+          historyItemsResponse
+        ] = await Promise.all([
+          axios.get("http://localhost:3005/transactions"),
+          axios.get("http://localhost:3005/transactions-items"),
+          axios.get("http://localhost:3005/transactions-history"),
+          axios.get("http://localhost:3005/transactions-history-items")
+        ]);
 
-    // Count regular transactions where user is the pedagang
-    const transactionItemsForPedagang = transactionItemsResponse.data.filter(
-      item => item.pedagang === this.user.NamaWarung
-    );
-    
-    // Get unique transaction IDs where user is pedagang
-    const uniqueTransactionIds = [...new Set(
-      transactionItemsForPedagang.map(item => item.transactions_id)
-    )];
-    this.transactionCount = uniqueTransactionIds.length;
+        const transactionItemsForPedagang = transactionItemsResponse.data.filter(
+          item => item.pedagang === user.NamaWarung
+        );
+        
+        const uniqueTransactionIds = [...new Set(
+          transactionItemsForPedagang.map(item => item.transactions_id)
+        )];
+        this.transactionCount = uniqueTransactionIds.length;
 
-    // Count Kasbon transactions where user is the pedagang
-    const kasbonTransactions = historyResponse.data.filter(
-      transaction => transaction.description === "Kasbon"
-    );
-    
-    const kasbonItemsForPedagang = historyItemsResponse.data.filter(
-      item => item.pedagang === this.user.NamaWarung && 
-             kasbonTransactions.some(t => t.id === item.transaction_id)
-    );
-    
-    // Get unique Kasbon transaction IDs where user is pedagang
-    const uniqueKasbonIds = [...new Set(
-      kasbonItemsForPedagang.map(item => item.transaction_id)
-    )];
-    this.kasbonCount = uniqueKasbonIds.length;
-
-  } catch (error) {
-    console.error("Error fetching transactions:", error);
-  }
-},
-  
-
+        const kasbonTransactions = historyResponse.data.filter(
+          transaction => transaction.description === "Kasbon"
+        );
+        
+        const kasbonItemsForPedagang = historyItemsResponse.data.filter(
+          item => item.pedagang === user.NamaWarung && 
+                kasbonTransactions.some(t => t.id === item.transaction_id)
+        );
+        
+        const uniqueKasbonIds = [...new Set(
+          kasbonItemsForPedagang.map(item => item.transaction_id)
+        )];
+        this.kasbonCount = uniqueKasbonIds.length;
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        this.transactionCount = 0;
+        this.kasbonCount = 0;
+      }
+    },
   },
   mounted() {
-    if (this.user) {
-      this.fetchCartItems();
-      this.fetchOrders();
-      this.fetchTransactions();
+    if (this.user || this.isGuest) {
+      const userId = this.user ? this.user.id : localStorage.getItem("guestId");
+      this.fetchCartItems(userId);
+      this.fetchOrders(userId);
+      this.fetchTransactions(userId);
     }
   },
 };

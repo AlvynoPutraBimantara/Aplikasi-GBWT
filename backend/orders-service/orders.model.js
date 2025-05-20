@@ -10,6 +10,7 @@ const Orders = sequelize.define(
       type: DataTypes.STRING(255),
       primaryKey: true,
       allowNull: false,
+      field: 'id' // Explicitly set field name
     },
     user: {
       type: DataTypes.STRING(255),
@@ -94,9 +95,9 @@ const OrderItems = sequelize.define(
       allowNull: false,
     },
     quantity: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-    },
+  type: DataTypes.INTEGER, // Changed from STRING
+  allowNull: false,
+},
   },
   {
     tableName: "order_items",

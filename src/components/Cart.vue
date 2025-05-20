@@ -198,70 +198,67 @@ export default {
     }
   },
   methods: {
-async fetchCart() {
-  try {
-    const identifier = this.user ? this.user.id : this.guestId;
-    if (!identifier) {
-      console.error("No user or guest ID available");
-      this.cart = [];
-      return;
-    }
-
-    // For guest users, prepend 'Guest_' to the ID
-    const cartUser = this.user ? this.user.id : `Guest_${this.guestId}`;
-    
-    const response = await axios.get(`http://localhost:3004/cart`, {
-      params: { user: cartUser }
-    });
-
-    // Always treat the response as an array
-    const cartItems = Array.isArray(response.data) ? response.data : [];
-    
-    this.cart = cartItems.map(item => ({
-      ...item,
-      name: item.name || 'Unknown Product',
-      price: item.price || 0,
-      pedagang: item.pedagang || 'Unknown',
-      stock: item.stock || 0
-    }));
-
-  } catch (error) {
-    console.error("Error fetching cart:", error);
-    // Set empty cart on error
-    this.cart = [];
-  }
-},
-
-// Update fetchUser method
-async fetchUser() {
-  try {
-    const userInfo = JSON.parse(localStorage.getItem("user-info"));
-    if (userInfo) {
-      // Verify user exists in database
+    async fetchCart() {
       try {
-        const response = await axios.get(`http://localhost:3001/user/${userInfo.id}`);
-        this.user = response.data;
+        const identifier = this.user ? this.user.id : this.guestId;
+        if (!identifier) {
+          console.error("No user or guest ID available");
+          this.cart = [];
+          return;
+        }
+
+        // For guest users, prepend 'Guest_' to the ID
+        const cartUser = this.user ? this.user.id : `Guest_${this.guestId}`;
+        
+        const response = await axios.get(`http://localhost:3004/cart`, {
+          params: { user: cartUser }
+        });
+
+        // Always treat the response as an array
+        const cartItems = Array.isArray(response.data) ? response.data : [];
+        
+        this.cart = cartItems.map(item => ({
+          ...item,
+          name: item.name || 'Unknown Product',
+          price: item.price || 0,
+          pedagang: item.pedagang || 'Unknown',
+          stock: item.stock || 0
+        }));
+
       } catch (error) {
-        console.error("User not found in database:", error);
-        localStorage.removeItem("user-info");
-        this.user = null;
+        console.error("Error fetching cart:", error);
+        // Set empty cart on error
+        this.cart = [];
       }
-    }
-    
-    if (!this.user) {
-      this.guestId = localStorage.getItem("guestId") || `guest_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem("guestId", this.guestId);
-    }
-  } catch (error) {
-    console.error("Error fetching user profile:", error);
-  }
-},
+    },
+
+    async fetchUser() {
+      try {
+        const userInfo = JSON.parse(localStorage.getItem("user-info"));
+        if (userInfo) {
+          // Verify user exists in database
+          try {
+            const response = await axios.get(`http://localhost:3001/user/${userInfo.id}`);
+            this.user = response.data;
+          } catch (error) {
+            console.error("User not found in database:", error);
+            localStorage.removeItem("user-info");
+            this.user = null;
+          }
+        }
+        
+        if (!this.user) {
+          this.guestId = localStorage.getItem("guestId") || `guest_${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem("guestId", this.guestId);
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+      }
+    },
 
     groupTotalPrice(group) {
       return group.reduce((total, item) => total + item.price * item.quantity, 0);
     },
-    
-
 
     validateQuantity(item) {
       if (item.quantity < 1 || isNaN(item.quantity)) {
@@ -326,122 +323,116 @@ async fetchUser() {
     },
 
     async ensureCartExists() {
-  const identifier = this.user ? this.user.id : this.guestId;  // Changed from Nama to id
-  try {
-    const response = await axios.get(`http://localhost:3004/cart`, {
-      params: { user: identifier }
-    });
-    return response.data && response.data.length > 0;
-  } catch (error) {
-    console.error("Error checking cart:", error);
-    return false;
-  }
-},
-
-async clearCart() {
-  const identifier = this.user ? this.user.id : this.guestId;  // Changed from Nama to id
-  try {
-    await axios.delete(`http://localhost:3004/cart`, {
-      params: { user: identifier }
-    });
-    this.cart = [];
-  } catch (error) {
-    console.error("Error clearing cart:", error);
-    this.showWarning("Gagal mengosongkan keranjang");
-  }
-},
-
-    async generateInvoice(orderId) {
+      const identifier = this.user ? this.user.id : this.guestId;
       try {
-        console.log(`Starting invoice generation for order ${orderId}`);
-        
-        let order;
-        try {
-          const response = await axios.get(`http://localhost:3003/orders/${orderId}`, {
-            params: {
-              include_items: true
-            }
-          });
-          order = response.data;
-        } catch (firstError) {
-          if (firstError.response?.status === 404) {
-            try {
-              const fallbackResponse = await axios.get(
-                `http://localhost:3003/orders/by-orderid/${orderId}`
-              );
-              order = fallbackResponse.data;
-            } catch (fallbackError) {
-              throw new Error(`Order ${orderId} not found in either ID field`);
-            }
-          } else {
-            throw firstError;
-          }
-        }
-
-        if (!order) {
-          throw new Error(`Order data not found for ID ${orderId}`);
-        }
-
-        if (!order.order_items) {
-          const itemsResponse = await axios.get(
-            `http://localhost:3003/order-items?order_id=${order.id}`
-          );
-          order.order_items = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
-        } else if (!Array.isArray(order.order_items)) {
-          order.order_items = [order.order_items];
-        }
-
-        if (order.order_items.length === 0) {
-          throw new Error(`No items found for order ${orderId}`);
-        }
-
-        console.log(`Fetched order data with ${order.order_items.length} items`, order);
-
-        const doc = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: "a4"
+        const response = await axios.get(`http://localhost:3004/cart`, {
+          params: { user: identifier }
         });
+        return response.data && response.data.length > 0;
+      } catch (error) {
+        console.error("Error checking cart:", error);
+        return false;
+      }
+    },
 
-        doc.setProperties({
-          title: `Invoice ${order.id}`,
-          subject: 'Purchase Invoice',
-          author: 'GBWT',
-          keywords: 'invoice, purchase',
-          creator: 'GBWT'
+    async clearCart() {
+      const identifier = this.user ? this.user.id : this.guestId;
+      try {
+        await axios.delete(`http://localhost:3004/cart`, {
+          params: { user: identifier }
         });
+        this.cart = [];
+      } catch (error) {
+        console.error("Error clearing cart:", error);
+        this.showWarning("Gagal mengosongkan keranjang");
+      }
+    },
 
-        doc.setFontSize(20);
-        doc.setTextColor(40, 40, 40);
-        const title = "STRUK PEMESANAN";
-        doc.text(title, 105, 20, { align: 'center' });
-        
-        doc.setDrawColor(200, 200, 200);
-        doc.line(15, 25, 195, 25);
+async generateInvoice(orderId) {
+  if (!orderId) {
+    throw new Error('Valid order ID is required for invoice generation');
+  }
 
-        doc.setFontSize(10);
-        doc.text(`Kode pemesanan: ${order.id}`, 15, 35);
-        doc.text(`Tanggal: ${new Date(order.created_at).toLocaleDateString('id-ID')}`, 15, 40);
-        doc.text(`Nama Pelanggan: ${order.pemesan}`, 15, 45);
-        doc.text(`Alamat: ${order.alamat}`, 15, 50);
-        
-        const headers = [
-          [
-            { content: "No", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
-            { content: "Nama Produk", styles: { halign: 'left', fillColor: [41, 128, 185], textColor: 255 } },
-            { content: "Harga", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } },
-            { content: "Qty", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
-            { content: "Subtotal", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } }
-          ]
-        ];
-        
-        const data = order.order_items.map((item, index) => [
-          { content: (index + 1).toString(), styles: { halign: 'center' } },
-          { content: item.name, styles: { halign: 'left' } },
-          { content: this.formatPrice(item.price), styles: { halign: 'right' } },
-          { content: item.quantity.toString(), styles: { halign: 'center' } },
-          { content: this.formatPrice(item.price * item.quantity), styles: { halign: 'right' } }
-        ]);
+  try {
+    console.log(`Starting invoice generation for order ${orderId}`);
+    
+    // First try to get order with included items
+    let orderResponse;
+    try {
+      orderResponse = await axios.get(`http://localhost:3003/orders/${orderId}`, {
+        params: { include_items: true }
+      });
+    } catch (error) {
+      // If first attempt fails, try alternative endpoint
+      if (error.response?.status === 404) {
+        orderResponse = await axios.get(`http://localhost:3003/orders/by-orderid/${orderId}`);
+      } else {
+        throw error;
+      }
+    }
+
+    const order = orderResponse.data;
+    if (!order) {
+      throw new Error(`Order data not found for ID ${orderId}`);
+    }
+
+    // Ensure order_items is an array
+    if (!order.order_items) {
+      const itemsResponse = await axios.get(
+        `http://localhost:3003/order-items?order_id=${orderId}`
+      );
+      order.order_items = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
+    }
+
+    if (order.order_items.length === 0) {
+      throw new Error(`No items found for order ${orderId}`);
+    }
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4"
+    });
+
+    doc.setProperties({
+      title: `Invoice ${order.id}`,
+      subject: 'Purchase Invoice',
+      author: 'GBWT',
+      keywords: 'invoice, purchase',
+      creator: 'GBWT'
+    });
+
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    const title = "STRUK PEMESANAN";
+    doc.text(title, 105, 20, { align: 'center' });
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 25, 195, 25);
+
+    doc.setFontSize(10);
+    doc.text(`Kode pemesanan: ${order.id}`, 15, 35);
+    doc.text(`Tanggal: ${new Date(order.created_at).toLocaleDateString('id-ID')}`, 15, 40);
+    doc.text(`Nama Pelanggan: ${order.pemesan}`, 15, 45);
+    doc.text(`Alamat: ${order.alamat}`, 15, 50);
+    
+    const headers = [
+      [
+        { content: "No", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
+        { content: "Nama Produk", styles: { halign: 'left', fillColor: [41, 128, 185], textColor: 255 } },
+        { content: "Harga", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } },
+        { content: "Qty", styles: { halign: 'center', fillColor: [41, 128, 185], textColor: 255 } },
+        { content: "Subtotal", styles: { halign: 'right', fillColor: [41, 128, 185], textColor: 255 } }
+      ]
+    ];
+    
+    const data = order.order_items.map((item, index) => [
+      { content: (index + 1).toString(), styles: { halign: 'center' } },
+      { content: item.name, styles: { halign: 'left' } },
+      { content: this.formatPrice(item.price), styles: { halign: 'right' } },
+      { content: item.quantity.toString(), styles: { halign: 'center' } },
+      { content: this.formatPrice(item.price * item.quantity), styles: { halign: 'right' } }
+    ]);
 
         autoTable(doc, {
           head: headers,
@@ -460,95 +451,95 @@ async clearCart() {
             3: { cellWidth: 15 },
             4: { cellWidth: 30 }
           },
-          didDrawPage: (data) => {
-            doc.setFontSize(8);
-            doc.setTextColor(100);
-            
-            const options = {
-              timeZone: 'Asia/Jakarta',
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            };
-            
-            const jakartaTime = new Date().toLocaleString('id-ID', options);
-            doc.text(
-              `Dipesan pada - ${jakartaTime}`,
-              data.settings.margin.left,
-              doc.internal.pageSize.height - 10
-            );
-          }
-        });
-
-        const finalY = doc.lastAutoTable.finalY + 10;
-        autoTable(doc, {
-          body: [
-            [
-              { 
-                content: 'Total Pembayaran:', 
-                styles: { halign: 'right', fontStyle: 'bold' } 
-              },
-              { 
-                content: this.formatPrice(order.total),
-                styles: { halign: 'right', fontStyle: 'bold' } 
-              }
-            ]
-          ],
-          startY: finalY,
-          margin: { left: 80, right: 15 },
-          tableWidth: 110,
-          columnStyles: {
-            0: { cellWidth: 70 },
-            1: { cellWidth: 40 }
-          },
-          styles: {
-            cellPadding: 3,
-            fontSize: 12
-          }
-        });
-
+      didDrawPage: (data) => {
         doc.setFontSize(8);
-        doc.text('Catatan:', 15, finalY + 10);
-        doc.text(order.catatan || '-', 15, finalY + 15);
-
-        const pdfData = doc.output("datauristring").split(",")[1];
-        const filename = `invoice_${order.id}.pdf`;
+        doc.setTextColor(100);
         
-        console.log(`Attempting to save invoice for order ${orderId}`);
-        
-        const saveResponse = await axios.post("http://localhost:3003/invoices", {
-          order_id: order.id,
-          filename,
-          pdfData
-        });
-        
-        if (!saveResponse.data || !saveResponse.data.invoiceId) {
-          throw new Error('Failed to save invoice to server');
-        }
-        
-        console.log(`Successfully generated and saved invoice for order ${orderId}`);
-        
-        return { 
-          success: true, 
-          orderId: order.id,
-          invoiceUrl: saveResponse.data.invoiceUrl
-        };
-      } catch (error) {
-        console.error(`Error generating invoice for order ${orderId}:`, error);
-        
-        const errorInfo = {
-          message: error.response 
-            ? error.response.data?.error || error.response.statusText || 'Unknown server error'
-            : error.message || 'Unknown error',
-          retry: true
+        const options = {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
         };
         
-        throw { orderId, error: errorInfo };
+        const jakartaTime = new Date().toLocaleString('id-ID', options);
+        doc.text(
+          `Dipesan pada - ${jakartaTime}`,
+          data.settings.margin.left,
+          doc.internal.pageSize.height - 10
+        );
       }
-    },
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+    autoTable(doc, {
+      body: [
+        [
+          { 
+            content: 'Total Pembayaran:', 
+            styles: { halign: 'right', fontStyle: 'bold' } 
+          },
+          { 
+            content: this.formatPrice(order.total),
+            styles: { halign: 'right', fontStyle: 'bold' } 
+          }
+        ]
+      ],
+      startY: finalY,
+      margin: { left: 80, right: 15 },
+      tableWidth: 110,
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 40 }
+      },
+      styles: {
+        cellPadding: 3,
+        fontSize: 12
+      }
+    });
+
+    doc.setFontSize(8);
+    doc.text('Catatan:', 15, finalY + 10);
+    doc.text(order.catatan || '-', 15, finalY + 15);
+
+    // Get PDF as base64 string
+    const pdfOutput = doc.output('datauristring');
+    const pdfBase64 = pdfOutput.split(',')[1];
+    const filename = `invoice_${order.id}.pdf`;
+    
+    console.log(`Attempting to save invoice for order ${orderId}`);
+    
+    const saveResponse = await axios.post("http://localhost:3003/invoices", {
+      order_id: order.id,
+      filename,
+      pdfData: pdfBase64 // Send as base64
+    });
+    
+    if (!saveResponse.data || !saveResponse.data.invoice_url) {
+      throw new Error('Failed to save invoice to server');
+    }
+    
+    console.log(`Successfully generated and saved invoice for order ${orderId}`);
+    
+    return { 
+      success: true, 
+      orderId: order.id,
+      invoiceUrl: saveResponse.data.invoice_url
+    };
+  } catch (error) {
+    console.error(`Error generating invoice for order ${orderId}:`, error);
+    throw { 
+      orderId,
+      error: {
+        message: error.message,
+        retry: true
+      }
+    };
+  }
+},
 
     async retryGenerateInvoice(orderId) {
       try {
@@ -587,188 +578,196 @@ async clearCart() {
     },
 
     async checkoutPedagang(pedagang) {
-      if (!this.validatePedagangInputs(pedagang)) {
-        return;
+  if (!this.validatePedagangInputs(pedagang)) {
+    return;
+  }
+
+  this.isProcessingCheckout = true;
+  this.invoiceError = null;
+
+  const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+  const orders = [];
+  const orderId = generateRandomId();
+  const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const cartUser = this.user ? this.user.id : this.guestId;
+
+  this.cart
+    .filter(item => item.pedagang === pedagang)
+    .forEach((item) => {
+      orders.push({
+        temporaryId: orderId,
+        orderid: orderId,
+        itemid: item.itemid,
+        name: item.name,
+        pedagang: item.pedagang,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity,
+        user: cartUser,
+        Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+        pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+        catatan: this.pedagangNotes[pedagang],
+        timestamp,
+      });
+    });
+
+  try {
+    // 1. Create order for this pedagang
+    const createResponse = await axios.post("http://localhost:3003/orders", { 
+      orders,
+      clearCart: true
+    });
+    
+    // Verify response structure
+    if (!createResponse.data?.orders?.[0]?.id) {
+      throw new Error('Invalid order creation response');
+    }
+    
+    const createdOrderId = createResponse.data.orders[0].id;
+
+    // 2. Update local cart immediately after successful order creation
+    this.cart = this.cart.filter(item => item.pedagang !== pedagang);
+
+    // 3. Generate invoice using the confirmed order ID
+    const invoiceResult = await this.generateInvoice(createdOrderId);
+    
+    if (!invoiceResult.success) {
+      throw invoiceResult.error;
+    }
+
+    alert(`Checkout berhasil untuk ${pedagang}! Invoice telah dibuat.`);
+  } catch (error) {
+    console.error(`Error during checkout for ${pedagang}:`, error);
+    
+    if (error.response) {
+      if (error.response.status === 400) {
+        this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
+      } else if (error.response.status === 500) {
+        this.showWarning("Server error. Silakan coba lagi nanti.");
       }
+    } else {
+      this.showWarning(`Checkout gagal untuk ${pedagang}. Silakan cek koneksi internet Anda dan coba lagi.`);
+    }
+    
+    // Refresh cart data in case of error
+    await this.fetchCart();
+  } finally {
+    this.isProcessingCheckout = false;
+  }
+},
 
-      this.isProcessingCheckout = true;
-      this.invoiceError = null;
+async checkoutAll() {
+  if (!this.user && !this.guestId) {
+    alert("Anda harus login atau melanjutkan sebagai tamu.");
+    return;
+  }
 
-      const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
-      const orders = [];
-      const orderId = generateRandomId();
-      const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+  // Validate all pedagang inputs
+  for (const pedagang in this.groupedCart) {
+    if (!this.validatePedagangInputs(pedagang)) {
+      return;
+    }
+  }
 
-      this.cart
-        .filter(item => item.pedagang === pedagang)
-        .forEach((item) => {
-         orders.push({
-  temporaryId: orderId,
-  orderid: orderId,
-  itemid: item.itemid,
-  name: item.name,
-  pedagang: item.pedagang,
-  price: item.price,
-  quantity: item.quantity,
-  total: item.price * item.quantity,
-  user: this.user ? this.user.id : this.guestId,  // Changed from Nama to id
-  Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-  pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
-  catatan: this.pedagangNotes[pedagang],
-  timestamp,
-});
-        });
+  this.isProcessingCheckout = true;
+  this.invoiceError = null;
 
-      try {
-        // 1. Create order for this pedagang
-        const createResponse = await axios.post("http://localhost:3003/orders", { orders });
-        const createdOrders = createResponse.data.orders || [];
+  const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+  const allOrders = [];
+  const orderIds = {};
+  const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const cartUser = this.user ? this.user.id : this.guestId;
 
-        // 2. Remove these items from cart
-        const itemIdsToRemove = this.cart
-          .filter(item => item.pedagang === pedagang)
-          .map(item => item.id);
-        
-        await Promise.all(
-          itemIdsToRemove.map(id => axios.delete(`http://localhost:3004/cart/${id}`))
+  // Prepare orders for each pedagang
+  for (const pedagang in this.groupedCart) {
+    orderIds[pedagang] = generateRandomId();
+    
+    this.groupedCart[pedagang].forEach((item) => {
+      allOrders.push({
+        temporaryId: orderIds[pedagang],
+        orderid: orderIds[pedagang],
+        itemid: item.itemid,
+        name: item.name,
+        pedagang: item.pedagang,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity,
+        user: cartUser,
+        Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+        pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+        catatan: this.pedagangNotes[pedagang],
+        timestamp,
+      });
+    });
+  }
+
+  try {
+    // 1. Create all orders
+    const createResponse = await axios.post("http://localhost:3003/orders", { 
+      orders: allOrders,
+      clearCart: true // Flag to indicate cart should be cleared
+    });
+    
+    // Verify response contains valid order IDs
+    const createdOrders = (createResponse.data?.orders || []).filter(o => o?.id);
+    if (createdOrders.length === 0) {
+      throw new Error('No valid orders were created');
+    }
+
+    // 2. Clear local cart immediately after successful order creation
+    this.cart = [];
+    
+    // 3. Generate invoices for each unique order
+    const invoiceResults = await Promise.allSettled(
+      createdOrders.map(order => 
+        this.generateInvoice(order.id)
+          .then(result => {
+            order.invoiceUrl = result.invoiceUrl;
+            return result;
+          })
+          .catch(e => ({ success: false, orderId: order.id, error: e }))
+     )
         );
 
-        // 3. Update local cart
-        this.cart = this.cart.filter(item => item.pedagang !== pedagang);
+    // Check for failed invoices
+    const failedInvoices = invoiceResults
+      .filter(result => 
+        result.status === 'rejected' || 
+        (result.status === 'fulfilled' && !result.value.success)
+      )
+      .reduce((acc, result) => {
+        const error = result.status === 'rejected' ? result.reason : result.value.error;
+        acc[error.orderId] = error.error;
+        return acc;
+      }, {});
 
-        // 4. Generate invoice for this order
-        if (createdOrders.length > 0) {
-          const invoiceResult = await this.generateInvoice(createdOrders[0].id);
-          
-          if (!invoiceResult.success) {
-            throw invoiceResult.error;
-          }
-        }
-
-        alert(`Checkout berhasil untuk ${pedagang}! Invoice telah dibuat.`);
-      } catch (error) {
-        console.error(`Error during checkout for ${pedagang}:`, error);
-        
-        if (error.response) {
-          if (error.response.status === 400) {
-            this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
-          } else if (error.response.status === 500) {
-            this.showWarning("Server error. Silakan coba lagi nanti.");
-          }
-        } else {
-          this.showWarning(`Checkout gagal untuk ${pedagang}. Silakan cek koneksi internet Anda dan coba lagi.`);
-        }
-      } finally {
-        this.isProcessingCheckout = false;
+    if (Object.keys(failedInvoices).length > 0) {
+      this.invoiceError = failedInvoices;
+      console.warn('Some invoices failed to generate:', failedInvoices);
+      this.showWarning("Pesanan berhasil dibuat tetapi beberapa invoice gagal digenerate. Silakan coba generate ulang.");
+    } else {
+      alert("Checkout berhasil! Invoice telah dibuat.");
+      this.$router.push({ name: "Orders" });
+    }
+  } catch (error) {
+    console.error("Error during checkout:", error);
+    
+    if (error.response) {
+      if (error.response.status === 400) {
+        this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
+      } else if (error.response.status === 500) {
+        this.showWarning("Server error. Silakan coba lagi nanti.");
       }
-    },
-
-    async checkoutAll() {
-      if (!this.user && !this.guestId) {
-        alert("Anda harus login atau melanjutkan sebagai tamu.");
-        return;
-      }
-
-      // Validate all pedagang inputs
-      for (const pedagang in this.groupedCart) {
-        if (!this.validatePedagangInputs(pedagang)) {
-          return;
-        }
-      }
-
-      this.isProcessingCheckout = true;
-      this.invoiceError = null;
-
-      const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
-      const allOrders = [];
-      const orderIds = {};
-      const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-
-      // Prepare orders for each pedagang
-      for (const pedagang in this.groupedCart) {
-        orderIds[pedagang] = generateRandomId();
-        
-        this.groupedCart[pedagang].forEach((item) => {
-          allOrders.push({
-  temporaryId: orderIds[pedagang],
-  orderid: orderIds[pedagang],
-  itemid: item.itemid,
-  name: item.name,
-  pedagang: item.pedagang,
-  price: item.price,
-  quantity: item.quantity,
-  total: item.price * item.quantity,
-  user: this.user ? this.user.id : this.guestId,  // Changed from Nama to id
-  Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-  pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
-  catatan: this.pedagangNotes[pedagang],
-  timestamp,
-});
-        });
-      }
-
-      try {
-        // 1. Create all orders
-        const createResponse = await axios.post("http://localhost:3003/orders", { orders: allOrders });
-        const createdOrders = createResponse.data.orders || [];
-
-        // 2. Clear cart
-        await axios.delete(`http://localhost:3004/cart?user=${this.user ? this.user.Nama : this.guestId}`);
-
-        // 3. Generate invoices for each unique order
-        const invoiceResults = await Promise.allSettled(
-          createdOrders.map(order => 
-            this.generateInvoice(order.id)
-              .then(result => {
-                order.invoiceUrl = result.invoiceUrl;
-                return result;
-              })
-              .catch(e => ({ success: false, orderId: order.id, error: e }))
-        ));
-
-        // Check for failed invoices
-        const failedInvoices = invoiceResults
-          .filter(result => 
-            result.status === 'rejected' || 
-            (result.status === 'fulfilled' && !result.value.success)
-          )
-          .reduce((acc, result) => {
-            const error = result.status === 'rejected' ? result.reason : result.value.error;
-            acc[error.orderId] = error.error;
-            return acc;
-          }, {});
-
-        if (Object.keys(failedInvoices).length > 0) {
-          this.invoiceError = failedInvoices;
-          console.warn('Some invoices failed to generate:', failedInvoices);
-        }
-        
-        // 4. Clear local cart and redirect if all invoices succeeded
-        if (!this.invoiceError) {
-          this.cart = [];
-          alert("Checkout berhasil! Invoice telah dibuat.");
-          this.$router.push({ name: "Orders" });
-        } else {
-          // Partial success - orders created but some invoices failed
-          this.cart = [];
-          this.showWarning("Pesanan berhasil dibuat tetapi beberapa invoice gagal digenerate. Silakan coba generate ulang.");
-        }
-      } catch (error) {
-        console.error("Error during checkout:", error);
-        
-        if (error.response) {
-          if (error.response.status === 400) {
-            this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
-          } else if (error.response.status === 500) {
-            this.showWarning("Server error. Silakan coba lagi nanti.");
-          }
-        } else {
-          this.showWarning("Checkout gagal. Silakan cek koneksi internet Anda dan coba lagi.");
-        }
-      } finally {
-        this.isProcessingCheckout = false;
-      }
-    },
+    } else {
+      this.showWarning("Checkout gagal. Silakan cek koneksi internet Anda dan coba lagi.");
+    }
+    
+    // Refresh cart data in case of error
+    await this.fetchCart();
+  } finally {
+    this.isProcessingCheckout = false;
+  }
+},
 
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
@@ -784,16 +783,25 @@ async clearCart() {
       }, 3000);
     },
   },
-  async mounted() {
-    await this.fetchUser();
+ async mounted() {
+  await this.fetchUser();
+
+  // Check if we're coming back from a successful checkout
+  const fromCheckout = this.$route.query.fromCheckout;
+  if (fromCheckout) {
+    // Force refresh cart data
+    await this.clearCart();
+  } else {
     await this.fetchCart();
-    
-    // Add this to handle cases where cart might be stale
-    const cartExists = await this.ensureCartExists();
-    if (!cartExists && this.cart.length > 0) {
-      this.cart = [];
-    }
-  },
+  }
+
+  // Add this to handle cases where cart might be stale
+  const cartExists = await this.ensureCartExists();
+  if (!cartExists && this.cart.length > 0) {
+    this.cart = [];
+  }
+},
+
 };
 </script>
 

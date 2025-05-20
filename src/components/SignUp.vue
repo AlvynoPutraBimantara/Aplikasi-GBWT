@@ -7,7 +7,6 @@
         <input type="text" v-model="Telp" placeholder="Masukan No.telp (0812345678910)" />
         <input type="text" v-model="Alamat" placeholder="Masukan Alamat" />
         
-        <!-- Password Input with Toggle -->
         <div class="password-input">
           <input
             :type="showPassword ? 'text' : 'password'"
@@ -18,8 +17,6 @@
             <font-awesome-icon :icon="showPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
           </span>
         </div>
-
-        <!-- Confirm Password Input with Toggle -->
         <div class="password-input">
           <input
             :type="showConfirmPassword ? 'text' : 'password'"
@@ -89,12 +86,13 @@ export default {
       }
 
       try {
-        const result = await axios.post("http://localhost:3001/user", {
+        const result = await axios.post("http://localhost:3000/user", {
           Nama: this.Nama,
           Telp: formattedTelp,
           Alamat: this.Alamat,
           Password: this.Password,
         });
+        
         if (result.status === 201) {
           const userData = result.data;
           localStorage.setItem("user-info", JSON.stringify(userData));
@@ -103,7 +101,11 @@ export default {
         }
       } catch (error) {
         console.error("Error during sign up:", error);
-        alert("Terjadi kesalahan saat mendaftar. Silakan coba lagi.");
+        if (error.response && error.response.data && error.response.data.message) {
+          alert(error.response.data.message);
+        } else {
+          alert("Terjadi kesalahan saat mendaftar. Silakan coba lagi.");
+        }
       }
     },
   },

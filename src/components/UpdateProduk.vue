@@ -4,12 +4,13 @@
     <div class="update-container">
       <!-- Preview or Existing Product Image -->
       <div v-if="previewImage || DataProduk.imageUrl" class="image-container">
-        <img
-          :src="previewImage || DataProduk.imageUrl"
-          alt="Product Image"
-          class="product-image"
-        />
-      </div>
+  <img
+    :src="previewImage || DataProduk.imageUrl"
+    @error="handleImageError"
+    alt="Product Image"
+    class="product-image"
+  />
+</div>
       <!-- Cancel Preview Button -->
       <button
         v-if="previewImage"
@@ -199,14 +200,14 @@ export default {
         console.error("Error fetching categories:", error);
       }
     },
-    async fetchWarung() {
-      try {
-        const response = await axios.get("http://localhost:3002/users");
-        this.warungList = response.data;
-      } catch (error) {
-        console.error("Error fetching warung list:", error.message);
-      }
-    },
+async fetchWarung() {
+  try {
+    const response = await axios.get("http://localhost:3001/users");
+    this.warungList = response.data.filter(user => user.NamaWarung); // Only include users with NamaWarung
+  } catch (error) {
+    console.error("Error fetching warung list:", error.message);
+  }
+},
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
@@ -291,36 +292,40 @@ export default {
       }
     },
   },
-  async mounted() {
-    const productId = this.$route.params.id;
-    try {
-      const response = await axios.get(
-        `http://localhost:3002/products/${productId}`
-      );
-      this.DataProduk = response.data;
-      
-      // Initialize formatted price with proper handling
-      if (this.DataProduk.Harga) {
-        // Convert the DECIMAL value to a string and remove any existing formatting
-        const rawHarga = parseFloat(this.DataProduk.Harga).toString();
-        this.DataProduk.Harga = rawHarga.replace(/\./g, ''); // Store the raw numeric value
-        this.formattedHarga = parseInt(rawHarga).toLocaleString('id-ID');
-      }
-      
-      if (this.DataProduk.Harga_diskon) {
-        const harga = parseFloat(this.DataProduk.Harga);
-        const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
-        if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
-          this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching product data:", error.message);
+async mounted() {
+  const productId = this.$route.params.id;
+  try {
+    const response = await axios.get(
+      `http://localhost:3002/products/${productId}`
+    );
+    this.DataProduk = {
+      ...response.data,
+      imageUrl: response.data.imageUrl 
+        ? response.data.imageUrl 
+        : `http://localhost:3002/images/${response.data.id}`
+    };
+    
+    // Initialize formatted price with proper handling
+    if (this.DataProduk.Harga) {
+      const rawHarga = parseFloat(this.DataProduk.Harga).toString();
+      this.DataProduk.Harga = rawHarga.replace(/\./g, '');
+      this.formattedHarga = parseInt(rawHarga).toLocaleString('id-ID');
     }
+    
+    if (this.DataProduk.Harga_diskon) {
+      const harga = parseFloat(this.DataProduk.Harga);
+      const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
+      if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
+        this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching product data:", error.message);
+  }
 
-    await this.fetchKategori();
-    await this.fetchWarung();
-  },
+  await this.fetchKategori();
+  await this.fetchWarung();
+},
 };
 </script>
 

@@ -1,132 +1,343 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const pool = require('./db');
-const { Sequelize } = require('sequelize');
-
+// Import dependencies
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const { Op } = require("sequelize");
+const { Produk, ProdukImages } = require("./produk.model");
 const app = express();
-const port = process.env.PORT || 3002;
-
-// Database connection check
-const checkDatabaseConnection = async () => {
-  try {
-    await pool.query('SELECT 1');
-    console.log('Database connection established');
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    process.exit(1);
-  }
-};
 
 // Middleware
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
-}));
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Multer configuration (used for file uploads)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
-  }
-});
+// Multer configuration
+const upload = multer(); // Use memory storage to avoid saving files locally
 
-// Add file upload endpoint to demonstrate usage
-app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-  res.json({
-    message: 'File uploaded successfully',
-    file: req.file
-  });
-});
+// Helper function for warnings
+const logWarning = (message) => {
+  console.warn(`[WARNING]: ${message}`);
+};
 
-// Initialize Sequelize and test connection
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    dialect: 'mysql',
-    logging: false
-  }
-);
+// Helper function to generate random ID
+const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
 
-// Test Sequelize connection
-sequelize.authenticate()
-  .then(() => console.log('Sequelize connection established'))
-  .catch(err => console.error('Sequelize connection failed:', err));
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', service: 'produk-service' });
-});
-// API Routes
-const router = express.Router();
-
-// Product routes
-router.get('/products', async (req, res) => {
+// Database synchronization
+(async () => {
   try {
-    const [products] = await pool.query('SELECT * FROM dataproduk');
-    res.json(products.map(p => ({
-      ...p,
-      imageUrl: p.imageUrl ? `${process.env.SERVICE_URL}${p.imageUrl}` : null
-    })));
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Sync both models
+    await Produk.sync({ alter: true });
+    await ProdukImages.sync({ alter: true });
+    console.log('Database models synchronized');
+  } catch (syncError) {
+    console.error('Error synchronizing models:', syncError);
   }
-});
+})();
 
-router.get('/products/:id', async (req, res) => {
+// CRUD Routes
+
+// Get all products
+app.get("/products", async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM dataproduk WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    // Verify tables exist with raw query
+    const [tables] = await Produk.sequelize.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = '${process.env.DB_NAME || "gbwt"}'
+      AND table_name IN ('dataproduk', 'productimages')
+    `);
     
-    const product = rows[0];
-    if (product.imageUrl) {
-      product.imageUrl = `${process.env.SERVICE_URL}${product.imageUrl}`;
+    if (tables.length < 2) {
+      throw new Error('Required tables not found in database');
     }
-    res.json(product);
+
+    // Debugging: Verify table structure in development
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const [results] = await Produk.sequelize.query("DESCRIBE dataproduk");
+        console.log("Table structure:", results);
+        
+        const [rawProducts] = await Produk.sequelize.query(`
+          SELECT id, Nama, Harga, Harga_diskon, Kategori, Keterangan, 
+                Pedagang, Stok, imageUrl, created_at, user_id 
+          FROM dataproduk
+          ORDER BY created_at DESC
+          LIMIT 5
+        `);
+        console.log("Raw query results sample:", rawProducts);
+      } catch (debugError) {
+        console.error("Debugging error:", debugError);
+      }
+    }
+
+    const options = {
+      order: [['created_at', 'DESC']],
+      attributes: [
+        'id', 'Nama', 'Harga', 'Harga_diskon', 'Kategori', 
+        'Keterangan', 'Pedagang', 'Stok', 'imageUrl', 'created_at', 'user_id'
+      ],
+      include: [{
+        model: ProdukImages,
+        as: 'images',
+        attributes: ['id', 'mimetype']
+      }]
+    };
+
+    if (req.query.newSince) {
+      options.where = {
+        created_at: {
+          [Op.gte]: new Date(req.query.newSince)
+        }
+      };
+    }
+
+    const products = await Produk.findAll(options);
+
+    const processedProducts = products.map(product => ({
+      ...product.get({ plain: true }),
+      imageUrl: product.imageUrl ? `http://localhost:3002/images/${product.id}` : null,
+      hasImage: product.images && product.images.length > 0
+    }));
+
+    res.json(processedProducts);
   } catch (error) {
-    console.error('Error fetching product:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error fetching products:", error);
+    res.status(500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack
+      } : undefined
+    });
   }
 });
 
-// Image routes
-router.get('/images/:id', async (req, res) => {
+// [Rest of your existing routes remain unchanged...]
+// Get product by ID
+app.get("/products/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM productimages WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Image not found' });
-    
-    const image = rows[0];
-    res.set('Content-Type', image.mimetype);
-    res.send(image.data);
+    const product = await Produk.findByPk(req.params.id, {
+      include: [{
+        model: ProdukImages,
+        as: 'images'
+      }]
+    });
+
+    if (product) {
+      const productData = product.get({ plain: true });
+      // Always set imageUrl if product has images
+      productData.imageUrl = product.images && product.images.length > 0 
+        ? `http://localhost:3002/images/${product.id}`
+        : null;
+      res.json(productData);
+    } else {
+      res.status(404).json({ error: "Product not found" });
+    }
   } catch (error) {
-    console.error('Error fetching image:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error(`Error fetching product by ID (${req.params.id}):`, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Mount router with service prefix
-app.use('/produk-service', router);
+// Create product
+app.post("/products", upload.single("image"), async (req, res) => {
+  // Validate required fields (excluding user_id)
+  const requiredFields = ['Nama', 'Harga', 'Kategori', 'Pedagang'];
+  const missingFields = requiredFields.filter(field => !req.body[field]);
+  
+  if (missingFields.length > 0) {
+    return res.status(400).json({ 
+      success: false,
+      error: "Missing required fields",
+      missingFields 
+    });
+  }
 
-// Error handling middleware
-app.use((err, req, res) => {
-  console.error('Error:', err.stack);
-  res.status(500).json({ error: 'Internal server error' });
+  try {
+    const productId = generateRandomId();
+    const userId = req.body.user_id || null; // Make user_id optional
+
+    // If user_id is provided, verify it exists
+    if (userId) {
+      const [user] = await Produk.sequelize.query(
+        'SELECT id FROM user WHERE id = ? LIMIT 1',
+        { replacements: [userId] }
+      );
+      
+      if (user.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid user_id",
+          message: "User tidak ditemukan"
+        });
+      }
+    }
+
+    await Produk.sequelize.transaction(async (t) => {
+      // Create product
+      await Produk.create({
+        id: productId,
+        Nama: req.body.Nama,
+        Harga: parseFloat(req.body.Harga),
+        Kategori: req.body.Kategori,
+        Keterangan: req.body.Keterangan || null,
+        Pedagang: req.body.Pedagang,
+        Stok: parseInt(req.body.Stok) || 0,
+        imageUrl: req.file ? `/images/${productId}` : null,
+        user_id: userId // Can be null
+      }, { transaction: t });
+
+      // Create image if file was uploaded
+      if (req.file) {
+        await ProdukImages.create({
+          id: productId,
+          filename: req.file.originalname,
+          data: req.file.buffer,
+          mimetype: req.file.mimetype,
+          upload_date: new Date()
+        }, { transaction: t });
+      }
+    });
+
+    res.status(201).json({ 
+      success: true,
+      message: "Product added successfully",
+      productId
+    });
+  } catch (error) {
+    console.error("Error adding product:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to add product",
+      message: process.env.NODE_ENV === 'development' ? error.message : "Terjadi kesalahan server"
+    });
+  }
+});
+
+// Serve image files
+app.get("/images/:id", async (req, res) => {
+  try {
+    const image = await ProdukImages.findByPk(req.params.id);
+    if (image) {
+      res.setHeader("Content-Type", image.mimetype);
+      res.send(image.data);
+    } else {
+      res.status(404).json({ error: "Image not found" });
+    }
+  } catch (error) {
+    console.error(`Error fetching image for product (${req.params.id}):`, error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update product
+app.put("/products/:id", upload.single("image"), async (req, res) => {
+  try {
+    const product = await Produk.findByPk(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const { Nama, Harga, Kategori, Keterangan, Pedagang, Stok, Harga_diskon, user_id } = req.body;
+
+    // Use transaction for atomic updates
+    await Produk.sequelize.transaction(async (t) => {
+      // Update product data
+      await product.update({
+        Nama,
+        Harga,
+        Kategori,
+        Keterangan,
+        Pedagang,
+        Stok,
+        Harga_diskon: Harga_diskon || null,
+        user_id,
+        imageUrl: req.file ? `/images/${req.params.id}` : product.imageUrl
+      }, { transaction: t });
+
+      // Update or create image if file was uploaded
+      if (req.file) {
+        await ProdukImages.upsert({
+          id: req.params.id,
+          filename: req.file.originalname,
+          data: req.file.buffer,
+          mimetype: req.file.mimetype
+        }, { transaction: t });
+      }
+    });
+
+    res.json({ message: "Product updated successfully" });
+  } catch (error) {
+    console.error(`Error updating product (${req.params.id}):`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete product
+app.delete("/products/:id", async (req, res) => {
+  try {
+    const deletedCount = await Produk.destroy({
+      where: { id: req.params.id }
+    });
+    
+    if (deletedCount === 1) {
+      res.json({ message: "Product deleted" });
+    } else {
+      res.status(404).json({ error: "Product not found" });
+    }
+  } catch (error) {
+    logWarning(`Error deleting product (${req.params.id}): ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset discount
+app.put("/products/:id/reset-discount", async (req, res) => {
+  try {
+    const product = await Produk.findByPk(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    await product.update({ Harga_diskon: null });
+    res.json({ message: "Discount reset successfully" });
+  } catch (error) {
+    console.error(`Error resetting discount for product (${req.params.id}):`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get new products
+app.get("/products/new", async (req, res) => {
+  try {
+    const sinceDate = req.query.since || new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    
+    const products = await Produk.findAll({
+      where: {
+        created_at: {
+          [Op.gte]: sinceDate
+        }
+      },
+      order: [['created_at', 'DESC']],
+      include: [{
+        model: ProdukImages,
+        as: 'images',
+        attributes: ['mimetype']
+      }]
+    });
+    
+    const productsWithImageUrls = products.map(product => ({
+      ...product.get({ plain: true }),
+      imageUrl: product.imageUrl ? `http://localhost:3002/images/${product.id}` : null,
+      hasImage: product.images && product.images.length > 0
+    }));
+    
+    res.json(productsWithImageUrls);
+  } catch (error) {
+    console.error("Error fetching new products:", error);
+    res.status(500).json({ error: "Failed to fetch new products" });
+  }
 });
 
 // Start server
-checkDatabaseConnection().then(() => {
-  app.listen(port, () => {
-    console.log(`Produk service running on port ${port}`);
-    console.log(`Service endpoint: http://localhost:${port}/produk-service`);
-  });
+app.listen(3002, () => {
+  console.log("Produk service is running on http://localhost:3002");
 });

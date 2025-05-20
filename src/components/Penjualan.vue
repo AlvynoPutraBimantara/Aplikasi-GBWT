@@ -562,20 +562,33 @@ export default {
       }
     },
     async handleRefundTransaction(transaction) {
-      try {
-        await axios.post(`http://localhost:3005/transactions/${transaction.id}/refund`, {
-          invoice_url: transaction.invoice_url
-        });
-        
-        this.transactions = this.transactions.filter(
-          (t) => t.id !== transaction.id
-        );
-        alert("Pesanan berhasil dikembalikan dan stok diperbarui!");
-      } catch (error) {
-        console.error("Error refunding transaction:", error);
-        alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
+  if (!confirm('Apakah Anda yakin ingin mengembalikan pesanan ini? Stok produk akan dikembalikan.')) {
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      `http://localhost:3005/transactions/${transaction.id}/refund`, 
+      {
+        invoice_url: transaction.invoice_url
       }
-    },
+    );
+    
+    this.transactions = this.transactions.filter(
+      (t) => t.id !== transaction.id
+    );
+    
+    let message = "Pesanan berhasil dikembalikan dan stok diperbarui!";
+    if (response.data.invoiceDeleted) {
+      message += " Invoice terkait telah dihapus.";
+    }
+    
+    alert(message);
+  } catch (error) {
+    console.error("Error refunding transaction:", error);
+    alert("Gagal mengembalikan pesanan. Silakan coba lagi.");
+  }
+},
     async markAsPaid(transactionId) {
       try {
         await axios.put(`http://localhost:3005/transactions-history/${transactionId}/mark-as-paid`);

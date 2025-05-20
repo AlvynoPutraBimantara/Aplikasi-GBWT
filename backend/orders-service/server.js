@@ -1,76 +1,521 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const moment = require('moment-timezone');
-const { Orders, OrderItems, Invoice } = require('./orders.model');
-const { Produk } = require('./produk.model');
-const NodeCache = require('node-cache');
-const sequelize = require('./db');
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const sequelize = require("./db");
 
 const app = express();
-const port = process.env.PORT || 3003;
+const port = 3003;
 
-// Initialize cache with 60 second TTL
-const orderCache = new NodeCache({ stdTTL: 60 });
+app.use(cors());
+app.use(bodyParser.json());
 
-// Middleware
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE']
-}));
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Generate an 8-character random string for ID
+function generateRandomId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
 
-// Service router
-const router = express.Router();
+// Initialize database models with proper relationships
+// Initialize database models with proper relationships
+async function initializeModels() {
+  try {
+    const sequelizeInstance = require('./db');
+    
+    // Import models in the correct order
+    const User = require('./user.model');
+    const { Produk } = require('./produk.model');
+    const { Cart, CartItems } = require('./cart.model');
+    const { Orders, OrderItems, Invoice } = require('./orders.model');
 
-// Health check endpoint
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'healthy',
-      service: 'order-service',
-      timestamp: new Date().toISOString(),
-      dbStatus: sequelize.authenticate() ? 'connected' : 'disconnected'
-    }
-  });
-});
+    // Setup associations
+    const setupAssociations = require('./associations');
+    setupAssociations({ User, Cart, CartItems, Produk, Orders, OrderItems, Invoice });
 
-// Helper functions
-const generateRandomId = () => Math.random().toString(36).substr(2, 8);
-const getCurrentTimestamp = () => moment().tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss');
+    // Clean up any invalid foreign key references before syncing
+    await sequelizeInstance.query(`
+      DELETE FROM orders 
+      WHERE user NOT IN (SELECT id FROM user)
+    `);
 
-// Order endpoints
-router.post('/orders', async (req, res) => {
-  const { orders } = req.body;
+    await sequelizeInstance.query(`
+      DELETE FROM cart 
+      WHERE user NOT IN (SELECT id FROM user)
+    `);
 
-  if (!Array.isArray(orders) || orders.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid order data'
+    await sequelizeInstance.query(`
+      DELETE FROM invoice 
+      WHERE order_id NOT IN (SELECT id FROM orders)
+    `);
+
+    // Sync models in proper dependency order
+    await User.sync({ alter: true });  // Base table must sync first
+    await Produk.sync({ alter: true }); // Independent product table
+    await Cart.sync({ alter: true });  // Depends only on User
+    await Orders.sync({ alter: true }); // Must sync before Invoice and OrderItems
+    await Invoice.sync({ alter: true }); // Depends on Orders
+    await CartItems.sync({ alter: true }); // Depends on Cart and Produk
+    await OrderItems.sync({ alter: true }); // Depends on Orders and Produk
+
+    console.log('Database models synchronized successfully');
+  } catch (error) {
+    console.error('Failed to initialize models:', error);
+    process.exit(1);
+  }
+}
+
+
+// Get all cart items for a specific user
+app.get("/cart", async (req, res) => {
+  const { user } = req.query;
+  
+  if (!user || typeof user !== 'string') {
+    return res.status(400).json({ 
+      error: "Valid user ID is required",
+      details: {
+        received: user,
+        type: typeof user
+      }
     });
   }
 
-  const transaction = await sequelize.transaction();
   try {
-    const ordersGrouped = orders.reduce((acc, order) => {
+    const { Cart, CartItems } = require('./cart.model');
+    
+    // Find cart for user with associated items
+    const cart = await Cart.findOne({
+      where: { user },
+      include: [{
+        model: CartItems,
+        as: "items"
+      }]
+    });
+
+    if (!cart) {
+      return res.status(200).json([]);
+    }
+
+    // Process cart items
+    const processedItems = cart.cart_items.map(item => ({
+      id: item.id,
+      cart_id: item.cart_id,
+      itemid: item.itemid,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      pedagang: item.pedagang
+    }));
+
+    res.status(200).json(processedItems);
+  } catch (err) {
+    console.error("Error fetching cart items:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch cart items.",
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
+  }
+});
+
+// Add item to cart - Fixed version
+app.post("/cart", async (req, res) => {
+  let transaction;
+  try {
+    const { Cart, CartItems } = require('./cart.model');
+    const { Produk } = require('./produk.model');
+    
+    const { user, itemid, name, price, quantity, pedagang } = req.body;
+
+    // Validate input
+    if (!user || !itemid || !name || !price || !quantity || !pedagang) {
+      return res.status(400).json({ 
+        error: "All fields are required",
+        details: {
+          received: {
+            user: !!user,
+            itemid: !!itemid,
+            name: !!name,
+            price: !!price,
+            quantity: !!quantity,
+            pedagang: !!pedagang
+          }
+        }
+      });
+    }
+
+    // Validate quantity
+    if (isNaN(quantity) || quantity <= 0) {
+      return res.status(400).json({ error: "Quantity must be a positive number" });
+    }
+
+    transaction = await sequelize.transaction();
+
+    // Verify product exists
+    const product = await Produk.findOne({ 
+      where: { id: itemid },
+      transaction
+    });
+
+    if (!product) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        error: "Product not found.",
+        details: { searchedItemId: itemid }
+      });
+    }
+
+    // Stock check
+    const productStock = Number(product.Stok);
+    if (isNaN(productStock)) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: "Invalid product stock information",
+        details: { productStock: product.Stok }
+      });
+    }
+
+    if (quantity > productStock) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: `Only ${productStock} items available in stock`,
+        availableStock: productStock,
+        requestedQuantity: quantity
+      });
+    }
+
+    // Find or create cart for the user
+    let cart = await Cart.findOne({ 
+      where: { user },
+      transaction
+    });
+
+    if (!cart) {
+      cart = await Cart.create({ 
+        id: generateRandomId(), 
+        user 
+      }, { transaction });
+    }
+
+    // Check for existing item in cart
+    const existingItem = await CartItems.findOne({
+      where: { 
+        cart_id: cart.id, 
+        itemid 
+      },
+      transaction
+    });
+
+    if (existingItem) {
+      // Update quantity if item exists
+      const newQuantity = existingItem.quantity + quantity;
+      
+      if (newQuantity > productStock) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: `Cannot add more than ${productStock} items`,
+          maxAllowed: productStock - existingItem.quantity
+        });
+      }
+
+      await CartItems.update(
+        { quantity: newQuantity },
+        { 
+          where: { id: existingItem.id },
+          transaction 
+        }
+      );
+    } else {
+      // Add new item to cart
+      await CartItems.create({
+        id: generateRandomId(),
+        cart_id: cart.id,
+        itemid,
+        name,
+        price: product.Harga_diskon || price,
+        quantity,
+        pedagang
+      }, { transaction });
+    }
+
+    await transaction.commit();
+    res.status(201).json({ 
+      message: "Item added to cart.",
+      cartId: cart.id,
+      productId: itemid,
+      quantity: quantity
+    });
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error adding to cart:", err);
+    res.status(500).json({ 
+      error: "Failed to add item to cart.",
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// Update a cart item's quantity
+app.put("/cart/:id", async (req, res) => {
+  const { id } = req.params;
+  const { quantity } = req.body;
+
+  if (!quantity || isNaN(quantity) || quantity < 1) {
+    return res.status(400).json({ error: "Valid quantity is required" });
+  }
+
+  let transaction;
+  try {
+    const { CartItems } = require('./cart.model');
+    const { Produk } = require('./produk.model');
+    
+    transaction = await sequelize.transaction();
+
+    // Get the cart item with product info
+    const cartItem = await CartItems.findOne({
+      where: { id },
+      include: [{
+        model: Produk,
+        as: "product",
+        attributes: ["Stok"]
+      }],
+      transaction
+    });
+
+    if (!cartItem) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Cart item not found." });
+    }
+
+    const maxStock = cartItem.product.Stok;
+    const clampedQuantity = Math.min(quantity, maxStock);
+
+    if (clampedQuantity < 1) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: `Minimum quantity is 1, only ${maxStock} available` 
+      });
+    }
+
+    // Update the quantity
+    await CartItems.update(
+      { quantity: clampedQuantity },
+      { 
+        where: { id },
+        transaction
+      }
+    );
+
+    await transaction.commit();
+    res.status(200).json({ 
+      message: "Quantity updated successfully.",
+      updatedQuantity: clampedQuantity
+    });
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error updating cart item:", err);
+    res.status(500).json({ error: "Failed to update cart item." });
+  }
+});
+
+// Delete a cart item by ID
+app.delete("/cart/:id", async (req, res) => {
+  const { id } = req.params;
+  let transaction;
+
+  try {
+    const { Cart, CartItems } = require('./cart.model');
+    
+    transaction = await sequelize.transaction();
+
+    // First get the cart item to find its cart_id
+    const cartItem = await CartItems.findOne({
+      where: { id },
+      transaction
+    });
+
+    if (!cartItem) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Cart item not found." });
+    }
+
+    const cartId = cartItem.cart_id;
+    
+    // Delete the cart item
+    await CartItems.destroy({
+      where: { id },
+      transaction
+    });
+    
+    // Check if this was the last item in the cart
+    const remainingItems = await CartItems.count({ 
+      where: { cart_id: cartId },
+      transaction
+    });
+    
+    if (remainingItems === 0) {
+      // If no items left, delete the cart too
+      await Cart.destroy({
+        where: { id: cartId },
+        transaction
+      });
+    }
+    
+    await transaction.commit();
+    res.status(204).end();
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error deleting cart item:", err);
+    res.status(500).json({ error: "Failed to delete cart item." });
+  }
+});
+
+// Clear all cart items for a specific user
+app.delete("/cart", async (req, res) => {
+  const { user } = req.query;
+
+  if (!user) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  let transaction;
+  try {
+    const { Cart, CartItems } = require('./cart.model');
+    
+    transaction = await sequelize.transaction();
+
+    // Find the user's cart
+    const cart = await Cart.findOne({ 
+      where: { user },
+      transaction
+    });
+    
+    if (cart) {
+      const cartId = cart.id;
+      
+      // Delete all cart items
+      await CartItems.destroy({
+        where: { cart_id: cartId },
+        transaction
+      });
+      
+      // Delete the cart
+      await Cart.destroy({
+        where: { id: cartId },
+        transaction
+      });
+    }
+
+    await transaction.commit();
+    res.status(204).end();
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error clearing cart:", err);
+    res.status(500).json({ error: "Failed to clear cart." });
+  }
+});
+
+// Get cart total for a user
+app.get("/cart/total", async (req, res) => {
+  const { user } = req.query;
+
+  if (!user) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+
+    // Find the user's cart
+    const [cart] = await sequelize.query(
+      "SELECT id FROM cart WHERE user = ?",
+      {
+        replacements: [user],
+        transaction,
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+    
+    if (!cart || cart.length === 0) {
+      await transaction.commit();
+      return res.status(200).json({ total: 0, itemCount: 0 });
+    }
+
+    const cartId = cart[0].id;
+
+    // Calculate total and item count
+    const [result] = await sequelize.query(
+      `SELECT 
+        SUM(ci.price * ci.quantity) as total,
+        SUM(ci.quantity) as itemCount
+       FROM cart_items ci
+       WHERE ci.cart_id = ?`,
+      {
+        replacements: [cartId],
+        transaction,
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+
+    const total = result[0].total || 0;
+    const itemCount = result[0].itemCount || 0;
+
+    await transaction.commit();
+    res.status(200).json({ total, itemCount });
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error calculating cart total:", err);
+    res.status(500).json({ error: "Failed to calculate cart total." });
+  }
+});
+
+// Update the POST /orders endpoint to handle stock validation
+app.post("/orders", async (req, res) => {
+  const { orders } = req.body;
+  if (!Array.isArray(orders)) {
+    return res.status(400).json({ error: "Invalid order data - expected array" });
+  }
+
+  try {
+    const { Orders, OrderItems } = require('./orders.model');
+    const { Produk } = require('./produk.model');
+    
+    // First validate all products and quantities
+    for (const order of orders) {
+      const product = await Produk.findOne({ where: { id: order.itemid } });
+      if (!product) {
+        return res.status(404).json({ 
+          error: `Product not found: ${order.itemid}`,
+          itemid: order.itemid
+        });
+      }
+      
+      if (product.Stok < order.quantity) {
+        return res.status(400).json({
+          error: `Insufficient stock for product: ${order.name}`,
+          itemid: order.itemid,
+          available: product.Stok,
+          requested: order.quantity
+        });
+      }
+    }
+
+    // Process orders if validation passes
+    const ordersGroupedByPedagang = orders.reduce((acc, order) => {
       if (!acc[order.orderid]) {
         acc[order.orderid] = {
           id: generateRandomId(),
           user: order.user,
           total: 0,
           catatan: order.catatan,
-          alamat: order.alamat,
+          alamat: order.alamat || order.Alamat,
           pemesan: order.pemesan,
-          created_at: getCurrentTimestamp(),
-          status: 'pending',
-          order_items: [],
-          temporaryId: order.orderid
+          created_at: new Date(),
+          status: "pending",
+          order_items: []
         };
       }
-      acc[order.orderid].total += order.total;
+      
+      acc[order.orderid].total += parseFloat(order.price) * parseInt(order.quantity);
       acc[order.orderid].order_items.push({
         id: generateRandomId(),
         order_id: acc[order.orderid].id,
@@ -78,184 +523,133 @@ router.post('/orders', async (req, res) => {
         name: order.name,
         pedagang: order.pedagang,
         price: order.price,
-        quantity: order.quantity,
+        quantity: order.quantity.toString(),
       });
+      
       return acc;
     }, {});
 
     const createdOrders = [];
     
-    for (const orderData of Object.values(ordersGrouped)) {
-      const createdOrder = await Orders.create(orderData, { transaction });
+    for (const orderData of Object.values(ordersGroupedByPedagang)) {
+      const createdOrder = await Orders.create(orderData);
       
-      await Promise.all(orderData.order_items.map(item =>
-        OrderItems.create(item, { transaction })
-      ));
-
-      // Update product stock
-      await Promise.all(orderData.order_items.map(async item => {
-        const product = await Produk.findOne({ 
-          where: { id: item.itemid },
-          transaction
+      // Create order items
+      await OrderItems.bulkCreate(orderData.order_items);
+      
+      // Update product stocks
+      for (const item of orderData.order_items) {
+        await Produk.decrement('Stok', {
+          by: parseInt(item.quantity),
+          where: { id: item.itemid }
         });
-        
-        if (product) {
-          await Produk.update(
-            { Stok: product.Stok - item.quantity },
-            { where: { id: item.itemid }, transaction }
-          );
-        }
-      }));
-
-      createdOrders.push({
-        id: createdOrder.id,
-        temporaryId: orderData.temporaryId
-      });
+      }
+      
+      createdOrders.push(createdOrder);
     }
 
-    await transaction.commit();
-    
-    res.status(201).json({
-      success: true,
-      data: createdOrders
+    res.status(201).json({ 
+      message: "Orders created successfully",
+      orders: createdOrders.map(o => o.id)
     });
   } catch (error) {
-    await transaction.rollback();
-    console.error('Order creation error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create orders'
+    console.error("Error processing orders:", error);
+    res.status(500).json({ 
+      error: "Failed to process orders",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
     });
   }
 });
 
-router.get('/orders/:id', async (req, res) => {
+// Update the refund endpoint to properly handle stock updates
+app.post("/orders/:id/refund", async (req, res) => {
   try {
-    const cachedOrder = orderCache.get(req.params.id);
-    if (cachedOrder) {
-      return res.json({
-        success: true,
-        data: cachedOrder
-      });
-    }
-
+    const { Orders, OrderItems } = require('./orders.model');
+    const { Produk } = require('./produk.model');
+    
     const order = await Orders.findOne({
       where: { id: req.params.id },
       include: [{
         model: OrderItems,
-        as: 'order_items',
-        required: false
+        as: "order_items",
+        include: [{
+          model: Produk,
+          as: "product",
+          attributes: ['id', 'Stok']
+        }]
       }]
     });
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+      return res.status(404).json({ error: "Order not found" });
     }
 
-    const orderData = order.get({ plain: true });
-    orderCache.set(req.params.id, orderData);
-    
-    res.json({
-      success: true,
-      data: orderData
-    });
+    // Update stock for each item
+    await Promise.all(order.order_items.map(async (item) => {
+      if (item.product) {
+        await Produk.increment('Stok', {
+          by: parseInt(item.quantity),
+          where: { id: item.itemid }
+        });
+      }
+    }));
+
+    // Delete order items and then the order
+    await OrderItems.destroy({ where: { order_id: order.id } });
+    await Orders.destroy({ where: { id: order.id } });
+
+    res.json({ message: "Order refunded and stock updated" });
   } catch (error) {
-    console.error('Order fetch error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch order'
+    console.error("Refund error:", error);
+    res.status(500).json({ 
+      error: "Failed to process refund",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
     });
   }
 });
 
-// Invoice endpoints
-router.post('/invoices', async (req, res) => {
-  const { order_id, filename, pdfData } = req.body;
-
-  if (!order_id || !filename || !pdfData) {
-    return res.status(400).json({
-      success: false,
-      message: 'Missing required fields'
-    });
-  }
-
+// Update invoice creation endpoint
+app.post('/invoices', async (req, res) => {
   try {
+    const { Orders, Invoice } = require('./orders.model');
+    
+    const { order_id, filename, file } = req.body;
+    
+    // Verify order exists
+    const order = await Orders.findByPk(order_id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
     const invoice = await Invoice.create({
       id: generateRandomId(),
       order_id,
       filename,
-      file: Buffer.from(pdfData, 'base64')
+      file: Buffer.from(file, 'base64'),
+      invoice_url: `/orders/${order_id}/invoice`
     });
 
-    const invoiceUrl = `/order-service/orders/${order_id}/invoice`;
-
-    await Orders.update(
-      { invoice_url: invoiceUrl },
-      { where: { id: order_id } }
-    );
+    // Update order with invoice URL (no foreign key constraint)
+    await order.update({ 
+      invoice_url: invoice.invoice_url 
+    });
 
     res.status(201).json({
-      success: true,
-      data: {
-        invoiceId: invoice.id,
-        invoiceUrl
-      }
+      id: invoice.id,
+      invoice_url: invoice.invoice_url
     });
   } catch (error) {
-    console.error('Invoice creation error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create invoice'
+    console.error("Invoice creation error:", error);
+    res.status(500).json({ 
+      error: "Failed to create invoice",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
     });
   }
 });
 
-router.get('/orders/:id/invoice', async (req, res) => {
-  try {
-    const invoice = await Invoice.findOne({
-      where: { order_id: req.params.id }
-    });
-
-    if (!invoice || !invoice.file) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invoice not found'
-      });
-    }
-
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${invoice.filename}"`,
-      'Content-Length': invoice.file.length
-    });
-
-    res.send(invoice.file);
-  } catch (error) {
-    console.error('Invoice fetch error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch invoice'
-    });
-  }
-});
-
-// Mount service router
-app.use('/order-service', router);
-
-// Error handling middleware
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error('Order service error:', err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error'
+// Initialize models before starting server
+initializeModels().then(() => {
+  app.listen(port, () => {
+    console.log(`Orders service is running on http://localhost:${port}`);
   });
-});
-
-app.listen(port, () => {
-  console.log(`Order service running on port ${port}`);
-  console.log(`Service endpoint: http://localhost:${port}/order-service`);
 });

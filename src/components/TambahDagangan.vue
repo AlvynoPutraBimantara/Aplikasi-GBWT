@@ -113,32 +113,57 @@ export default {
  // In the submitProduct method in TambahDagangan.vue
 async submitProduct() {
   try {
-    // Remove thousand separators before submitting
-    const hargaValue = this.DataProduk.Harga.replace(/\./g, '');
+    // Validate required product fields
+    if (!this.DataProduk.Nama || !this.DataProduk.Harga || !this.DataProduk.Kategori || !this.DataProduk.Pedagang) {
+      alert("Harap isi semua bidang yang wajib diisi!");
+      return;
+    }
+
+    // Convert price to proper decimal format
+    const hargaValue = parseFloat(this.DataProduk.Harga.replace(/\./g, '').replace(',', '.'));
     
     const formData = new FormData();
     formData.append("Nama", this.DataProduk.Nama);
     formData.append("Harga", hargaValue);
     formData.append("Kategori", this.DataProduk.Kategori);
-    formData.append("Keterangan", this.DataProduk.Keterangan);
+    formData.append("Keterangan", this.DataProduk.Keterangan || '');
     formData.append("Pedagang", this.DataProduk.Pedagang);
-    formData.append("Stok", this.DataProduk.Stok);
+    formData.append("Stok", this.DataProduk.Stok || 0);
+    
+    // Only append user_id if available
+    if (this.currentUserId && this.currentUserId !== 'undefined') {
+      formData.append("user_id", this.currentUserId);
+    }
+
     if (this.imageFile) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(this.imageFile.type)) {
+        alert('Format gambar tidak didukung. Gunakan JPEG, PNG, atau WebP.');
+        return;
+      }
       formData.append("image", this.imageFile);
     }
 
-    // eslint-disable-next-line no-unused-vars
     const response = await axios.post(
       "http://localhost:3002/products",
       formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      {
+        headers: { 
+          "Content-Type": "multipart/form-data",
+          "Authorization": `Bearer ${localStorage.getItem('token')}` // Use actual auth token
+        }
+      }
     );
 
-    alert("Produk berhasil ditambahkan!");
-    this.$router.push("/Dagangan");
+    if (response.data.success) {
+      alert("Produk berhasil ditambahkan!");
+      this.$router.push("/Dagangan");
+    } else {
+      throw new Error(response.data.error || "Gagal menambahkan produk");
+    }
   } catch (error) {
     console.error("Error submitting product:", error);
-    alert("Terjadi kesalahan saat menambahkan produk.");
+    alert(`Terjadi kesalahan: ${error.response?.data?.message || error.message}`);
   }
 },
     formatHarga(event) {

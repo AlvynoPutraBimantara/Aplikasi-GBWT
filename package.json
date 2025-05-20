@@ -20,7 +20,6 @@
     "blob-to-buffer": "^1.2.9",
     "body-parser": "^1.20.3",
     "bootstrap": "^5.3.3",
-    "buffer": "^6.0.3",
     "core-js": "^3.8.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -65,8 +64,17 @@
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-eslint": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
     "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3"
+    "eslint-plugin-vue": "^8.0.3",
+    "https-browserify": "^1.0.0",
+    "os-browserify": "^0.3.0",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "url": "^0.11.4"
   },
   "eslintConfig": {
     "root": true,

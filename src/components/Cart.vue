@@ -198,60 +198,71 @@ export default {
     }
   },
   methods: {
+async fetchCart() {
+  try {
+    const identifier = this.user ? this.user.id : this.guestId;
+    if (!identifier) {
+      console.error("No user or guest ID available");
+      this.cart = [];
+      return;
+    }
+
+    // For guest users, prepend 'Guest_' to the ID
+    const cartUser = this.user ? this.user.id : `Guest_${this.guestId}`;
+    
+    const response = await axios.get(`http://localhost:3004/cart`, {
+      params: { user: cartUser }
+    });
+
+    // Always treat the response as an array
+    const cartItems = Array.isArray(response.data) ? response.data : [];
+    
+    this.cart = cartItems.map(item => ({
+      ...item,
+      name: item.name || 'Unknown Product',
+      price: item.price || 0,
+      pedagang: item.pedagang || 'Unknown',
+      stock: item.stock || 0
+    }));
+
+  } catch (error) {
+    console.error("Error fetching cart:", error);
+    // Set empty cart on error
+    this.cart = [];
+  }
+},
+
+// Update fetchUser method
+async fetchUser() {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem("user-info"));
+    if (userInfo) {
+      // Verify user exists in database
+      try {
+        const response = await axios.get(`http://localhost:3001/user/${userInfo.id}`);
+        this.user = response.data;
+      } catch (error) {
+        console.error("User not found in database:", error);
+        localStorage.removeItem("user-info");
+        this.user = null;
+      }
+    }
+    
+    if (!this.user) {
+      this.guestId = localStorage.getItem("guestId") || `guest_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("guestId", this.guestId);
+    }
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+  }
+},
+
     groupTotalPrice(group) {
       return group.reduce((total, item) => total + item.price * item.quantity, 0);
     },
-    async fetchUser() {
-      try {
-        const userInfo = JSON.parse(localStorage.getItem("user-info"));
-        if (userInfo) {
-          const userId = userInfo.id;
-          const response = await axios.get(`http://localhost:3001/user/${userId}`);
-          this.user = response.data;
-        } else {
-          this.guestId = localStorage.getItem("guestId") || `guest-${Math.random().toString(36).substr(2, 9)}`;
-          localStorage.setItem("guestId", this.guestId);
-        }
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
-      }
-    },
-    async fetchCart() {
-      try {
-        const identifier = this.user ? this.user.Nama : this.guestId;
-        const response = await axios.get(`http://localhost:3004/cart?user=${identifier}`);
-        const cartItems = response.data;
+    
 
-        const promises = cartItems.map(async (item) => {
-          try {
-            const productResponse = await axios.get(
-              `http://localhost:3002/products/${item.itemid}`
-            );
-            const productData = productResponse.data;
 
-            return {
-              ...item,
-              name: item.name,
-              stock: productData.Stok,
-              pedagang: item.pedagang,
-            };
-          } catch (error) {
-            console.error(`Error fetching product data for itemid ${item.itemid}:`, error);
-            return { 
-              ...item,
-              stock: 0,
-              name: item.name,
-              price: item.price,
-              pedagang: item.pedagang
-            };
-          }
-        });
-
-        this.cart = await Promise.all(promises);
-      } catch (error) {
-        console.error("Error fetching cart data:", error);
-      }
-    },
     validateQuantity(item) {
       if (item.quantity < 1 || isNaN(item.quantity)) {
         item.quantity = 1;
@@ -260,43 +271,86 @@ export default {
         this.showWarning("Maksimal jumlah produk dalam stok tercapai!");
       }
     },
+
     async updateQuantity(item) {
       this.validateQuantity(item);
       try {
-        await axios.put(`http://localhost:3004/cart/${item.id}`, { quantity: item.quantity });
-        console.log("Cart item quantity updated successfully.");
+        await axios.put(`http://localhost:3004/cart/${item.id}`, { 
+          quantity: item.quantity 
+        }, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
       } catch (error) {
-        console.error("Error updating cart item quantity:", error);
+        console.error("Error updating quantity:", error);
+        this.showWarning("Gagal memperbarui jumlah barang");
+        // Revert to previous quantity
+        const prevItem = this.cart.find(i => i.id === item.id);
+        if (prevItem) {
+          item.quantity = prevItem.quantity;
+        }
       }
     },
+
     incrementItemQuantity(item) {
       if (item.quantity < item.stock) {
         item.quantity++;
         this.updateQuantity(item);
       }
     },
+
     decrementItemQuantity(item) {
       if (item.quantity > 1) {
         item.quantity--;
         this.updateQuantity(item);
       }
     },
+
     async removeFromCart(itemId) {
       try {
         await axios.delete(`http://localhost:3004/cart/${itemId}`);
+        this.cart = this.cart.filter(item => item.id !== itemId);
         
-        const identifier = this.user ? this.user.Nama : this.guestId;
-        const response = await axios.get(`http://localhost:3004/cart?user=${identifier}`);
-        
-        if (response.data.length === 0) {
-          await axios.delete(`http://localhost:3004/cart?user=${identifier}`);
+        // If cart is empty, delete the cart entirely
+        if (this.cart.length === 0) {
+          const identifier = this.user ? this.user.Nama : this.guestId;
+          await axios.delete(`http://localhost:3004/cart`, {
+            params: { user: identifier }
+          });
         }
-        
-        this.cart = this.cart.filter((item) => item.id !== itemId);
       } catch (error) {
-        console.error("Error removing item from cart:", error);
+        console.error("Error removing item:", error);
+        this.showWarning("Gagal menghapus item dari keranjang");
       }
     },
+
+    async ensureCartExists() {
+  const identifier = this.user ? this.user.id : this.guestId;  // Changed from Nama to id
+  try {
+    const response = await axios.get(`http://localhost:3004/cart`, {
+      params: { user: identifier }
+    });
+    return response.data && response.data.length > 0;
+  } catch (error) {
+    console.error("Error checking cart:", error);
+    return false;
+  }
+},
+
+async clearCart() {
+  const identifier = this.user ? this.user.id : this.guestId;  // Changed from Nama to id
+  try {
+    await axios.delete(`http://localhost:3004/cart`, {
+      params: { user: identifier }
+    });
+    this.cart = [];
+  } catch (error) {
+    console.error("Error clearing cart:", error);
+    this.showWarning("Gagal mengosongkan keranjang");
+  }
+},
+
     async generateInvoice(orderId) {
       try {
         console.log(`Starting invoice generation for order ${orderId}`);
@@ -495,6 +549,7 @@ export default {
         throw { orderId, error: errorInfo };
       }
     },
+
     async retryGenerateInvoice(orderId) {
       try {
         this.isProcessingCheckout = true;
@@ -516,6 +571,7 @@ export default {
         this.isProcessingCheckout = false;
       }
     },
+
     validatePedagangInputs(pedagang) {
       if (!this.user) {
         if (!this.pedagangPemesan[pedagang]?.trim()) {
@@ -529,6 +585,7 @@ export default {
       }
       return true;
     },
+
     async checkoutPedagang(pedagang) {
       if (!this.validatePedagangInputs(pedagang)) {
         return;
@@ -545,21 +602,21 @@ export default {
       this.cart
         .filter(item => item.pedagang === pedagang)
         .forEach((item) => {
-          orders.push({
-            temporaryId: orderId,
-            orderid: orderId,
-            itemid: item.itemid,
-            name: item.name,
-            pedagang: item.pedagang,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.price * item.quantity,
-            user: this.user ? this.user.Nama : this.guestId,
-            Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-            pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
-            catatan: this.pedagangNotes[pedagang],
-            timestamp,
-          });
+         orders.push({
+  temporaryId: orderId,
+  orderid: orderId,
+  itemid: item.itemid,
+  name: item.name,
+  pedagang: item.pedagang,
+  price: item.price,
+  quantity: item.quantity,
+  total: item.price * item.quantity,
+  user: this.user ? this.user.id : this.guestId,  // Changed from Nama to id
+  Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+  pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+  catatan: this.pedagangNotes[pedagang],
+  timestamp,
+});
         });
 
       try {
@@ -605,6 +662,7 @@ export default {
         this.isProcessingCheckout = false;
       }
     },
+
     async checkoutAll() {
       if (!this.user && !this.guestId) {
         alert("Anda harus login atau melanjutkan sebagai tamu.");
@@ -632,20 +690,20 @@ export default {
         
         this.groupedCart[pedagang].forEach((item) => {
           allOrders.push({
-            temporaryId: orderIds[pedagang],
-            orderid: orderIds[pedagang],
-            itemid: item.itemid,
-            name: item.name,
-            pedagang: item.pedagang,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.price * item.quantity,
-            user: this.user ? this.user.Nama : this.guestId,
-            Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-            pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
-            catatan: this.pedagangNotes[pedagang],
-            timestamp,
-          });
+  temporaryId: orderIds[pedagang],
+  orderid: orderIds[pedagang],
+  itemid: item.itemid,
+  name: item.name,
+  pedagang: item.pedagang,
+  price: item.price,
+  quantity: item.quantity,
+  total: item.price * item.quantity,
+  user: this.user ? this.user.id : this.guestId,  // Changed from Nama to id
+  Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
+  pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+  catatan: this.pedagangNotes[pedagang],
+  timestamp,
+});
         });
       }
 
@@ -711,12 +769,14 @@ export default {
         this.isProcessingCheckout = false;
       }
     },
+
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
       }).format(value);
     },
+
     showWarning(message) {
       this.warningMessage = message;
       setTimeout(() => {
@@ -727,6 +787,12 @@ export default {
   async mounted() {
     await this.fetchUser();
     await this.fetchCart();
+    
+    // Add this to handle cases where cart might be stale
+    const cartExists = await this.ensureCartExists();
+    if (!cartExists && this.cart.length > 0) {
+      this.cart = [];
+    }
   },
 };
 </script>

@@ -1,221 +1,134 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const multer = require('multer');
-const pool = require('./db');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const { Sequelize } = require('sequelize');
-
+const express = require("express");
+const bodyParser = require("body-parser");
+const multer = require("multer");
+const pool = require("./db");
 const app = express();
+const cors = require("cors");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
 const port = process.env.PORT || 3001;
-
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.json());
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-const cors = require('cors');
+const saltRounds = 10;
 
-const corsOptions = {
-  origin: 'http://localhost:8080', // Match your frontend origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-  optionsSuccessStatus: 204
-};
+app.use(cors());
+app.use(bodyParser.json());
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-app.get('/health', async (req, res) => {
-  try {
-    const [result] = await pool.query('SELECT 1 AS test');
-    if (result[0].test !== 1) throw new Error('Database connection test failed');
-
-    res.status(200).json({ 
-      status: 'healthy',
-      service: 'user-service',
-      timestamp: new Date().toISOString(),
-      database: 'connected'
-    });
-  } catch (err) {
-    console.error('Health check failed:', err);
-    res.status(500).json({ 
-      status: 'unhealthy',
-      service: 'user-service',
-      error: 'Database connection failed',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
+// Generate a 8-digit random string for ID
 function generateRandomId() {
-  return Math.random().toString(36).substr(2, 8);
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < 8; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    result += chars[randomIndex];
+  }
+  return result;
 }
 
-const router = express.Router();
+// Generate JWT token function
+const generateToken = (user) => {
+  return jwt.sign(
+    { id: user.id, role: user.role, nama: user.Nama },
+    process.env.JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+};
 
-// Updated login endpoint from patch
-// Update the login endpoint to ensure consistent response format:
-router.post('/login', async (req, res) => {
+// Updated Login Endpoint
+app.post("/login", async (req, res) => {
   const { Nama, Password } = req.body;
 
-  try {
-    // Input validation
-    if (!Nama || !Password) {
-      return res.status(400).json({
-        success: false,
-        message: "Username and password are required"
-      });
-    }
-
-    const [results] = await pool.query(
-      "SELECT id, Nama, NamaWarung, role, imageUrl, Password FROM User WHERE Nama = ?", 
-      [Nama]
-    );
-
-    if (results.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid credentials" // Generic message for security
-      });
-    }
-
-    const user = results[0];
-    const match = await bcrypt.compare(Password, user.Password);
-
-    if (!match) {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Invalid credentials" // Generic message for security
-      });
-    }
-
-    const payload = {
-      id: user.id,
-      Nama: user.Nama,
-      NamaWarung: user.NamaWarung,
-      role: user.role
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    // Set CORS headers
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    return res.json({ 
-      success: true,
-      data: {
-        token,
-        user: payload,
-        imageUrl: user.imageUrl 
-      }
-    });
-
-  } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ 
-      success: false,
-      message: "Internal server error"
-    });
-  }
-});
-
-// User CRUD Endpoints
-router.post('/', async (req, res) => {
-  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
-
+  // Validate input
   if (!Nama || !Password) {
     return res.status(400).json({ 
       success: false,
-      message: "Name and password are required" 
+      message: 'Name and password are required'
     });
   }
 
   try {
-    // Check if NamaWarung exists
-    if (NamaWarung) {
-      const [existing] = await pool.query(
-        "SELECT id FROM user WHERE NamaWarung = ?",
-        [NamaWarung]
-      );
-      
-      if (existing.length > 0) {
-        return res.status(400).json({ 
-          success: false,
-          message: `Warung name "${NamaWarung}" already exists`
-        });
-      }
-    }
-
-    const userId = generateRandomId();
-    const query = `
-      INSERT INTO User (id, NamaWarung, Nama, Telp, Alamat, Password, role, imageUrl)
-      VALUES (?, ?, ?, ?, ?, ?, 'user', ?)`;
-
-    await pool.query(query, [
-      userId,
-      NamaWarung || null,
-      Nama,
-      Telp || null,
-      Alamat || null,
-      Password,
-      imageUrl || null
-    ]);
-
-    const [user] = await pool.query("SELECT * FROM User WHERE id = ?", [userId]);
+    console.log(`Login attempt for user: ${Nama}`);
     
-    res.status(201).json({
-      success: true,
-      data: user[0]
-    });
-  } catch (err) {
-    console.error("Error creating user:", err);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
-  }
-});
-
-router.get('/:id', async (req, res) => {
-  try {
-    const [user] = await pool.query(
-      "SELECT id, Nama, NamaWarung, Telp, Alamat, role, imageUrl FROM user WHERE id = ?",
-      [req.params.id]
-    );
-
-    if (user.length === 0) {
-      return res.status(404).json({ 
+    // Find user by name
+    const [users] = await pool.query("SELECT * FROM user WHERE Nama = ?", [Nama]);
+    
+    if (users.length === 0) {
+      console.log(`User not found: ${Nama}`);
+      return res.status(401).json({ 
         success: false,
-        message: "User not found" 
+        message: 'Invalid credentials' 
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: user[0]
-    });
-  } catch (err) {
-    console.error("Error fetching user:", err);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
+    const user = users[0];
+    
+    // Compare hashed password
+    const isMatch = await bcrypt.compare(Password, user.Password);
+    if (!isMatch) {
+      console.log(`Password mismatch for user: ${Nama}`);
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid credentials' 
+      });
+    }
+
+    // Generate token
+    const token = generateToken(user);
+    
+    // Remove password before sending response
+    delete user.Password;
+
+    console.log(`Successful login for ${Nama}, role: ${user.role}`);
+
+    // Return success response
+    return res.status(200)
+      .json({
+        success: true,
+        ...user,
+        token
+      });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500)
+      .json({ 
+        success: false,
+        message: 'Internal server error' 
+      });
   }
 });
 
-router.put('/:id', async (req, res) => {
+// Fetch User by ID
+app.get("/user/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const query = "SELECT * FROM user WHERE id = ?";
+  try {
+    const [results] = await pool.query(query, [id]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    res.status(200).json(results[0]);
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Enhanced Update User with proper transaction handling and related tables update
+app.put("/user/:id", async (req, res) => {
   const { id } = req.params;
   const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
+  let previousImageId = null;
 
-  try {
-    // Check if NamaWarung exists
-    if (NamaWarung) {
+  // Check if NamaWarung is being updated and if it already exists
+  if (NamaWarung) {
+    try {
       const [existing] = await pool.query(
         "SELECT id FROM user WHERE NamaWarung = ? AND id != ?",
         [NamaWarung, id]
@@ -224,202 +137,363 @@ router.put('/:id', async (req, res) => {
       if (existing.length > 0) {
         return res.status(400).json({ 
           success: false,
-          message: `Warung name "${NamaWarung}" already exists`
+          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
         });
       }
+    } catch (error) {
+      console.error("Error checking NamaWarung:", error);
+      return res.status(500).json({ success: false, message: "Internal server error." });
     }
+  }
 
-    // Get current user data
-    const [currentUser] = await pool.query(
-      "SELECT NamaWarung, imageUrl FROM user WHERE id = ?",
-      [id]
-    );
-
-    if (currentUser.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
+  // Get current user details
+  try {
+    const [userResults] = await pool.query("SELECT NamaWarung, imageUrl, Password FROM user WHERE id = ?", [id]);
+    if (userResults.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found." });
     }
-
-    const oldNamaWarung = currentUser[0].NamaWarung;
-    const oldImageUrl = currentUser[0].imageUrl;
+    
+    const user = userResults[0];
+    const oldNamaWarung = user.NamaWarung;
+    
+    if (user.imageUrl) {
+      const urlParts = user.imageUrl.split("/");
+      previousImageId = urlParts[urlParts.length - 1];
+    }
 
     // Start transaction
     await pool.query('START TRANSACTION');
 
-    // Update user
-    const [result] = await pool.query(
-      `UPDATE user SET 
-        NamaWarung = ?, 
-        Nama = ?, 
-        Telp = ?, 
-        Alamat = ?, 
-        Password = ?, 
-        imageUrl = ? 
-      WHERE id = ?`,
-      [
-        NamaWarung || null,
-        Nama,
-        Telp || null,
-        Alamat || null,
-        Password,
-        imageUrl || null,
-        id
-      ]
-    );
-
-    if (result.affectedRows === 0) {
-      await pool.query('ROLLBACK');
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
+    // Handle password update
+    let hashedPassword = user.Password;
+    if (Password) {
+      hashedPassword = await bcrypt.hash(Password, saltRounds);
     }
 
-    // Update related tables if warung name changed
+    // Update user table
+    const [updateResult] = await pool.query(
+      "UPDATE user SET NamaWarung = ?, Nama = ?, Telp = ?, Alamat = ?, Password = ?, imageUrl = ? WHERE id = ?",
+      [NamaWarung, Nama, Telp, Alamat, hashedPassword, imageUrl, id]
+    );
+
+    if (!updateResult.affectedRows) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // If NamaWarung changed, update related tables
     if (NamaWarung && oldNamaWarung && NamaWarung !== oldNamaWarung) {
       const tables = [
-        'dataproduk', 
-        'cart_items', 
-        'order_items', 
-        'transactions_items',
-        'transactions_history_items'
+        { name: 'dataproduk', column: 'Pedagang', idColumn: 'user_id' },
+        { name: 'cart_items', column: 'pedagang' },
+        { name: 'order_items', column: 'pedagang' },
+        { name: 'transactions_items', column: 'pedagang' },
+        { name: 'transactions_history_items', column: 'pedagang' }
       ];
 
       for (const table of tables) {
         try {
-          await pool.query(
-            `UPDATE ${table} SET Pedagang = ? WHERE Pedagang = ?`,
-            [NamaWarung, oldNamaWarung]
-          );
+          // For dataproduk, we need to update both Pedagang and user_id if it exists
+          if (table.name === 'dataproduk') {
+            await pool.query(
+              `UPDATE ${table.name} SET ${table.column} = ?, ${table.idColumn} = ? WHERE ${table.column} = ?`,
+              [NamaWarung, id, oldNamaWarung]
+            );
+          } else {
+            await pool.query(
+              `UPDATE ${table.name} SET ${table.column} = ? WHERE ${table.column} = ?`,
+              [NamaWarung, oldNamaWarung]
+            );
+          }
         } catch (error) {
+          console.error(`Error updating ${table.name}:`, error);
           await pool.query('ROLLBACK');
-          console.error(`Error updating ${table}:`, error);
           return res.status(500).json({ 
             success: false,
-            message: "Internal server error" 
+            message: `Failed to update ${table.name} records`
           });
         }
       }
     }
 
-    // Delete old image if changed
-    if (oldImageUrl && imageUrl && oldImageUrl !== imageUrl) {
-      const oldImageId = oldImageUrl.split('/').pop();
-      await pool.query("DELETE FROM userimages WHERE id = ?", [oldImageId]);
+    // Remove previous image if a new one was uploaded
+    if (previousImageId && imageUrl && previousImageId !== imageUrl.split("/").pop()) {
+      await pool.query("DELETE FROM userimages WHERE id = ?", [previousImageId]);
     }
 
+    // Commit transaction
     await pool.query('COMMIT');
-    
-    // Get updated user
-    const [updatedUser] = await pool.query(
-      "SELECT id, Nama, NamaWarung, Telp, Alamat, role, imageUrl FROM user WHERE id = ?",
-      [id]
-    );
-
-    res.status(200).json({
-      success: true,
-      data: updatedUser[0]
-    });
+    res.status(200).json({ success: true, message: "User updated successfully." });
   } catch (error) {
     await pool.query('ROLLBACK');
     console.error("Error updating user:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
+    res.status(500).json({ success: false, message: "Internal server error." });
   }
 });
 
-// Image handling
-router.post('/:id/image', upload.single('image'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ 
-      success: false,
-      message: "No image provided" 
-    });
+// Create New User with Password Hashing
+app.post("/user", async (req, res) => {
+  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
+
+  if (!Nama || !Password) {
+    return res.status(400).json({ message: "Name and password are required." });
   }
 
+  // Check if NamaWarung already exists
+  if (NamaWarung) {
+    try {
+      const [existing] = await pool.query(
+        "SELECT id FROM user WHERE NamaWarung = ?",
+        [NamaWarung]
+      );
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ 
+          message: `Maaf nama warung "${NamaWarung}" sudah diambil, tolong pilih nama warung lain`
+        });
+      }
+    } catch (error) {
+      console.error("Error checking NamaWarung:", error);
+      return res.status(500).json({ message: "Internal server error." });
+    }
+  }
+
+  const userid = generateRandomId();
+
+  try {
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(Password, saltRounds);
+
+    const query = `
+      INSERT INTO User (id, NamaWarung, Nama, Telp, Alamat, Password, role, imageUrl)
+      VALUES (?, ?, ?, ?, ?, ?, 'user', ?)`;
+
+    await pool.query(query, [
+      userid,
+      NamaWarung || null,
+      Nama,
+      Telp || null,
+      Alamat || null,
+      hashedPassword,
+      imageUrl || null,
+    ]);
+
+    // Fetch the newly created user (without password)
+    const [userResults] = await pool.query(
+      "SELECT id, NamaWarung, Nama, Telp, Alamat, role, imageUrl FROM User WHERE id = ?", 
+      [userid]
+    );
+
+    res.status(201).json(userResults[0]);
+  } catch (err) {
+    console.error("Error creating user:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Upload or Update User Image
+app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
   const { id } = req.params;
+
+  if (!req.file) {
+    return res.status(400).json({ message: "No image file provided." });
+  }
+
   const { originalname, mimetype, buffer } = req.file;
   const imageId = generateRandomId();
 
   try {
-    // Check if user exists
-    const [user] = await pool.query("SELECT id FROM user WHERE id = ?", [id]);
-    if (user.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
-    }
-
-    // Save image
+    // Save image to userimages table
     await pool.query(
-      "INSERT INTO userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
+      "INSERT INTO gbwt.userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
       [imageId, originalname, buffer, mimetype]
     );
 
-    // Update user with image URL
-    const imageUrl = `${process.env.SERVICE_URL}/images/${imageId}`;
-    await pool.query("UPDATE user SET imageUrl = ? WHERE id = ?", [imageUrl, id]);
+    // Update user table with image URL
+    const imageUrl = `http://localhost:3001/images/${imageId}`;
+    await pool.query("UPDATE gbwt.user SET imageUrl = ? WHERE id = ?", [imageUrl, id]);
 
-    res.status(200).json({
-      success: true,
-      data: { imageUrl }
-    });
+    res.status(200).json({ message: "Image uploaded and user updated successfully." });
   } catch (error) {
     console.error("Error uploading image:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
-router.get('/images/:id', async (req, res) => {
+// Fetch All Users
+app.get("/users", async (req, res) => {
+  const query = "SELECT * FROM gbwt.user";
   try {
-    const [image] = await pool.query(
-      "SELECT mimetype, data FROM userimages WHERE id = ?",
-      [req.params.id]
-    );
+    const [results] = await pool.query(query);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
 
-    if (image.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Image not found" 
-      });
+// Fetch All Users with NamaWarung not null
+app.get("/users", async (req, res) => {
+  const query = "SELECT * FROM gbwt.user WHERE NamaWarung IS NOT NULL";
+  try {
+    const [results] = await pool.query(query);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Enhanced Delete User by ID with transaction and product validation
+app.delete("/user/:id", async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Start transaction
+    await pool.query('START TRANSACTION');
+
+    // First get user details to check if they have products
+    const [user] = await pool.query("SELECT NamaWarung FROM user WHERE id = ?", [id]);
+    if (user.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ message: "User not found." });
     }
 
-    res.set('Content-Type', image[0].mimetype);
-    res.send(image[0].data);
-  } catch (error) {
-    console.error("Error fetching image:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
+    const namaWarung = user[0].NamaWarung;
+
+    // If user has a NamaWarung, check if they have products
+    if (namaWarung) {
+      const [products] = await pool.query("SELECT id FROM dataproduk WHERE Pedagang = ?", [namaWarung]);
+      if (products.length > 0) {
+        await pool.query('ROLLBACK');
+        return res.status(400).json({ 
+          message: "Cannot delete user with existing products. Delete products first."
+        });
+      }
+    }
+
+    // Delete user images if any
+    await pool.query("DELETE FROM userimages WHERE user_id = ?", [id]);
+
+    // Finally delete the user
+    await pool.query("DELETE FROM user WHERE id = ?", [id]);
+
+    await pool.query('COMMIT');
+    res.status(200).json({ message: "User deleted successfully." });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error("Error deleting user:", err);
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
-// Mount router with service prefix
-app.use('/user-service', router);
+// Upload user image
+app.post("/uploads", upload.single("image"), async (req, res) => {
+  const id = generateRandomId();
+  const { originalname, mimetype, buffer } = req.file;
 
-// Error handler
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
-  res.status(500).json({ 
-    success: false,
-    message: 'Internal server error' 
-  });
+  try {
+    await pool.query(
+      "INSERT INTO userimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)",
+      [id, originalname, buffer, mimetype]
+    );
+
+    res.status(201).json({ id });
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
 });
-// Mount the router at root path
-app.use('/', router);
 
+// Serve user image
+app.get("/uploads/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [results] = await pool.query("SELECT * FROM userimages WHERE id = ?", [id]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Image not found." });
+    }
+
+    const image = results[0];
+    res.setHeader("Content-Type", image.mimetype);
+    res.send(image.data);
+  } catch (error) {
+    console.error("Error fetching image:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Delete Image by ID
+app.delete("/uploads/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+      const [result] = await pool.execute("DELETE FROM gbwt.userimages WHERE id = ?", [id]);
+      if (!result.affectedRows) return res.status(404).json({ message: "Image not found." });
+
+      res.status(204).send();
+  } catch (error) {
+      console.error("Error deleting image:", error);
+      res.status(500).json({ message: "Database error." });
+  }
+});
+
+// Guest Sign-in Endpoint
+app.post('/guest-signin', async (req, res) => {
+  const guestId = generateRandomId();
+  const guestName = `guest_${guestId}`;
+  const guestPassword = generateRandomId();
+
+  try {
+    // Hash the guest password
+    const hashedPassword = await bcrypt.hash(guestPassword, saltRounds);
+
+    const query = `
+      INSERT INTO User (id, Nama, Password, role)
+      VALUES (?, ?, ?, 'guest')`;
+
+    await pool.query(query, [guestId, guestName, hashedPassword]);
+
+    // Return guest user without password
+    const [userResults] = await pool.query(
+      "SELECT id, Nama, role FROM User WHERE id = ?", 
+      [guestId]
+    );
+    
+    const guestUser = userResults[0];
+    
+    // Generate token for guest
+    const token = generateToken(guestUser);
+    
+    res.status(201).json({
+      ...guestUser,
+      token
+    });
+    
+  } catch (err) {
+    console.error("Error creating guest user:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Delete Guest User
+app.delete('/guest/:id', async (req, res) => {
+  const { id } = req.params;
+  const query = "DELETE FROM gbwt.user WHERE id = ? AND role = 'guest'";
+  try {
+    const [results] = await pool.query(query, [id]);
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: "Guest user not found." });
+    }
+    res.status(200).json({ message: "Guest user deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting guest user:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
 
 app.listen(port, () => {
-  console.log(`User service running on port ${port}`);
-  console.log(`Service endpoint: http://localhost:${port}/user-service`);
+  console.log(`User Service is running on http://localhost:${port}`);
 });

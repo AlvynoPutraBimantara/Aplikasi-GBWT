@@ -1,55 +1,28 @@
-const { Sequelize } = require('sequelize');
-require('dotenv').config();
+const mysql = require("mysql2");
+require("dotenv").config();
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'gbwt',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASSWORD || '1234',
-  {
-    host: process.env.DB_HOST || 'localhost',
-    dialect: 'mysql',
-    pool: {
-      max: 10,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    logging: console.log, // Enable logging for debugging
-    retry: {
-      match: [
-        /ETIMEDOUT/,
-        /EHOSTUNREACH/,
-        /ECONNRESET/,
-        /ECONNREFUSED/,
-        /ESOCKETTIMEDOUT/,
-        /EHOSTDOWN/,
-        /EPIPE/,
-        /EAI_AGAIN/,
-        /SequelizeConnectionError/,
-        /SequelizeConnectionRefusedError/,
-        /SequelizeHostNotFoundError/,
-        /SequelizeHostNotReachableError/,
-        /SequelizeInvalidConnectionError/,
-        /SequelizeConnectionTimedOutError/
-      ],
-      max: 5 // Maximum retry attempts
-    }
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost", // Use 'mysql' as host inside Docker
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "1234",
+  database: process.env.DB_NAME || "gbwt",
+  connectionLimit: 100,
+  waitForConnections: true,
+  queueLimit: 0,
+});
+
+pool.on("error", (err) => {
+  console.error("MySQL Pool Error:", err.message);
+});
+
+pool.getConnection((err, connection) => {
+  if (err) {
+    console.error("Error connecting to MySQL:", err);
+  } else {
+    console.log("Connected to MySQL");
+    connection.release();
   }
-);
+});
 
-// Test the connection
-// In backend/user-service/db.js, add more detailed connection logging:
-sequelize.authenticate()
-  .then(() => {
-    console.log('Database connection has been established successfully.');
-    // Test a sample query
-    return sequelize.query('SELECT 1+1 AS result');
-  })
-  .then(([results]) => {
-    console.log('Database test query successful:', results);
-  })
-  .catch(err => {
-    console.error('Unable to connect to the database:', err);
-    process.exit(1); // Exit if DB connection fails
-  });
-module.exports = sequelize;
+module.exports = pool.promise();

@@ -13,7 +13,7 @@
             <th>Nama</th>
             <th>Telp</th>
             <th>Alamat</th>
-            <th>Password</th>
+         
             <th>Aksi</th>
           </tr>
         </thead>
@@ -27,7 +27,7 @@
             <td>{{ item.Nama }}</td>
             <td>{{ item.Telp }}</td>
             <td>{{ item.Alamat }}</td>
-            <td>{{ item.Password }}</td>
+            
 
             <td>
               <button @click="UpdateUser(item.id)">Edit</button>

@@ -1,5 +1,6 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("./db"); // Import the sequelize instance
+// eslint-disable-next-line no-unused-vars
+const { DataTypes, Model } = require("sequelize");
+const sequelize = require("./db");
 
 // Define the Orders model
 const Orders = sequelize.define(
@@ -13,6 +14,12 @@ const Orders = sequelize.define(
     user: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'user',
+        key: 'id'
+      },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE'
     },
     total: {
       type: DataTypes.DECIMAL(50, 2),
@@ -21,32 +28,39 @@ const Orders = sequelize.define(
     catatan: {
       type: DataTypes.STRING(500),
       allowNull: true,
-      defaultValue: null,
-    },
-    alamat: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-      defaultValue: null,
     },
     pemesan: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      defaultValue: null,
+    },
+    alamat: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: true,
       defaultValue: DataTypes.NOW,
     },
+    status: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: 'pending',
+    },
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      defaultValue: null,
     },
   },
   {
-    tableName: "orders", // Explicitly set the table name
-    timestamps: false, // Disable Sequelize's automatic timestamps
+    tableName: "orders",
+    timestamps: false,
+    indexes: [
+      {
+        fields: ['user'],
+        name: 'fk_orders_user'
+      }
+    ]
   }
 );
 
@@ -85,12 +99,26 @@ const OrderItems = sequelize.define(
     },
   },
   {
-    tableName: "order_items", // Explicitly set the table name
-    timestamps: false, // Disable Sequelize's automatic timestamps
+    tableName: "order_items",
+    timestamps: false,
+    indexes: [
+      {
+        fields: ['order_id'],
+        name: 'order_id'
+      },
+      {
+        fields: ['pedagang'],
+        name: 'idx_pedagang_order_items'
+      },
+      {
+        fields: ['itemid'],
+        name: 'fk_order_items_product'
+      }
+    ]
   }
 );
 
-// Define the Invoice model
+// Define the Invoice model with updated order_id reference
 const Invoice = sequelize.define(
   "Invoice",
   {
@@ -102,6 +130,11 @@ const Invoice = sequelize.define(
     order_id: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'orders',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
     },
     filename: {
       type: DataTypes.STRING(255),
@@ -111,40 +144,53 @@ const Invoice = sequelize.define(
       type: DataTypes.BLOB('long'),
       allowNull: true,
     },
-    fileUrl: {
+    invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      unique: true
     },
   },
   {
     tableName: "invoice",
     timestamps: false,
+    indexes: [
+      {
+        fields: ['order_id'],
+        name: 'order_id'
+      },
+      {
+        fields: ['invoice_url'],
+        name: 'idx_invoiceurl_unique',
+        unique: true
+      }
+    ]
   }
 );
 
-// Define the relationship between Orders and OrderItems
+// Define the relationships
 Orders.hasMany(OrderItems, {
   foreignKey: "order_id",
-  sourceKey: "id",
   as: "order_items",
+  onDelete: 'CASCADE'
 });
 
 OrderItems.belongsTo(Orders, {
   foreignKey: "order_id",
-  targetKey: "id",
+  as: "order",
+  onDelete: 'CASCADE'
 });
 
-// Define the relationship between Orders and Invoice
-Orders.hasMany(Invoice, {
-  foreignKey: "order_id",
-  sourceKey: "id",
-  as: "invoices",
-});
-
+// Simplified Invoice associations using only order_id
 Invoice.belongsTo(Orders, {
   foreignKey: "order_id",
-  targetKey: "id",
+  as: "order",
+  onDelete: 'CASCADE'
 });
 
-// Export the models
+Orders.hasOne(Invoice, {
+  foreignKey: "order_id",
+  as: "invoice",
+  onDelete: 'CASCADE'
+});
+
 module.exports = { Orders, OrderItems, Invoice };

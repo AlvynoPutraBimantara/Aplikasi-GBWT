@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
 
-// Define the UserImages model
+// Define the UserImages model (matches userimages table)
 const UserImages = sequelize.define(
   "UserImages",
   {
@@ -14,12 +14,12 @@ const UserImages = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
-    mimetype: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-    },
     data: {
       type: DataTypes.BLOB("long"),
+      allowNull: false,
+    },
+    mimetype: {
+      type: DataTypes.STRING(255),
       allowNull: false,
     },
     upload_date: {
@@ -27,15 +27,30 @@ const UserImages = sequelize.define(
       allowNull: true,
       defaultValue: DataTypes.NOW,
     },
+    user_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      references: {
+        model: 'user',
+        key: 'id'
+      }
+    }
   },
   {
     tableName: "userimages",
     timestamps: false,
-    underscored: true
+    freezeTableName: true,
+    underscored: false,
+    indexes: [
+      {
+        fields: ['user_id'],
+        name: 'fk_userimages_user'
+      }
+    ]
   }
 );
 
-// Define the User model
+// Define the User model (matches user table)
 const User = sequelize.define(
   "User",
   {
@@ -44,47 +59,68 @@ const User = sequelize.define(
       primaryKey: true,
       allowNull: false,
     },
-    nama_warung: {
+    NamaWarung: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      field: 'NamaWarung' // Map to correct column name
     },
-    nama: {
+    Nama: {
       type: DataTypes.STRING(255),
       allowNull: false,
-      field: 'Nama' // Map to correct column name
     },
-    telp: {
+    Telp: {
       type: DataTypes.STRING(20),
       allowNull: true,
-      field: 'Telp' // Map to correct column name
     },
-    alamat: {
+    Alamat: {
       type: DataTypes.TEXT,
       allowNull: true,
-      field: 'Alamat' // Map to correct column name
     },
-    password: {
+    Password: {
       type: DataTypes.STRING(255),
       allowNull: false,
-      field: 'Password' // Map to correct column name
     },
     role: {
-      type: DataTypes.ENUM("user", "admin", "guest"),
+      type: DataTypes.ENUM('user', 'admin', 'guest'),
       allowNull: false,
-      defaultValue: "user",
+      defaultValue: 'user'
     },
-    image_url: {
+    imageUrl: {
       type: DataTypes.STRING(2083),
       allowNull: true,
-      field: 'imageUrl' // Map to correct column name
     },
+    is_guest: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false
+    }
   },
   {
     tableName: "user",
     timestamps: false,
-    underscored: true
+    freezeTableName: true,
+    underscored: false,
+    defaultScope: {
+      attributes: { exclude: ['Password'] } // Exclude password by default
+    },
+    scopes: {
+      withPassword: {
+        attributes: { include: ['Password'] } // Include when needed
+      }
+    }
   }
 );
+
+// Define associations
+User.hasMany(UserImages, {
+  foreignKey: 'user_id',
+  as: 'images',
+  onDelete: 'CASCADE'
+});
+
+UserImages.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user',
+  onDelete: 'CASCADE'
+});
 
 module.exports = { User, UserImages };

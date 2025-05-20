@@ -1,0 +1,105 @@
+#app {
+  font-size: large;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: #2c3e50;
+}
+
+body {
+  overflow-x: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+#sidebar-wrapper {
+  min-height: 100vh;
+  margin-left: -300px; /* Retaining behaviour from Proyek-KP-master */
+  -webkit-transition: margin 0.25s ease-out;
+  -moz-transition: margin 0.25s ease-out;
+  -o-transition: margin 0.25s ease-out;
+  transition: margin 0.25s ease-out;
+}
+
+#wrapper.toggled #sidebar-wrapper {
+  margin-left: 0; /* From Proyek-KP-master */
+}
+
+#page-content-wrapper {
+  width: 100%;
+  background-color: rgb(216, 233, 238); /* Retaining color from aplikasi-gbwt */
+}
+
+#sidebar-wrapper .sidebar-heading {
+  padding: 2rem 2rem;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+#sidebar-wrapper .sidebar-footer {
+  padding: 2rem 2rem;
+}
+
+#sidebar-wrapper .list-group {
+  width: 300px; /* Retaining width from Proyek-KP-master */
+}
+
+@media (min-width: 100vw) {
+  #sidebar-wrapper {
+    margin-left: 0;
+   
+  }
+
+  #page-content-wrapper {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #wrapper.toggled #sidebar-wrapper {
+    margin-left: -300px; /* Retaining behaviour from Proyek-KP-master */
+  }
+}
+
+.bg-light {
+  background-color: skyblue !important; /* Retaining color from aplikasi-gbwt */
+}
+
+.info {
+  padding-top: 200px;
+}
+
+.register input,
+.login input,
+.tambah input {
+  width: 300px;
+  height: 40px;
+  display: block;
+  margin-bottom: 30px;
+  margin-right: auto;
+  margin-left: auto;
+  border: 1px solid skyblue;
+}
+
+.register button,
+.login button,
+.tambah button {
+  width: 300px;
+  height: 40px;
+  border: 1px solid black;
+  background: darkblue; /* Retaining color from aplikasi-gbwt */
+  color: white;
+  cursor: pointer;
+  margin-right: auto;
+  margin-left: auto;
+  display: block;
+  border-radius: 4px; /* From Proyek-KP-master */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.register button:hover,
+.login button:hover,
+.tambah button:hover {
+  background-color: skyblue; /* Retaining color from aplikasi-gbwt */
+  color: black;
+}

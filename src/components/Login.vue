@@ -58,77 +58,71 @@ export default {
     focusPassword() {
       this.$refs.passwordInput.focus();
     },
-    
     async login() {
   const nama = this.Nama.trim();
   const password = this.Password.trim();
 
   if (!nama || !password) {
-    alert("Please enter both username and password");
+    alert("Harap masukkan nama dan password");
     return;
   }
 
   try {
-    console.log("Sending login request...");
+    console.log("Attempting login for:", nama);
     const response = await axios.post(
-      'http://localhost:3000/user-service/login', 
-      {
+      "http://localhost:3001/login",
+      { 
         Nama: nama,
-        Password: password
-      }, 
+        Password: password 
+      },
       {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        withCredentials: true
+        headers: { 
+          'Content-Type': 'application/json' 
+        }
       }
     );
 
-    console.log("Login response:", response);
-    
+    // Check for successful response
     if (response.data && response.data.success) {
-      const { token, user, imageUrl } = response.data.data;
+      const user = response.data;
       
-      // Store user info
-      localStorage.setItem("user-info", JSON.stringify({
-        ...user,
-        token,
-        imageUrl
-      }));
+      // Store user info in localStorage (without sensitive data)
+      const userInfo = {
+        id: user.id,
+        Nama: user.Nama,
+        NamaWarung: user.NamaWarung,
+        role: user.role,
+        token: user.token
+      };
       
-      // Set auth header for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+      localStorage.setItem("user-info", JSON.stringify(userInfo));
+      axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
+
       // Redirect based on role
-      this.$router.push({ 
-        name: user.role === "admin" ? "DataUser" : "Dashboard" 
-      });
+      const targetRoute = user.role === "admin" ? "DataUser" : "Dashboard";
+      this.$router.push({ name: targetRoute });
+      
+      // Small delay before reload to ensure route change
+      setTimeout(() => window.location.reload(), 100);
     } else {
-      throw new Error(response.data.message || "Login failed");
+      throw new Error(response.data?.message || "Login failed");
     }
   } catch (error) {
-    console.error("Full login error:", error);
-    console.error("Error response:", error.response);
-    
-    let message = "Login failed. Please try again.";
-    
+    console.error("Login error:", error);
     if (error.response) {
-      if (error.response.data && error.response.data.message) {
-        message = error.response.data.message;
-      } else if (error.response.status === 401) {
-        message = "Invalid username or password";
-      } else if (error.response.status === 500) {
-        message = "Server error. Please try again later.";
+      if (error.response.status === 401) {
+        alert("Nama atau password salah");
+      } else {
+        alert(`Error: ${error.response.data?.message || "Terjadi kesalahan"}`);
       }
-    } else if (error.request) {
-      message = "No response received from server. Please check your connection.";
+    } else {
+      alert("Tidak dapat terhubung ke server");
     }
-    
-    alert(message);
   }
-}
+},
   },
   mounted() {
+    // Focus name input on component mount
     this.$refs.nameInput.focus();
     
     const user = localStorage.getItem("user-info");

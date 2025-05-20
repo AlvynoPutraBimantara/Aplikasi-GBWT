@@ -92,21 +92,26 @@ export default {
       return this.user && this.product.Pedagang === this.user.NamaWarung;
     },
   },
-  async mounted() {
-    const productId = this.$route.params.id;
-    try {
-      const response = await axios.get(
-        `http://localhost:3002/products/${productId}`
-      );
-      this.product = response.data;
-      this.product.Harga = parseFloat(this.product.Harga);
-      if (this.product.Harga_diskon) {
-        this.product.Harga_diskon = parseFloat(this.product.Harga_diskon);
-      }
-    } catch (error) {
-      console.error("Error loading product details:", error);
+async mounted() {
+  const productId = this.$route.params.id;
+  try {
+    const response = await axios.get(
+      `http://localhost:3002/products/${productId}`
+    );
+    this.product = {
+      ...response.data,
+      imageUrl: response.data.imageUrl 
+        ? response.data.imageUrl 
+        : `http://localhost:3002/images/${response.data.id}`
+    };
+    this.product.Harga = parseFloat(this.product.Harga);
+    if (this.product.Harga_diskon) {
+      this.product.Harga_diskon = parseFloat(this.product.Harga_diskon);
     }
-  },
+  } catch (error) {
+    console.error("Error loading product details:", error);
+  }
+},
   methods: {
     incrementQuantity() {
       if (this.quantity < this.product.Stok) {
@@ -129,49 +134,78 @@ export default {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
       return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     },
-    async addToCart() {
-      if (
-        this.quantity > 0 &&
-        this.quantity <= this.product.Stok &&
-        !(this.isOwnProduct && this.user) &&
-        this.product.Stok
-      ) {
-        try {
-          if (!this.user) {
-            if (!this.guestId) {
-              this.guestId = `Guest_${this.generateRandomId()}`;
-              localStorage.setItem("guestId", this.guestId);
-            }
-          }
+ async addToCart() {
+  try {
+    // Add validation for product existence
+    if (!this.product || !this.product.id) {
+      alert("Product information is missing");
+      return;
+    }
 
-          const user = this.user ? this.user.Nama : this.guestId;
-          const payload = {
-            user: user,
-            itemid: this.product.id,
-            name: this.product.Nama,
-            price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
-            quantity: this.quantity,
-            pedagang: this.product.Pedagang,
-          };
+    // Validate quantity and stock
+    if (
+      this.quantity <= 0 ||
+      !this.product.Stok ||
+      this.quantity > this.product.Stok ||
+      (this.isOwnProduct && this.user)
+    ) {
+      alert("Invalid quantity selected or insufficient stock.");
+      return;
+    }
 
-          const cartResponse = await axios.post("http://localhost:3004/cart", payload);
-          console.log("Cart response:", cartResponse.data);
+    // Handle guest users
+    if (!this.user && !this.guestId) {
+      this.guestId = `Guest_${this.generateRandomId()}`;
+      localStorage.setItem("guestId", this.guestId);
+    }
 
-          if (cartResponse.status === 201 || cartResponse.status === 200) {
-            this.product.Stok -= this.quantity;
-            alert("Pesanan berhasil dimasukkan dalam keranjang!");
-            this.$router.push("/cart");
-          } else {
-            throw new Error("Unexpected response from the server.");
-          }
-        } catch (error) {
-          console.error("Error adding to cart:", error);
-          alert("Failed to add product to cart. Please try again.");
-        }
-      } else {
-        alert("Invalid quantity selected.");
+    // Use user ID for logged-in users, guest ID for guests
+    const user = this.user ? this.user.id : this.guestId;
+    const payload = {
+      user: user,
+      itemid: this.product.id,
+      name: this.product.Nama,
+      price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
+      quantity: this.quantity,
+      pedagang: this.product.Pedagang,
+    };
+
+    // First check if product already exists in cart
+    const cartResponse = await axios.get(`http://localhost:3004/cart?user=${encodeURIComponent(user)}`);
+    const existingItem = cartResponse.data.find(item => item.itemid === this.product.id);
+
+    if (existingItem) {
+      // Update quantity if item exists
+      const newQuantity = existingItem.quantity + this.quantity;
+      if (newQuantity > this.product.Stok) {
+        alert(`Cannot add more than ${this.product.Stok} items total`);
+        return;
       }
-    },
+      
+      const updateResponse = await axios.put(`http://localhost:3004/cart/${existingItem.id}`, {
+        quantity: newQuantity
+      });
+      
+      if (updateResponse.status === 200) {
+        this.product.Stok -= this.quantity;
+        alert("Item quantity updated in cart!");
+        this.$router.push("/cart");
+      }
+    } else {
+      // Add new item to cart
+      const addResponse = await axios.post("http://localhost:3004/cart", payload);
+      
+      if (addResponse.status === 201) {
+        this.product.Stok -= this.quantity;
+        alert("Pesanan berhasil dimasukkan dalam keranjang!");
+        this.$router.push("/cart");
+      }
+    }
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    alert("Failed to add product to cart. Please try again.");
+  }
+},
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",

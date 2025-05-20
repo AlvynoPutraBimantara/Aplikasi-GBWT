@@ -1,161 +1,519 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { Cart, CartItems } = require('./cart.model');
-const { Produk } = require('./produk.model');
-const helmet = require('helmet');
-const morgan = require('morgan');
+/* eslint-disable no-unused-vars */
+// eslint-disable-next-line no-unused-vars
+const { DataTypes } = require("sequelize");
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const { CartItems } = require("./cart.model");
+const Produk = require("./produk.model");
+const sequelize = require("./db");
 
 const app = express();
-const port = process.env.PORT || 3004;
+const port = 3004;
 
-// Middleware
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*'
-}));
-app.use(helmet());
-app.use(morgan('combined'));
-app.use(express.json());
+app.use(cors());
+app.use(bodyParser.json());
 
-// Generate random ID
-const generateRandomId = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-};
+// Generate an 8-character random string for ID
+function generateRandomId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
 
-// Routes
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', service: 'cart-service' });
-});
-
-// Get cart for user
-app.get('/cart', async (req, res) => {
+// Update the GET /cart endpoint to handle guest users properly
+app.get("/cart", async (req, res) => {
   const { user } = req.query;
+  
+  if (!user || typeof user !== 'string') {
+    return res.status(400).json({ 
+      error: "Valid user ID is required",
+      details: {
+        received: user,
+        type: typeof user
+      }
+    });
+  }
+
   try {
+    const { Cart } = require('./cart.model');
+    const User = require('./user.model');
+
+    // For guest users, skip user verification
+    if (user.startsWith('Guest_')) {
+      // Find existing cart or return empty array
+      const cart = await Cart.findOne({
+        where: { user },
+        include: [{
+          model: CartItems,
+          as: "cart_items",
+          include: [{
+            model: Produk,
+            as: "product",
+            attributes: ["Stok", "imageUrl"]
+          }]
+        }]
+      });
+
+      const processedItems = cart?.cart_items?.map(item => ({
+        id: item.id,
+        cart_id: item.cart_id,
+        itemid: item.itemid,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        pedagang: item.pedagang,
+        stock: item.product?.Stok || 0,
+        imageUrl: item.product?.imageUrl || ''
+      })) || [];
+
+      return res.status(200).json(processedItems);
+    }
+
+    // For registered users, verify user exists first
+    const userExists = await User.findOne({ where: { id: user } });
+    if (!userExists) {
+      // Return empty array instead of 404
+      return res.status(200).json([]);
+    }
+
+    // Find cart for the user (don't create if doesn't exist)
     const cart = await Cart.findOne({
       where: { user },
-      include: [{ model: CartItems, as: 'cart_items' }],
+      include: [{
+        model: CartItems,
+        as: "cart_items",
+        include: [{
+          model: Produk,
+          as: "product",
+          attributes: ["Stok", "imageUrl"]
+        }]
+      }]
     });
-    res.status(200).json(cart ? cart.cart_items : []);
+
+    // Process cart items or return empty array if no cart
+    const processedItems = cart?.cart_items?.map(item => ({
+      id: item.id,
+      cart_id: item.cart_id,
+      itemid: item.itemid,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      pedagang: item.pedagang,
+      stock: item.product?.Stok || 0,
+      imageUrl: item.product?.imageUrl || ''
+    })) || [];
+
+    res.status(200).json(processedItems);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch cart items' });
+    console.error("Error fetching cart items:", err);
+    // Return empty array on error
+    res.status(200).json([]);
   }
 });
 
-// Add to cart
-app.post('/cart', async (req, res) => {
+// Add item to cart - Fixed version
+app.post("/cart", async (req, res) => {
+  let transaction;
   try {
     const { user, itemid, name, price, quantity, pedagang } = req.body;
 
-    const product = await Produk.findOne({ where: { id: itemid } });
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-
-    const finalPrice = product.Harga_diskon || price;
-
-    let cart = await Cart.findOne({ where: { user } });
-    if (!cart) cart = await Cart.create({ id: generateRandomId(), user });
-
-    const existingItem = await CartItems.findOne({ where: { cart_id: cart.id, itemid } });
-
-    if (existingItem) {
-      const updatedQuantity = existingItem.quantity + quantity;
-      await CartItems.update(
-        { quantity: updatedQuantity },
-        { where: { id: existingItem.id } }
-      );
-      return res.status(200).json({ message: 'Quantity updated' });
+    // Validate input
+    if (!user || !itemid || !name || !price || !quantity || !pedagang) {
+      return res.status(400).json({ 
+        error: "All fields are required",
+        details: {
+          received: {
+            user: !!user,
+            itemid: !!itemid,
+            name: !!name,
+            price: !!price,
+            quantity: !!quantity,
+            pedagang: !!pedagang
+          }
+        }
+      });
     }
 
-    await CartItems.create({
-      id: generateRandomId(),
-      cart_id: cart.id,
-      itemid,
-      name,
-      price: finalPrice,
-      quantity,
-      pedagang,
+    // Validate quantity
+    if (isNaN(quantity) || quantity <= 0) {
+      return res.status(400).json({ error: "Quantity must be a positive number" });
+    }
+
+    transaction = await sequelize.transaction();
+
+    // Models required within function scope
+    const User = require('./user.model');
+    const { Cart } = require('./cart.model');
+
+    // For non-guest users, verify user exists
+    if (!user.startsWith('Guest_')) {
+      const userExists = await User.findOne({
+        where: { id: user },
+        transaction
+      });
+      
+      if (!userExists) {
+        await transaction.rollback();
+        return res.status(404).json({ 
+          error: "User not found.",
+          details: { searchedUserId: user }
+        });
+      }
+    }
+
+    // Verify product exists
+    const product = await Produk.findOne({ 
+      where: { id: itemid },
+      transaction
     });
 
-    res.status(201).json({ message: 'Item added to cart' });
+    if (!product) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        error: "Product not found.",
+        details: { searchedItemId: itemid }
+      });
+    }
+
+    // Stock check
+    const productStock = Number(product.Stok);
+    if (isNaN(productStock)) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: "Invalid product stock information",
+        details: { productStock: product.Stok }
+      });
+    }
+
+    if (quantity > productStock) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: `Only ${productStock} items available in stock`,
+        availableStock: productStock,
+        requestedQuantity: quantity
+      });
+    }
+
+    // Find or create cart for the user
+    let cart = await Cart.findOne({ 
+      where: { user },
+      transaction
+    });
+
+    if (!cart) {
+      cart = await Cart.create({ 
+        id: generateRandomId(), 
+        user 
+      }, { transaction });
+    }
+
+    // Check for existing item in cart
+    const existingItem = await CartItems.findOne({
+      where: { 
+        cart_id: cart.id, 
+        itemid 
+      },
+      transaction
+    });
+
+    if (existingItem) {
+      // Update quantity if item exists
+      const newQuantity = existingItem.quantity + quantity;
+      
+      if (newQuantity > productStock) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: `Cannot add more than ${productStock} items`,
+          maxAllowed: productStock - existingItem.quantity
+        });
+      }
+
+      await CartItems.update(
+        { quantity: newQuantity },
+        { 
+          where: { id: existingItem.id },
+          transaction 
+        }
+      );
+    } else {
+      // Add new item to cart
+      await CartItems.create({
+        id: generateRandomId(),
+        cart_id: cart.id,
+        itemid,
+        name,
+        price: product.Harga_diskon || price,
+        quantity,
+        pedagang
+      }, { transaction });
+    }
+
+    await transaction.commit();
+    res.status(201).json({ 
+      message: "Item added to cart.",
+      cartId: cart.id,
+      productId: itemid,
+      quantity: quantity
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to add item to cart' });
+    if (transaction) await transaction.rollback();
+    console.error("Error adding to cart:", err);
+    res.status(500).json({ 
+      error: "Failed to add item to cart.",
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
-// Update cart item
-app.put('/cart/:id', async (req, res) => {
+// Update a cart item's quantity
+app.put("/cart/:id", async (req, res) => {
   const { id } = req.params;
   const { quantity } = req.body;
 
-  try {
-    const cartItem = await CartItems.findOne({ where: { id } });
-    if (!cartItem) return res.status(404).json({ error: 'Cart item not found' });
+  if (!quantity || isNaN(quantity) || quantity < 1) {
+    return res.status(400).json({ error: "Valid quantity is required" });
+  }
 
-    const product = await Produk.findOne({
-      where: { id: cartItem.itemid },
-      attributes: ['Stok'],
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+
+    // Get the cart item with product info
+    const cartItem = await CartItems.findOne({
+      where: { id },
+      include: [{
+        model: Produk,
+        as: "product",
+        attributes: ["Stok"]
+      }],
+      transaction
     });
 
-    if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (!cartItem) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Cart item not found." });
+    }
 
-    const clampedQuantity = Math.min(quantity, product.Stok);
+    const maxStock = cartItem.product.Stok;
+    const clampedQuantity = Math.min(quantity, maxStock);
+
+    if (clampedQuantity < 1) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: `Minimum quantity is 1, only ${maxStock} available` 
+      });
+    }
+
+    // Update the quantity
     await CartItems.update(
       { quantity: clampedQuantity },
-      { where: { id } }
+      { 
+        where: { id },
+        transaction
+      }
     );
 
-    res.status(200).json({ message: 'Quantity updated' });
+    await transaction.commit();
+    res.status(200).json({ 
+      message: "Quantity updated successfully.",
+      updatedQuantity: clampedQuantity
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update cart item' });
+    if (transaction) await transaction.rollback();
+    console.error("Error updating cart item:", err);
+    res.status(500).json({ error: "Failed to update cart item." });
   }
 });
 
-// Delete cart item
-app.delete('/cart/:id', async (req, res) => {
+// Delete a cart item by ID
+app.delete("/cart/:id", async (req, res) => {
   const { id } = req.params;
+  let transaction;
+
   try {
-    const cartItem = await CartItems.findOne({ where: { id } });
-    if (!cartItem) return res.status(404).json({ error: 'Cart item not found' });
+    transaction = await sequelize.transaction();
+
+    // First get the cart item to find its cart_id
+    const cartItem = await CartItems.findOne({
+      where: { id },
+      transaction
+    });
+
+    if (!cartItem) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Cart item not found." });
+    }
 
     const cartId = cartItem.cart_id;
-    await CartItems.destroy({ where: { id } });
     
-    const remainingItems = await CartItems.count({ where: { cart_id: cartId } });
-    if (remainingItems === 0) await Cart.destroy({ where: { id: cartId } });
+    // Delete the cart item
+    await CartItems.destroy({
+      where: { id },
+      transaction
+    });
     
-    res.status(204).end();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete cart item' });
-  }
-});
-
-// Clear cart
-app.delete('/cart', async (req, res) => {
-  const { user } = req.query;
-  try {
-    const cart = await Cart.findOne({ where: { user } });
-    if (cart) {
-      await CartItems.destroy({ where: { cart_id: cart.id } });
-      await Cart.destroy({ where: { id: cart.id } });
+    // Check if this was the last item in the cart
+    const remainingItems = await CartItems.count({ 
+      where: { cart_id: cartId },
+      transaction
+    });
+    
+    if (remainingItems === 0) {
+      // If no items left, delete the cart too
+      const { Cart } = require('./cart.model');
+      await Cart.destroy({
+        where: { id: cartId },
+        transaction
+      });
     }
+    
+    await transaction.commit();
     res.status(204).end();
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to clear cart' });
+    if (transaction) await transaction.rollback();
+    console.error("Error deleting cart item:", err);
+    res.status(500).json({ error: "Failed to delete cart item." });
   }
 });
 
-// Error handling
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Internal server error' });
+// Clear all cart items for a specific user
+app.delete("/cart", async (req, res) => {
+  const { user } = req.query;
+
+  if (!user) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+
+    // Models required within function scope
+    const { Cart } = require('./cart.model');
+
+    // Find the user's cart
+    const cart = await Cart.findOne({ 
+      where: { user },
+      transaction
+    });
+    
+    if (cart) {
+      const cartId = cart.id;
+      
+      // Delete all cart items
+      await CartItems.destroy({
+        where: { cart_id: cartId },
+        transaction
+      });
+      
+      // Delete the cart
+      await Cart.destroy({
+        where: { id: cartId },
+        transaction
+      });
+    }
+
+    await transaction.commit();
+    res.status(204).end();
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error clearing cart:", err);
+    res.status(500).json({ error: "Failed to clear cart." });
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Cart service running on port ${port}`);
+// Get cart total for a user
+app.get("/cart/total", async (req, res) => {
+  const { user } = req.query;
+
+  if (!user) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+
+    // Find the user's cart
+    const [cart] = await sequelize.query(
+      "SELECT id FROM cart WHERE user = ?",
+      {
+        replacements: [user],
+        transaction,
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+    
+    if (!cart || cart.length === 0) {
+      await transaction.commit();
+      return res.status(200).json({ total: 0, itemCount: 0 });
+    }
+
+    const cartId = cart[0].id;
+
+    // Calculate total and item count
+    const [result] = await sequelize.query(
+      `SELECT 
+        SUM(ci.price * ci.quantity) as total,
+        SUM(ci.quantity) as itemCount
+       FROM cart_items ci
+       WHERE ci.cart_id = ?`,
+      {
+        replacements: [cartId],
+        transaction,
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+
+    const total = result[0].total || 0;
+    const itemCount = result[0].itemCount || 0;
+
+    await transaction.commit();
+    res.status(200).json({ total, itemCount });
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error calculating cart total:", err);
+    res.status(500).json({ error: "Failed to calculate cart total." });
+  }
+});
+
+// After importing models but before starting the server
+async function initializeDatabase() {
+  try {
+    // Load models in correct order
+    const User = require('./user.model');
+    const Produk = require('./produk.model');
+    const { Cart, CartItems } = require('./cart.model');
+
+    // Setup associations
+    CartItems.belongsTo(Produk, {
+      foreignKey: "itemid",
+      as: "product",
+      onDelete: 'CASCADE'
+    });
+
+    // Try verifying if tables exist
+    await sequelize.query("SELECT 1 FROM `user` LIMIT 1");
+    await sequelize.query("SELECT 1 FROM `cart` LIMIT 1");
+    await sequelize.query("SELECT 1 FROM `cart_items` LIMIT 1");
+
+    console.log('Database tables verified');
+  } catch (error) {
+    console.error('Database verification failed:', error);
+
+    // Re-sync models if verification fails
+    try {
+      await sequelize.sync({ alter: true });
+      console.log('Database re-synchronized');
+    } catch (syncError) {
+      console.error('Failed to re-synchronize database:', syncError);
+      process.exit(1); // Exit if re-sync also fails
+    }
+  }
+}
+initializeDatabase().then(() => {
+  app.listen(port, () => {
+    console.log(`Cart service is running on http://localhost:${port}`);
+  });
 });

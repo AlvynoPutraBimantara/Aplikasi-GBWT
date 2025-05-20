@@ -3,7 +3,7 @@
     <div class="sidebar-heading">Aplikasi GBWT</div>
     <!-- Profile Image Display -->
     <div class="profile-image-container" v-if="userImage">
-      <img :src="userImage" alt="Profile Image" class="profile-image" />
+      <img :src="userImage" alt="Profile Image" class="profile-image" @error="handleImageError" />
     </div>
     <div class="list-group list-group-flush">
       <router-link
@@ -40,22 +40,61 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   name: "UserSidebar",
+  data() {
+    return {
+      userData: {
+        imageUrl: null
+      }
+    };
+  },
   computed: {
     userId() {
       const user = JSON.parse(localStorage.getItem("user-info"));
       return user ? user.id : null;
     },
     userImage() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      return user ? user.imageUrl : null;
+      return this.userData.imageUrl;
     }
   },
   methods: {
+    async fetchUser() {
+      try {
+        if (!this.userId) return;
+        
+        const result = await axios.get(
+          `http://localhost:3001/user/${this.userId}`
+        );
+        this.userData = result.data;
+        
+        // Update localStorage with fresh data
+        const userInfo = JSON.parse(localStorage.getItem("user-info")) || {};
+        userInfo.imageUrl = result.data.imageUrl;
+        localStorage.setItem("user-info", JSON.stringify(userInfo));
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    },
+    handleImageError(event) {
+      // Fallback image or hide the image container
+      event.target.style.display = 'none';
+    },
     logout() {
       this.$emit("logout");
     },
+  },
+  async mounted() {
+    // First check localStorage
+    const user = JSON.parse(localStorage.getItem("user-info"));
+    if (user && user.imageUrl) {
+      this.userData.imageUrl = user.imageUrl;
+    }
+    
+    // Then fetch fresh data from API
+    await this.fetchUser();
   },
 };
 </script>
@@ -83,15 +122,14 @@ export default {
 .profile-image-container {
   display: flex;
   justify-content: center;
-  margin-top: 0.5rem;  /* Reduced from previous value */
-  margin-bottom: 1rem; /* Reduced from previous value */
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  min-height: 100px;
 }
 
 .profile-image {
-  width: 7vw;
-  height: 7vw;
-  max-width: 7vw;  /* Added to prevent image from getting too large */
-  max-height: 7vw; /* Added to prevent image from getting too large */
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid #fff;
@@ -100,7 +138,14 @@ export default {
 
 /* Override the padding from App.css */
 #sidebar-wrapper .sidebar-heading {
-  padding: 1rem 1rem !important; /* Reduced padding */
-  margin-bottom: 0 !important;   /* Remove any default margin */
+  padding: 1rem 1rem !important;
+  margin-bottom: 0 !important;
+}
+
+/* Fallback when image fails to load */
+.profile-image-container:empty::after {
+  content: "No Image";
+  color: #666;
+  font-size: 0.8rem;
 }
 </style>

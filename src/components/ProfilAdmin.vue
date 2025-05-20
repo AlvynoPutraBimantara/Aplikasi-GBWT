@@ -56,12 +56,12 @@
           />
         </div>
         <div class="form-row">
-          <label for="Password">Password:</label>
+          <label for="Password">Password Baru:</label>
           <input
-            type="text"
+            type="password"
             id="Password"
-            placeholder="Ubah Password"
-            v-model="User.Password"
+            placeholder="Masukkan password baru"
+            v-model="newPassword"
           />
         </div>
         <div class="form-row">
@@ -94,66 +94,74 @@ export default {
         Nama: "",
         Telp: "",
         Alamat: "",
-        Password: "",
         imageUrl: "",
       },
+      newPassword: "", // Separate field for new password
       imageFile: null,
       previewImage: null,
     };
   },
   methods: {
-    // In the UpdateProfil method of ProfilAdmin.vue
     async UpdateProfil() {
-    try {
-      let previousImageId = null;
-      
-      // Handle image upload if there's a new image
-      if (this.User.imageUrl) {
-        const urlParts = this.User.imageUrl.split("/");
-        previousImageId = urlParts[urlParts.length - 1];
-      }
+      try {
+        let previousImageId = null;
+        
+        // Handle image upload if there's a new image
+        if (this.User.imageUrl) {
+          const urlParts = this.User.imageUrl.split("/");
+          previousImageId = urlParts[urlParts.length - 1];
+        }
 
-      if (this.imageFile) {
-        const formData = new FormData();
-        formData.append("image", this.imageFile);
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
 
-        const response = await axios.post("http://localhost:3001/uploads", formData);
-        const newImageId = response.data.id;
-        this.User.imageUrl = `http://localhost:3001/uploads/${newImageId}`;
+          const response = await axios.post("http://localhost:3001/uploads", formData);
+          const newImageId = response.data.id;
+          this.User.imageUrl = `http://localhost:3001/uploads/${newImageId}`;
 
-        if (previousImageId) {
-          await axios.delete(`http://localhost:3001/uploads/${previousImageId}`);
+          if (previousImageId) {
+            await axios.delete(`http://localhost:3001/uploads/${previousImageId}`);
+          }
+        }
+
+        // Prepare update data
+        const updateData = {
+          ...this.User,
+          Password: this.newPassword || undefined // Only include password if it's not empty
+        };
+
+        // Update user profile
+        const updateResponse = await axios.put(
+          `http://localhost:3001/user/${this.$route.params.id}`,
+          updateData
+        );
+
+        if (updateResponse.data.message && updateResponse.data.message.includes("Maaf nama warung")) {
+          alert(updateResponse.data.message);
+        } else {
+          alert("Profil berhasil diperbarui.");
+          this.newPassword = ""; // Clear password field after successful update
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        if (error.response && error.response.data && error.response.data.message) {
+          alert(error.response.data.message);
+        } else {
+          alert("Terjadi kesalahan saat memperbarui profil.");
         }
       }
-
-      // Update user profile (includes related tables update in backend)
-      const updateResponse = await axios.put(
-        `http://localhost:3001/user/${this.$route.params.id}`,
-        this.User
-      );
-
-      if (updateResponse.data.message && updateResponse.data.message.includes("Maaf nama warung")) {
-        alert(updateResponse.data.message);
-      } else {
-        alert("Profil berhasil diperbarui.");
-        // Reload the page after successful update
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      if (error.response && error.response.data && error.response.data.message) {
-        alert(error.response.data.message);
-      } else {
-        alert("Terjadi kesalahan saat memperbarui profil.");
-      }
-    }
-  },
+    },
     async fetchUser() {
       try {
         const result = await axios.get(
           `http://localhost:3001/user/${this.$route.params.id}`
         );
-        this.User = result.data;
+        // Don't store password in component state
+        // eslint-disable-next-line no-unused-vars
+        const { Password, ...userData } = result.data;
+        this.User = userData;
       } catch (error) {
         console.error("Error fetching user:", error);
       }

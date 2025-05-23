@@ -237,11 +237,11 @@ export default {
 }
 
 .whatsapp-button:hover {
-  background-color: #128C7E;
+  background-color: darkgreen;
 }
 
 .whatsapp-button font-awesome-icon {
-  margin-left: 10px;
+  margin-left: 30px;
   font-size: 20px;
 }
 </style>

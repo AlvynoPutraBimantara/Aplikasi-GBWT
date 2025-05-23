@@ -32,6 +32,7 @@ import GuestSidebar from "./components/GuestSidebar.vue";
 import UserUpdateProduk from "./components/UserUpdateProduk.vue";
 import RiwayatTransaksi from "./components/RiwayatTransaksi.vue";
 import GuestDashboard from "./components/GuestDashboard.vue";
+import ForgotPassword from "./components/ForgotPassword.vue";
 
 const routes = [
   {
@@ -204,6 +205,11 @@ const routes = [
     component: GuestDashboard,
     path: "/GuestDashboard",
   },
+ {
+  name: "ForgotPassword",
+  component: ForgotPassword,
+  path: "/forgot-password"  // <- lowercase with hyphen
+},
 ];
 
 const router = createRouter({
@@ -215,23 +221,26 @@ router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem("user-info"));
   const isGuest = localStorage.getItem("guest") === "true";
 
+  // Define allowed routes for unauthenticated users
+  const allowedRoutes = [
+    "LandingPage",
+    "Login", 
+    "SignUp",
+    "ForgotPassword" // <-- Added ForgotPassword route
+  ];
+
   if (to.matched.some((record) => record.meta.requiresAdmin)) {
     if (user && user.role === "admin") {
       next();
     } else {
       next({ name: "Dashboard" });
     }
-  } else if (
-    to.name !== "LandingPage" &&
-    to.name !== "Login" &&
-    to.name !== "SignUp" &&
-    !user &&
-    !isGuest
-  ) {
+  } else if (!allowedRoutes.includes(to.name) && !user && !isGuest) {
     next({ name: "LandingPage" });
   } else {
     next();
   }
 });
+
 
 export default router;

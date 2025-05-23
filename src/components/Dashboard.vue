@@ -215,23 +215,22 @@ export default {
     goToProductPage(productId) {
       this.$router.push(`/DetilProduk/${productId}`);
     },
-    async fetchProducts(productIds) {
-      const fetchedProducts = [];
-      for (const id of productIds) {
-        try {
-          const response = await axios.get(`http://localhost:3002/products/${id}`);
-          fetchedProducts.push({
-            ...response.data,
-            imageUrl: response.data.imageUrl
-              ? `http://localhost:3002/images/${response.data.id}`
-              : "default-image.jpg",
-          });
-        } catch (error) {
-          console.warn(`Product ID ${id} could not be fetched: ${error.message}`);
-        }
-      }
-      return fetchedProducts;
-    },
+async fetchProducts(productIds) {
+  const fetchedProducts = [];
+  for (const id of productIds) {
+    try {
+      const response = await axios.get(`http://localhost:3002/products/${id}`);
+      fetchedProducts.push({
+        ...response.data,
+        // Always construct the URL using the product's ID
+        imageUrl: `http://localhost:3002/images/${response.data.id}`,
+      });
+    } catch (error) {
+      console.warn(`Product ID ${id} could not be fetched: ${error.message}`);
+    }
+  }
+  return fetchedProducts;
+},
     async fetchNewProducts() {
       try {
         const threeDaysAgo = new Date();
@@ -258,51 +257,60 @@ export default {
       return productDate > threeDaysAgo;
     },
     async fetchRiwayatTransaksi() {
-      try {
-        const response = await axios.get("http://localhost:3005/transactions-history");
-        const transactions = response.data;
+  try {
+    const response = await axios.get("http://localhost:3005/transactions-history", {
+      params: {
+        description: "Lunas" // Add this parameter to filter by "Lunas"
+      }
+    });
+    const transactions = response.data;
 
-        const transactionsWithItems = await Promise.all(
-          transactions.map(async (transaction) => {
-            const itemsResponse = await axios.get(
-              `http://localhost:3005/transactions-history-items/${transaction.id}`
-            );
-            return {
-              ...transaction,
-              items: itemsResponse.data,
-            };
-          })
+    const transactionsWithItems = await Promise.all(
+      transactions.map(async (transaction) => {
+        const itemsResponse = await axios.get(
+          `http://localhost:3005/transactions-history-items/${transaction.id}`
         );
+        return {
+          ...transaction,
+          items: itemsResponse.data,
+        };
+      })
+    );
 
-        return transactionsWithItems;
-      } catch (error) {
-        console.error("Error fetching transaction history:", error);
-        return [];
-      }
-    },
+    return transactionsWithItems;
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+    return [];
+  }
+},
     async fetchPreviousProducts() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      if (user && user.Nama) {
-        try {
-          const transactions = await this.fetchRiwayatTransaksi();
-          const userTransactions = transactions.filter(
-            (transaction) => transaction.user === user.Nama
-          );
+  const user = JSON.parse(localStorage.getItem("user-info"));
+  if (user && user.id) {
+    try {
+      const transactions = await this.fetchRiwayatTransaksi();
+      const userTransactions = transactions.filter(
+        (transaction) => transaction.user === user.id
+      );
 
-          const productIds = [
-            ...new Set(
-              userTransactions.flatMap((transaction) =>
-                transaction.items.map((item) => item.itemid)
-              )
-            ),
-          ];
+      // Additional check for "Lunas" status (though the API should already filter this)
+      const lunasTransactions = userTransactions.filter(
+        (transaction) => transaction.description === "Lunas"
+      );
 
-          this.previousProducts = await this.fetchProducts(productIds);
-        } catch (error) {
-          console.error("Error fetching previous products:", error);
-        }
-      }
-    },
+      const productIds = [
+        ...new Set(
+          lunasTransactions.flatMap((transaction) =>
+            transaction.items.map((item) => item.itemid)
+          )
+        ),
+      ];
+
+      this.previousProducts = await this.fetchProducts(productIds);
+    } catch (error) {
+      console.error("Error fetching previous products:", error);
+    }
+  }
+},
     async fetchPopularProducts() {
       try {
         const response = await axios.get("http://localhost:3005/transactions-history-items");

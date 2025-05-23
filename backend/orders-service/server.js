@@ -2,15 +2,17 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const sequelize = require("./db");
+const { Op } = require('sequelize');
 
 const app = express();
 const port = 3003;
 
 app.use(cors({
-  origin: true, // or specify your frontend origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Disposition']
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length'],
+  credentials: true
 }));
 app.use(bodyParser.json());
 
@@ -667,8 +669,56 @@ app.get("/orders/:id", async (req, res) => {
   }
 });
 
-// Update the refund endpoint to properly handle stock updates
-// Update the refund endpoint to properly handle stock updates
+// Mark order as complete and delete it
+// Mark order as complete and delete it
+app.delete("/orders/:id/complete", async (req, res) => {
+  const orderId = req.params.id;
+  let transaction;
+
+  try {
+    const { Orders, OrderItems, Invoice } = require('./orders.model');
+    
+    transaction = await sequelize.transaction();
+
+    // First nullify the order_id reference in invoice
+    await Invoice.update(
+      { order_id: null },
+      { 
+        where: { order_id: orderId },
+        transaction
+      }
+    );
+
+    // Then delete order items
+    await OrderItems.destroy({ 
+      where: { order_id: orderId },
+      transaction
+    });
+
+    // Finally delete the order
+    const deletedCount = await Orders.destroy({ 
+      where: { id: orderId },
+      transaction
+    });
+
+    if (deletedCount === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    await transaction.commit();
+    res.status(204).end();
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error("Error completing order:", error);
+    res.status(500).json({ 
+      error: "Failed to complete order",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
+    });
+  }
+});
+
+
 app.post("/orders/:id/refund", async (req, res) => {
   let transaction;
   try {
@@ -680,15 +730,21 @@ app.post("/orders/:id/refund", async (req, res) => {
     // Find the order with its items and associated products
     const order = await Orders.findOne({
       where: { id: req.params.id },
-      include: [{
-        model: OrderItems,
-        as: "order_items",
-        include: [{
-          model: Produk,
-          as: "order_item_product", // Corrected alias
-          attributes: ['id', 'Stok']
-        }]
-      }],
+      include: [
+        {
+          model: OrderItems,
+          as: "order_items",
+          include: [{
+            model: Produk,
+            as: "order_item_product", // Corrected alias from patch
+            attributes: ['id', 'Stok']
+          }]
+        },
+        {
+          model: Invoice,
+          as: "invoice"
+        }
+      ],
       transaction
     });
 
@@ -699,21 +755,24 @@ app.post("/orders/:id/refund", async (req, res) => {
 
     // Update stock for each item
     await Promise.all(order.order_items.map(async (item) => {
-      if (item.order_item_product) { // Using correct alias
+      if (item.order_item_product) { // Updated reference to match corrected alias
         await Produk.increment('Stok', {
-          by: parseInt(item.quantity), // Ensure quantity is parsed as integer
+          by: parseInt(item.quantity),
           where: { id: item.itemid },
           transaction
         });
       }
     }));
 
-    // Delete associated invoice first (if exists)
-    if (order.invoice_url) {
-      await Invoice.destroy({ 
-        where: { order_id: order.id },
-        transaction
-      });
+    // Handle associated invoice (if exists)
+    if (order.invoice) {
+      await Invoice.update(
+        { order_id: null },
+        { 
+          where: { id: order.invoice.id },
+          transaction
+        }
+      );
     }
 
     // Delete order items
@@ -729,7 +788,10 @@ app.post("/orders/:id/refund", async (req, res) => {
     });
 
     await transaction.commit();
-    res.json({ message: "Order refunded and stock updated successfully" });
+    res.json({ 
+      message: "Order refunded and stock updated successfully",
+      invoice_url: order.invoice ? order.invoice.invoice_url : null
+    });
   } catch (error) {
     if (transaction) await transaction.rollback();
     console.error("Refund error:", error);
@@ -797,23 +859,33 @@ app.get('/invoices/:order_id/:filename', async (req, res) => {
     const { Invoice } = require('./orders.model');
     const { order_id } = req.params;
 
-    // Find the invoice in database
+    // Find invoice by order_id or invoice_url
     const invoice = await Invoice.findOne({
-      where: { order_id }
+      where: { 
+        [Op.or]: [
+          { order_id },
+          { invoice_url: `/invoices/${order_id}/${req.params.filename}` }
+        ]
+      }
     });
 
     if (!invoice || !invoice.file) {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    // Set proper headers
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename="invoice.pdf"');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // Set proper headers for inline display
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${invoice.filename || 'invoice.pdf'}"`,
+      'Content-Length': invoice.file.length,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'X-Content-Type-Options': 'nosniff'
+    });
     
-    // Send the PDF data
     res.send(invoice.file);
   } catch (error) {
     console.error("Error serving invoice:", error);
@@ -821,6 +893,24 @@ app.get('/invoices/:order_id/:filename', async (req, res) => {
       error: "Failed to serve invoice",
       details: process.env.NODE_ENV === 'development' ? error.message : null
     });
+  }
+});
+
+// Add validation endpoint
+app.get('/invoices/:id/verify', async (req, res) => {
+  try {
+    // eslint-disable-next-line no-undef
+    const invoice = await Invoice.findByPk(req.params.id);
+    // eslint-disable-next-line no-undef
+    const isValid = isValidPDF(invoice.file);
+    
+    res.json({
+      valid: isValid,
+      size: invoice.file.length,
+      firstBytes: invoice.file.slice(0,4).toString('hex')
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Verification failed" });
   }
 });
 

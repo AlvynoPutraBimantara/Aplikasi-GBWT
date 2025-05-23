@@ -67,10 +67,12 @@ const User = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
-    Telp: {
-      type: DataTypes.STRING(20),
-      allowNull: true,
-    },
+    // In the User model definition, add unique constraint
+Telp: {
+  type: DataTypes.STRING(20),
+  allowNull: true,
+  unique: true // Add this line
+},
     Alamat: {
       type: DataTypes.TEXT,
       allowNull: true,

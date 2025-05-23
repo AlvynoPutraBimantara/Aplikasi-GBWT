@@ -43,45 +43,52 @@ app.get("/transactions-items", async (req, res) => {
 app.post("/transactions", async (req, res) => {
   const { order, invoice_url } = req.body;
 
+  // Validate required fields
   if (!order || !order.user || !order.order_items || order.order_items.length === 0) {
-    return res.status(400).json({ error: "Invalid transaction data." });
+    return res.status(400).json({ error: "Data transaksi tidak valid." });
+  }
+  if (!order.alamat) {
+    return res.status(400).json({ error: "Alamat harus diisi." });
   }
 
   try {
     // Create the transaction
-    const transactionId = generateRandomId();
-    // eslint-disable-next-line no-unused-vars
     const transaction = await Transactions.create({
-      id: transactionId,
+      id: order.id || generateRandomId(),
       user: order.user,
       total: order.total,
       catatan: order.catatan,
       alamat: order.alamat,
-      pemesan: order.pemesan || order.user, // Include pemesan field
-      created_at: getCurrentTimestamp(),
+      pemesan: order.pemesan || order.user,
+      created_at: order.created_at || getCurrentTimestamp(),
       invoice_url: invoice_url || null
     });
 
     // Create transaction items
-    for (const item of order.order_items) {
-      await TransactionItems.create({
+    const itemPromises = order.order_items.map(item => 
+      TransactionItems.create({
         id: generateRandomId(),
-        transactions_id: transactionId,
+        transactions_id: transaction.id,
         itemid: item.itemid,
         name: item.name,
         pedagang: item.pedagang,
         price: item.price,
-        quantity: item.quantity,
-      });
-    }
+        quantity: parseInt(item.quantity, 10) || 1,
+      })
+    );
+
+    await Promise.all(itemPromises);
 
     res.status(201).json({ 
-      message: "Transaction created successfully!", 
-      transactionId 
+      message: "Transaksi berhasil dibuat!", 
+      transactionId: transaction.id 
     });
   } catch (error) {
     console.error("Error creating transaction:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ 
+      error: "Terjadi kesalahan server",
+      details: error.message 
+    });
   }
 });
 
@@ -231,9 +238,17 @@ app.post("/transactions/:id/move-to-history", async (req, res) => {
 });
 
 // Get all transactions history
+// Get all transactions history with optional description filter
 app.get("/transactions-history", async (req, res) => {
   try {
-    const transactions = await TransactionsHistory.findAll();
+    const whereClause = {};
+    if (req.query.description) {
+      whereClause.description = req.query.description;
+    }
+    
+    const transactions = await TransactionsHistory.findAll({
+      where: whereClause
+    });
     res.json(transactions);
   } catch (error) {
     console.error("Error fetching transactions history:", error);

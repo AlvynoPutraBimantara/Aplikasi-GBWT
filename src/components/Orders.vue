@@ -16,23 +16,16 @@
           </div>
         </div>
         <div v-if="order.invoice_url" class="pdf-viewer-container">
-          <!-- Native PDF rendering -->
-<iframe 
-  v-show="!pdfJsFallbackOrders.has(order.id)"
-  :src="getPdfUrl(order.invoice_url) + '#toolbar=0&navpanes=0&scrollbar=0'"
-  class="pdf-viewer"
-  frameborder="0"
-  type="application/pdf"
-  @load="pdfLoading = false"
-  @error="activatePdfJsFallback(order)"
-></iframe>
-          
-          <!-- PDF.js fallback container -->
-          <div 
-            v-show="pdfJsFallbackOrders.has(order.id)"
-            :ref="`pdf-container-${order.id}`"
-            class="pdfjs-container"
-          ></div>
+          <!-- PDF Viewer - Uses PDF.js for Windows 10, otherwise tries native viewer -->
+          <div v-if="forcePDFJS" class="pdfjs-container" :ref="`pdf-container-${order.id}`"></div>
+          <object v-else
+            :data="getPdfUrl(order.invoice_url)"
+            type="application/pdf"
+            width="100%"
+            height="500px"
+            @error="activatePdfJsFallback(order)">
+            <p>PDF cannot be displayed</p>
+          </object>
           
           <div v-if="pdfLoading" class="pdf-loading">
             Memuat invoice...
@@ -58,7 +51,8 @@ export default {
       guestId: localStorage.getItem("guestId") || null,
       pdfLoading: false,
       isSavingImage: false,
-      pdfJsFallbackOrders: new Set()
+      pdfJsFallbackOrders: new Set(),
+      forcePDFJS: navigator.userAgent.match(/Windows NT 10/) // Force PDF.js for Windows 10
     };
   },
   computed: {
@@ -70,6 +64,14 @@ export default {
   async mounted() {
     await this.fetchOrders();
     await this.fetchUserData();
+    // Render all PDFs with PDF.js if forced
+    if (this.forcePDFJS) {
+      this.orders.forEach(order => {
+        if (order.invoice_url) {
+          this.renderWithPdfJs(order);
+        }
+      });
+    }
   },
   methods: {
     async fetchOrders() {
@@ -84,7 +86,7 @@ export default {
         this.orders = response.data;
       } catch (error) {
         console.error("Error fetching orders:", error);
-        this.orders = []; // Ensure empty array on error
+        this.orders = [];
       }
     },
     async fetchUserData() {
@@ -97,6 +99,10 @@ export default {
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
+    },
+    onPdfError() {
+      this.pdfLoading = false;
+      alert('Gagal memuat PDF. Silakan coba lagi atau hubungi administrator.');
     },
     activatePdfJsFallback(order) {
       this.pdfJsFallbackOrders.add(order.id);
@@ -111,33 +117,27 @@ export default {
         
         const blob = new Blob([response.data], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
-        
-        // Open in new tab as fallback
         window.open(url, '_blank');
       } catch (error) {
         console.error('Error downloading PDF:', error);
         alert('Gagal memuat invoice. Silakan coba lagi nanti.');
       }
     },
-getPdfUrl(invoiceUrl) {
-  // Handle both full URLs and relative paths
-  if (invoiceUrl.startsWith('http')) {
-    return invoiceUrl;
-  }
-  
-  // Remove any leading slashes to prevent double slashes
-  const cleanUrl = invoiceUrl.replace(/^\//, '');
-  
-  // Add timestamp to prevent caching issues
-  const timestamp = new Date().getTime();
-  return `http://localhost:3003/${cleanUrl}?t=${timestamp}`;
-},
+    getPdfUrl(invoiceUrl) {
+      if (!invoiceUrl) return '';
+      if (invoiceUrl.startsWith('http')) {
+        return invoiceUrl;
+      }
+      const cleanUrl = invoiceUrl.replace(/^\//, '');
+      const timestamp = new Date().getTime();
+      return `http://localhost:3003/${cleanUrl}?t=${timestamp}`;
+    },
     async renderWithPdfJs(order) {
       try {
         const pdfjsLib = await this.loadPdfJs();
         const container = this.$refs[`pdf-container-${order.id}`];
         
-        if (!container) return;
+        if (!container || !container[0]) return;
         
         const response = await axios.get(this.getPdfUrl(order.invoice_url), {
           responseType: 'arraybuffer'
@@ -146,10 +146,8 @@ getPdfUrl(invoiceUrl) {
         const loadingTask = pdfjsLib.getDocument({ data: response.data });
         const pdf = await loadingTask.promise;
         
-        // Clear container
-        container.innerHTML = '';
+        container[0].innerHTML = '';
         
-        // Render each page
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const viewport = page.getViewport({ scale: 1.5 });
@@ -159,7 +157,7 @@ getPdfUrl(invoiceUrl) {
           canvas.height = viewport.height;
           canvas.width = viewport.width;
           
-          container.appendChild(canvas);
+          container[0].appendChild(canvas);
           
           await page.render({
             canvasContext: context,
@@ -186,35 +184,26 @@ getPdfUrl(invoiceUrl) {
 
       this.isSavingImage = true;
       try {
-        // Load pdfjs-dist from CDN dynamically
         const pdfjsLib = await this.loadPdfJs();
-        
-        // Fetch the PDF
         const response = await axios.get(`http://localhost:3003${order.invoice_url}`, {
           responseType: 'arraybuffer'
         });
 
-        // Convert PDF to image
         const loadingTask = pdfjsLib.getDocument({ data: response.data });
         const pdf = await loadingTask.promise;
-        
-        // Get the first page
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 2.0 });
         
-        // Create canvas
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.height = viewport.height;
         canvas.width = viewport.width;
         
-        // Render PDF page to canvas
         await page.render({
           canvasContext: context,
           viewport: viewport
         }).promise;
         
-        // Convert canvas to image and download
         const image = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         const timestamp = moment().format('YYYYMMDD_HHmmss');
@@ -234,10 +223,15 @@ getPdfUrl(invoiceUrl) {
     },
     loadPdfJs() {
       return new Promise((resolve) => {
+        if (window.pdfjsLib) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+          return resolve(window.pdfjsLib);
+        }
+
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js';
         script.onload = () => {
-          // Set worker path
           window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
           resolve(window.pdfjsLib);
@@ -248,39 +242,52 @@ getPdfUrl(invoiceUrl) {
     async acceptOrder(order) {
       try {
         const user = JSON.parse(localStorage.getItem("user-info")) || { 
-          Nama: this.guestId, 
+          id: this.guestId,
+          Nama: this.guestId,
           Alamat: order.alamat || "Unknown" 
         };
         
-        // Ensure all required fields are included
-        const transactionData = {
-          user: user.Nama,
-          total: order.total,
-          catatan: order.catatan || '',
-          alamat: order.alamat || user.Alamat, // Ensure alamat is provided
-          pemesan: order.pemesan || user.Nama,
-          order_items: order.order_items,
-          invoice_url: order.invoice_url
-        };
-
-        // Validate required fields
-        if (!transactionData.alamat) {
+        if (!order.order_items || order.order_items.length === 0) {
+          throw new Error("Order items are required");
+        }
+        if (!order.total) {
+          throw new Error("Total amount is required");
+        }
+        if (!order.alamat) {
           throw new Error("Alamat is required");
         }
+
+        const transactionData = {
+          id: order.id,
+          user: user.id,
+          total: order.total,
+          catatan: order.catatan || '',
+          alamat: order.alamat || user.Alamat,
+          pemesan: order.pemesan || user.Nama,
+          created_at: order.created_at || new Date().toISOString(),
+          order_items: order.order_items.map(item => ({
+            ...item,
+            quantity: parseInt(item.quantity, 10)
+          })),
+          invoice_url: order.invoice_url
+        };
 
         await axios.post("http://localhost:3005/transactions", { 
           order: transactionData,
           invoice_url: order.invoice_url
         });
         
-        await axios.delete(`http://localhost:3003/orders/${order.id}/complete`);
+        try {
+          await axios.delete(`http://localhost:3003/orders/${order.id}/complete`);
+        } catch (deleteError) {
+          console.error("Order deletion failed:", deleteError);
+        }
         
         this.orders = this.orders.filter(o => o.id !== order.id);
-        
-        alert("Order accepted successfully!");
+        alert("Pesanan berhasil diterima!");
       } catch (error) {
         console.error("Error accepting order:", error);
-        alert(`Failed to accept order: ${error.message}`);
+        alert(`Gagal menerima pesanan: ${error.response?.data?.error || error.message}`);
       }
     },
     async deleteOrder(orderId) {
@@ -360,7 +367,7 @@ getPdfUrl(invoiceUrl) {
 }
 
 .accept-btn {
-  background-color: #4CAF50; /* Green */
+  background-color: #4CAF50;
 }
 
 .accept-btn:hover {
@@ -368,7 +375,7 @@ getPdfUrl(invoiceUrl) {
 }
 
 .delete-btn {
-  background-color: #f44336; /* Red */
+  background-color: #f44336;
 }
 
 .delete-btn:hover {
@@ -376,7 +383,7 @@ getPdfUrl(invoiceUrl) {
 }
 
 .save-img-btn {
-  background-color: #2196F3; /* Blue */
+  background-color: #2196F3;
 }
 
 .save-img-btn:hover {
@@ -389,7 +396,7 @@ getPdfUrl(invoiceUrl) {
   border-top: 1px solid #ddd;
 }
 
-.pdf-viewer {
+object {
   width: 100%;
   height: 100%;
   border: none;

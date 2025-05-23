@@ -28,6 +28,15 @@ function generateRandomId() {
   return result;
 }
 
+// Utility function to normalize phone numbers
+function formatPhoneNumber(telp) {
+  if (!telp) return null;
+  const cleaned = telp.toString().replace(/\D/g, '');
+  if (cleaned.startsWith('62')) return cleaned;
+  if (cleaned.startsWith('0')) return '62' + cleaned.substring(1);
+  return '62' + cleaned;
+}
+
 // Generate JWT token function
 const generateToken = (user) => {
   return jwt.sign(
@@ -101,6 +110,46 @@ app.post("/login", async (req, res) => {
   }
 });
 
+
+
+// Endpoint to check phone number availability - FINAL UPDATED VERSION
+app.get("/user/check-phone", async (req, res) => {
+  const { telp } = req.query;
+
+  if (!telp) {
+    return res.status(400).json({ 
+      success: false,
+      message: "Phone number is required" 
+    });
+  }
+
+  try {
+    const formattedTelp = formatPhoneNumber(telp);
+
+    const [results] = await pool.query(
+      `SELECT id, Nama FROM user 
+       WHERE Telp IN (?, ?, ?)`,
+      [
+        formattedTelp,                        // e.g., 628123456789
+        "0" + formattedTelp.substring(2),     // e.g., 08123456789
+        "+" + formattedTelp                   // e.g., +628123456789
+      ]
+    );
+
+    res.status(200).json({ 
+      exists: results.length > 0,
+      user: results.length > 0 ? results[0] : null
+    });
+  } catch (error) {
+    console.error("Error checking phone number:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+});
+
+
 // Fetch User by ID
 app.get("/user/:id", async (req, res) => {
   const { id } = req.params;
@@ -123,8 +172,33 @@ app.get("/user/:id", async (req, res) => {
 // Enhanced Update User with proper transaction handling and related tables update
 app.put("/user/:id", async (req, res) => {
   const { id } = req.params;
-  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
+  let { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
   let previousImageId = null;
+
+  // Format Telp before use
+  if (Telp) {
+    Telp = formatPhoneNumber(Telp);
+  }
+
+  // Check if Telp is being updated and if it already exists
+  if (Telp) {
+    try {
+      const [existingTelp] = await pool.query(
+        "SELECT id FROM user WHERE Telp = ? AND id != ?",
+        [Telp, id]
+      );
+      
+      if (existingTelp.length > 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: `Nomor telepon ${Telp} sudah terdaftar. Gunakan nomor lain.`
+        });
+      }
+    } catch (error) {
+      console.error("Error checking Telp:", error);
+      return res.status(500).json({ success: false, message: "Internal server error." });
+    }
+  }
 
   // Check if NamaWarung is being updated and if it already exists
   if (NamaWarung) {
@@ -193,7 +267,6 @@ app.put("/user/:id", async (req, res) => {
 
       for (const table of tables) {
         try {
-          // For dataproduk, we need to update both Pedagang and user_id if it exists
           if (table.name === 'dataproduk') {
             await pool.query(
               `UPDATE ${table.name} SET ${table.column} = ?, ${table.idColumn} = ? WHERE ${table.column} = ?`,
@@ -231,12 +304,76 @@ app.put("/user/:id", async (req, res) => {
   }
 });
 
+// server.js - Add this new route
+app.put("/user/:id/reset-password", async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({ 
+      success: false,
+      message: "New password is required." 
+    });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    const [updateResult] = await pool.query(
+      "UPDATE user SET Password = ? WHERE id = ?",
+      [hashedPassword, id]
+    );
+
+    if (!updateResult.affectedRows) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found." 
+      });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Password updated successfully." 
+    });
+  } catch (error) {
+    console.error("Error updating password:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error." 
+    });
+  }
+});
+
 // Create New User with Password Hashing
 app.post("/user", async (req, res) => {
-  const { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
+  let { NamaWarung, Nama, Telp, Alamat, Password, imageUrl } = req.body;
 
   if (!Nama || !Password) {
     return res.status(400).json({ message: "Name and password are required." });
+  }
+
+  // Format Telp before use
+  if (Telp) {
+    Telp = formatPhoneNumber(Telp);
+  }
+
+  // Check if Telp is provided and already exists
+  if (Telp) {
+    try {
+      const [existingTelp] = await pool.query(
+        "SELECT id FROM user WHERE Telp = ?",
+        [Telp]
+      );
+      
+      if (existingTelp.length > 0) {
+        return res.status(400).json({ 
+          message: `Nomor telepon ${Telp} sudah terdaftar. Gunakan nomor lain.`
+        });
+      }
+    } catch (error) {
+      console.error("Error checking Telp:", error);
+      return res.status(500).json({ message: "Internal server error." });
+    }
   }
 
   // Check if NamaWarung already exists
@@ -266,7 +403,8 @@ app.post("/user", async (req, res) => {
 
     const query = `
       INSERT INTO User (id, NamaWarung, Nama, Telp, Alamat, Password, role, imageUrl)
-      VALUES (?, ?, ?, ?, ?, ?, 'user', ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, 'user', ?)
+    `;
 
     await pool.query(query, [
       userid,
@@ -278,7 +416,7 @@ app.post("/user", async (req, res) => {
       imageUrl || null,
     ]);
 
-    // Fetch the newly created user (without password)
+    // Fetch the newly created user (excluding password)
     const [userResults] = await pool.query(
       "SELECT id, NamaWarung, Nama, Telp, Alamat, role, imageUrl FROM User WHERE id = ?", 
       [userid]
@@ -290,6 +428,7 @@ app.post("/user", async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
+
 
 // Upload or Update User Image
 app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
@@ -320,8 +459,8 @@ app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
   }
 });
 
-// Fetch All Users
-app.get("/users", async (req, res) => {
+// Get all users (admin only)
+app.get("/users/all", async (req, res) => {
   const query = "SELECT * FROM gbwt.user";
   try {
     const [results] = await pool.query(query);
@@ -332,7 +471,7 @@ app.get("/users", async (req, res) => {
   }
 });
 
-// Fetch All Users with NamaWarung not null
+// Get public users with NamaWarung (for marketplace)
 app.get("/users", async (req, res) => {
   const query = "SELECT * FROM gbwt.user WHERE NamaWarung IS NOT NULL";
   try {
@@ -341,6 +480,35 @@ app.get("/users", async (req, res) => {
   } catch (err) {
     console.error("Error fetching users:", err);
     res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// Get user by telephone number
+app.get("/user/by-telp/:telp", async (req, res) => {
+  const { telp } = req.params;
+  try {
+    const [results] = await pool.query(
+      "SELECT * FROM user WHERE Telp = ?",
+      [telp]
+    );
+    
+    if (results.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+    
+    res.status(200).json({ 
+      success: true,
+      user: results[0] 
+    });
+  } catch (error) {
+    console.error("Error fetching user by telp:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 });
 
@@ -493,6 +661,8 @@ app.delete('/guest/:id', async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
+
+
 
 app.listen(port, () => {
   console.log(`User Service is running on http://localhost:${port}`);

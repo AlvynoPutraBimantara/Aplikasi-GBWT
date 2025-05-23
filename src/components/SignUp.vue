@@ -59,55 +59,59 @@ export default {
       this.showConfirmPassword = !this.showConfirmPassword;
     },
     async SignUp() {
-      if (
-        this.Nama === "" ||
-        this.Telp === "" ||
-        this.Password === "" ||
-        this.confirmPassword === "" ||
-        this.Alamat === ""
-      ) {
-        alert("Semua field wajib diisi.");
-        return;
-      }
+  if (
+    this.Nama === "" ||
+    this.Telp === "" ||
+    this.Password === "" ||
+    this.confirmPassword === "" ||
+    this.Alamat === ""
+  ) {
+    alert("Semua field wajib diisi.");
+    return;
+  }
 
-      if (this.Password !== this.confirmPassword) {
-        alert("Konfirmasi password tidak cocok.");
-        return;
-      }
+  if (this.Password !== this.confirmPassword) {
+    alert("Konfirmasi password tidak cocok.");
+    return;
+  }
 
-      if (this.Telp.toString().length < 10) {
-        alert("Nomor telepon harus minimal 10 digit.");
-        return;
-      }
+  if (this.Telp.toString().length < 10) {
+    alert("Nomor telepon harus minimal 10 digit.");
+    return;
+  }
 
-      let formattedTelp = this.Telp.toString();
-      if (formattedTelp.startsWith("0")) {
-        formattedTelp = "62" + formattedTelp.substring(1);
-      }
+  let formattedTelp = this.Telp.toString();
+  if (formattedTelp.startsWith("0")) {
+    formattedTelp = "62" + formattedTelp.substring(1);
+  }
 
-      try {
-        const result = await axios.post("http://localhost:3000/user", {
-          Nama: this.Nama,
-          Telp: formattedTelp,
-          Alamat: this.Alamat,
-          Password: this.Password,
-        });
-        
-        if (result.status === 201) {
-          const userData = result.data;
-          localStorage.setItem("user-info", JSON.stringify(userData));
-          alert("Pendaftaran berhasil!");
-          this.$router.push({ name: "Dashboard" });
-        }
-      } catch (error) {
-        console.error("Error during sign up:", error);
-        if (error.response && error.response.data && error.response.data.message) {
-          alert(error.response.data.message);
-        } else {
-          alert("Terjadi kesalahan saat mendaftar. Silakan coba lagi.");
-        }
+  try {
+    const result = await axios.post("http://localhost:3001/user", {
+      Nama: this.Nama,
+      Telp: formattedTelp,
+      Alamat: this.Alamat,
+      Password: this.Password,
+    });
+    
+    if (result.status === 201) {
+      const userData = result.data;
+      localStorage.setItem("user-info", JSON.stringify(userData));
+      alert("Pendaftaran berhasil!");
+      this.$router.push({ name: "Dashboard" });
+    }
+  } catch (error) {
+    console.error("Error during sign up:", error);
+    if (error.response && error.response.data && error.response.data.message) {
+      if (error.response.data.message.includes("Nomor telepon")) {
+        alert(error.response.data.message);
+      } else {
+        alert("Terjadi kesalahan saat mendaftar: " + error.response.data.message);
       }
-    },
+    } else {
+      alert("Terjadi kesalahan saat mendaftar. Silakan coba lagi.");
+    }
+  }
+},
   },
 };
 </script>

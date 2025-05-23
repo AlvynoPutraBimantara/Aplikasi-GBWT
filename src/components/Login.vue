@@ -31,6 +31,9 @@
         <p>
           <router-link to="/sign-up">Daftar</router-link>
         </p>
+        <p class="forgot-password">
+         <router-link :to="{ name: 'ForgotPassword' }">Lupa Password</router-link>
+        </p>
       </div>
     </div>
   </div>
@@ -59,67 +62,67 @@ export default {
       this.$refs.passwordInput.focus();
     },
     async login() {
-  const nama = this.Nama.trim();
-  const password = this.Password.trim();
+      const nama = this.Nama.trim();
+      const password = this.Password.trim();
 
-  if (!nama || !password) {
-    alert("Harap masukkan nama dan password");
-    return;
-  }
+      if (!nama || !password) {
+        alert("Harap masukkan nama dan password");
+        return;
+      }
 
-  try {
-    console.log("Attempting login for:", nama);
-    const response = await axios.post(
-      "http://localhost:3001/login",
-      { 
-        Nama: nama,
-        Password: password 
-      },
-      {
-        headers: { 
-          'Content-Type': 'application/json' 
+      try {
+        console.log("Attempting login for:", nama);
+        const response = await axios.post(
+          "http://localhost:3001/login",
+          { 
+            Nama: nama,
+            Password: password 
+          },
+          {
+            headers: { 
+              'Content-Type': 'application/json' 
+            }
+          }
+        );
+
+        // Check for successful response
+        if (response.data && response.data.success) {
+          const user = response.data;
+          
+          // Store user info in localStorage (without sensitive data)
+          const userInfo = {
+            id: user.id,
+            Nama: user.Nama,
+            NamaWarung: user.NamaWarung,
+            role: user.role,
+            token: user.token
+          };
+          
+          localStorage.setItem("user-info", JSON.stringify(userInfo));
+          axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
+
+          // Redirect based on role
+          const targetRoute = user.role === "admin" ? "DataUser" : "Dashboard";
+          this.$router.push({ name: targetRoute });
+          
+          // Small delay before reload to ensure route change
+          setTimeout(() => window.location.reload(), 100);
+        } else {
+          throw new Error(response.data?.message || "Login failed");
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        if (error.response) {
+          if (error.response.status === 401) {
+            alert("Nama atau password salah");
+          } else {
+            alert(`Error: ${error.response.data?.message || "Terjadi kesalahan"}`);
+          }
+        } else {
+          alert("Tidak dapat terhubung ke server");
         }
       }
-    );
-
-    // Check for successful response
-    if (response.data && response.data.success) {
-      const user = response.data;
-      
-      // Store user info in localStorage (without sensitive data)
-      const userInfo = {
-        id: user.id,
-        Nama: user.Nama,
-        NamaWarung: user.NamaWarung,
-        role: user.role,
-        token: user.token
-      };
-      
-      localStorage.setItem("user-info", JSON.stringify(userInfo));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
-
-      // Redirect based on role
-      const targetRoute = user.role === "admin" ? "DataUser" : "Dashboard";
-      this.$router.push({ name: targetRoute });
-      
-      // Small delay before reload to ensure route change
-      setTimeout(() => window.location.reload(), 100);
-    } else {
-      throw new Error(response.data?.message || "Login failed");
-    }
-  } catch (error) {
-    console.error("Login error:", error);
-    if (error.response) {
-      if (error.response.status === 401) {
-        alert("Nama atau password salah");
-      } else {
-        alert(`Error: ${error.response.data?.message || "Terjadi kesalahan"}`);
-      }
-    } else {
-      alert("Tidak dapat terhubung ke server");
-    }
-  }
-},
+    },
   },
   mounted() {
     // Focus name input on component mount
@@ -228,5 +231,17 @@ export default {
   border-radius: 15px;
   padding-left: 30px;
   padding-right: 30px;
+}
+
+.forgot-password {
+  margin-top: 10px;
+  font-size: 16px !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
+.forgot-password a {
+  color: blue;
+  text-decoration: underline;
 }
 </style>

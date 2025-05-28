@@ -329,6 +329,9 @@ export default {
     },
   },
   mounted() {
+      if (!localStorage.getItem('isGuest') || !localStorage.getItem('token')) {
+    this.$router.push({ name: 'LandingPage' });
+  }
     this.fetchPopularProducts();
     this.fetchNewProducts().then(() => {
       if (this.newProducts.length > 0) {

@@ -49,6 +49,7 @@ export default {
       ],
       cartItemCount: 0,
       orderCount: 0,
+      isLoggingOut: false,
     };
   },
   computed: {
@@ -63,41 +64,61 @@ export default {
     toggleMenu() {
       document.getElementById("wrapper").classList.toggle("toggled");
     },
+
     async logout() {
-      const guestId = this.guestId;
-      
+      if (this.isLoggingOut) return;
+      this.isLoggingOut = true;
+
+      const guestId = localStorage.getItem("guestId");
+      if (!guestId) return this.forceLogout();
+
       try {
-        // Delete cart and cart items
-        await axios.delete(`http://localhost:3004/cart`, {
-          params: { user: guestId }
-        });
-
-        // Delete all orders and order items for this user
-        await axios.delete(`http://localhost:3003/orders/user/${guestId}`);
-
-        // Clear local storage and redirect
-        localStorage.clear();
-        this.$router.push({ name: "LandingPage" }).then(() => {
-          window.location.reload();
-        });
+        // First try direct deletion
+        try {
+          await axios.delete(`http://localhost:3001/guest/${guestId}`, {
+            timeout: 1000,
+          });
+        } catch (error) {
+          console.log("Direct deletion failed, trying cleanup endpoint");
+          // Fallback to cleanup endpoint
+          await axios.post(
+            `http://localhost:3001/guest/${guestId}/cleanup`,
+            {},
+            { timeout: 1000 }
+          );
+        }
       } catch (error) {
-        console.error("Error during logout cleanup:", error);
-        // Still proceed with logout even if cleanup fails
-        localStorage.clear();
-        this.$router.push({ name: "LandingPage" }).then(() => {
-          window.location.reload();
-        });
+        console.error("Cleanup error:", error);
+        // Final fallback to beacon
+        navigator.sendBeacon(
+          `http://localhost:3001/guest/${guestId}/cleanup`
+        );
+      } finally {
+        this.forceLogout();
       }
     },
+
+    forceLogout() {
+      // Clear all client-side storage
+      localStorage.removeItem("token");
+      localStorage.removeItem("guestId");
+      localStorage.removeItem("isGuest");
+
+      // Force redirect with full reload
+      window.location.href = "/landing";
+    },
+
     isActive(route) {
       return this.$route.path === route;
     },
+
     async fetchCartItems() {
       if (!this.guestId) return;
 
       try {
         const response = await axios.get("http://localhost:3004/cart", {
           params: { user: this.guestId },
+          timeout: 3000,
         });
         const cartItems = response.data;
         this.cartItemCount = cartItems.reduce(
@@ -108,11 +129,14 @@ export default {
         console.error("Error fetching cart items:", error);
       }
     },
+
     async fetchOrders() {
       if (!this.guestId) return;
 
       try {
-        const response = await axios.get("http://localhost:3003/orders");
+        const response = await axios.get("http://localhost:3003/orders", {
+          timeout: 3000,
+        });
         const orders = response.data;
         const guestOrders = orders.filter(
           (order) => order.user === this.guestId
@@ -122,15 +146,39 @@ export default {
         console.error("Error fetching orders:", error);
       }
     },
+
+    handlePageExit() {
+      const guestId = localStorage.getItem("guestId");
+      if (!guestId) return;
+
+      const cleanupUrl = `http://localhost:3001/guest/${guestId}/cleanup`;
+
+      // Try beacon first
+      if (!navigator.sendBeacon(cleanupUrl)) {
+        // Fallback to fetch if beacon fails
+        fetch(cleanupUrl, {
+          method: "POST",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+        }).catch((e) => console.error("Cleanup fetch failed:", e));
+      }
+    },
   },
+
   mounted() {
     if (this.guestId) {
+      window.addEventListener("beforeunload", this.handlePageExit);
       this.fetchCartItems();
       this.fetchOrders();
     }
   },
+
+  beforeUnmount() {
+    window.removeEventListener("beforeunload", this.handlePageExit);
+  },
 };
 </script>
+
 
 <style scoped>
 .nav {

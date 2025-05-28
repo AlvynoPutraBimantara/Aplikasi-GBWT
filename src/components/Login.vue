@@ -85,28 +85,27 @@ export default {
           }
         );
 
-        // Check for successful response
         if (response.data && response.data.success) {
           const user = response.data;
-          
-          // Store user info in localStorage (without sensitive data)
-          const userInfo = {
+
+          // Store all necessary user info (excluding sensitive info like password)
+          localStorage.setItem("token", user.token);
+          localStorage.setItem("user-info", JSON.stringify({
             id: user.id,
             Nama: user.Nama,
             NamaWarung: user.NamaWarung,
-            role: user.role,
-            token: user.token
-          };
-          
-          localStorage.setItem("user-info", JSON.stringify(userInfo));
+            role: user.role
+          }));
+
+          // Set axios default header for future requests
           axios.defaults.headers.common['Authorization'] = `Bearer ${user.token}`;
 
-          // Redirect based on role
+          // Redirect user based on role
           const targetRoute = user.role === "admin" ? "DataUser" : "Dashboard";
           this.$router.push({ name: targetRoute });
           
           // Small delay before reload to ensure route change
-          setTimeout(() => window.location.reload(), 100);
+          setTimeout(() => window.location.reload(), 1);
         } else {
           throw new Error(response.data?.message || "Login failed");
         }
@@ -125,21 +124,18 @@ export default {
     },
   },
   mounted() {
-    // Focus name input on component mount
     this.$refs.nameInput.focus();
-    
+
     const user = localStorage.getItem("user-info");
     if (user) {
       const parsedUser = JSON.parse(user);
-      if (parsedUser.role === "admin") {
-        this.$router.push({ name: "DataUser" });
-      } else {
-        this.$router.push({ name: "Dashboard" });
-      }
+      const targetRoute = parsedUser.role === "admin" ? "DataUser" : "Dashboard";
+      this.$router.push({ name: targetRoute });
     }
   },
 };
 </script>
+
 
 <style scoped>
 .login-container {

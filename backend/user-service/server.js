@@ -6,6 +6,7 @@ const app = express();
 const cors = require("cors");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+//const axios = require('axios');
 require('dotenv').config();
 const port = process.env.PORT || 3001;
 
@@ -28,6 +29,41 @@ function generateRandomId() {
   return result;
 }
 
+async function deleteGuestUser(id) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query('START TRANSACTION');
+
+    // Delete cart items and cart
+    await conn.query(`
+      DELETE cart_items FROM cart_items
+      JOIN cart ON cart_items.cart_id = cart.id
+      WHERE cart.user = ?`, [id]);
+    await conn.query("DELETE FROM cart WHERE user = ?", [id]);
+
+    // Delete orders and related data
+    const [orders] = await conn.query("SELECT id FROM orders WHERE user = ?", [id]);
+    if (orders.length > 0) {
+      const orderIds = orders.map(o => o.id);
+      await conn.query("DELETE FROM order_items WHERE order_id IN (?)", [orderIds]);
+      await conn.query("DELETE FROM invoice WHERE order_id IN (?)", [orderIds]);
+      await conn.query("DELETE FROM orders WHERE user = ?", [id]);
+    }
+
+    // Delete user images and user
+    await conn.query("DELETE FROM userimages WHERE user_id = ?", [id]);
+    const [result] = await conn.query("DELETE FROM user WHERE id = ? AND role = 'guest'", [id]);
+    
+    await conn.query('COMMIT');
+    return result.affectedRows > 0;
+  } catch (error) {
+    await conn.query('ROLLBACK');
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 // Utility function to normalize phone numbers
 function formatPhoneNumber(telp) {
   if (!telp) return null;
@@ -45,6 +81,26 @@ const generateToken = (user) => {
     { expiresIn: '24h' }
   );
 };
+
+// Add before all guest routes
+app.param('id', (req, res, next, id) => {
+  if (req.method === 'DELETE' || req.method === 'POST') {
+    if (!/^[A-Za-z0-9]{8}$/.test(id)) {
+      return res.status(400).json({ message: "Invalid guest ID format" });
+    }
+  }
+  next();
+});
+
+// Add force cleanup endpoint
+app.post('/guest/:id/force-cleanup', async (req, res) => {
+  res.status(202).send();
+  try {
+    await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
+  } catch (error) {
+    console.error(`Force cleanup failed for ${req.params.id}:`, error);
+  }
+});
 
 // Updated Login Endpoint
 app.post("/login", async (req, res) => {
@@ -110,9 +166,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-
-
-// Endpoint to check phone number availability - FINAL UPDATED VERSION
+// Endpoint to check phone number availability
 app.get("/user/check-phone", async (req, res) => {
   const { telp } = req.query;
 
@@ -148,7 +202,6 @@ app.get("/user/check-phone", async (req, res) => {
     });
   }
 });
-
 
 // Fetch User by ID
 app.get("/user/:id", async (req, res) => {
@@ -304,7 +357,7 @@ app.put("/user/:id", async (req, res) => {
   }
 });
 
-// server.js - Add this new route
+// Reset Password Endpoint
 app.put("/user/:id/reset-password", async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
@@ -428,7 +481,6 @@ app.post("/user", async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
-
 
 // Upload or Update User Image
 app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
@@ -615,54 +667,116 @@ app.post('/guest-signin', async (req, res) => {
   const guestPassword = generateRandomId();
 
   try {
-    // Hash the guest password
     const hashedPassword = await bcrypt.hash(guestPassword, saltRounds);
 
+    // Fixed table name to lowercase 'user' and added is_guest
     const query = `
-      INSERT INTO User (id, Nama, Password, role)
-      VALUES (?, ?, ?, 'guest')`;
+      INSERT INTO user (id, Nama, Password, role, is_guest)
+      VALUES (?, ?, ?, 'guest', 1)`;
 
     await pool.query(query, [guestId, guestName, hashedPassword]);
 
-    // Return guest user without password
     const [userResults] = await pool.query(
-      "SELECT id, Nama, role FROM User WHERE id = ?", 
+      "SELECT id, Nama, role FROM user WHERE id = ?", 
       [guestId]
     );
-    
+
+    if (userResults.length === 0) {
+      return res.status(500).json({
+        success: false,
+        message: "Guest user creation failed"
+      });
+    }
+
     const guestUser = userResults[0];
-    
-    // Generate token for guest
     const token = generateToken(guestUser);
     
-    res.status(201).json({
-      ...guestUser,
-      token
-    });
-    
+res.status(201).json({
+  success: true,
+  message: "Guest session created",
+  token: token,
+  userId: guestUser.id,
+  role: guestUser.role,
+  isGuest: true,
+  user: {  // Include minimal user data
+    id: guestUser.id,
+    role: guestUser.role,
+    Nama: guestUser.Nama
+  }
+});
+
   } catch (err) {
-    console.error("Error creating guest user:", err);
-    res.status(500).json({ message: "Internal server error." });
+    console.error("Database Error:", {
+      code: err.code,
+      sqlMessage: err.sqlMessage,
+      sql: err.sql
+    });
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
 // Delete Guest User
 app.delete('/guest/:id', async (req, res) => {
-  const { id } = req.params;
-  const query = "DELETE FROM gbwt.user WHERE id = ? AND role = 'guest'";
   try {
-    const [results] = await pool.query(query, [id]);
-    if (results.affectedRows === 0) {
-      return res.status(404).json({ message: "Guest user not found." });
-    }
-    res.status(200).json({ message: "Guest user deleted successfully." });
-  } catch (err) {
-    console.error("Error deleting guest user:", err);
-    res.status(500).json({ message: "Internal server error." });
+    const deleted = await deleteGuestUser(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Guest not found." });
+    res.json({ message: "Guest deleted successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting guest." });
   }
 });
 
+// Update cleanup endpoint to use the shared function
+// Enhanced cleanup endpoint
+app.post('/guest/:id/cleanup', async (req, res) => {
+  res.status(202).send('Cleanup initiated');
+  
+  // Execute cleanup in background
+  setTimeout(async () => {
+    try {
+      await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
+      console.log(`Successfully cleaned up guest ${req.params.id}`);
+    } catch (error) {
+      console.error(`Failed to cleanup guest ${req.params.id}:`, error);
+      // Retry once after short delay
+      setTimeout(async () => {
+        try {
+          await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
+        } catch (retryError) {
+          console.error(`Retry failed for guest ${req.params.id}:`, retryError);
+        }
+      }, 1000);
+    }
+  }, 0);
+});
 
+// Enhanced Guest Cleanup Scheduler
+// Run every hour to clean up any orphaned guest users
+setInterval(async () => {
+  try {
+    // Find guest users older than 24 hours
+    const [oldGuests] = await pool.query(
+      `SELECT id FROM user 
+       WHERE role = 'guest' AND 
+       created_at < NOW() - INTERVAL 24 HOUR`
+    );
+
+    for (const guest of oldGuests) {
+      try {
+        await pool.query('CALL FullGuestCleanup(?)', [guest.id]);
+        console.log(`Scheduled cleanup deleted guest ${guest.id}`);
+      } catch (error) {
+        console.error(`Error cleaning up guest ${guest.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error("Error in guest cleanup scheduler:", error);
+  }
+}, 1800000); // Run every hour // Run every 30 minutes
 
 app.listen(port, () => {
   console.log(`User Service is running on http://localhost:${port}`);

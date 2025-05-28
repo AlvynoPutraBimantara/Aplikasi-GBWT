@@ -155,7 +155,7 @@ async mounted() {
 
     // Handle guest users
     if (!this.user && !this.guestId) {
-      this.guestId = `Guest_${this.generateRandomId()}`;
+      this.guestId = `guest_${this.generateRandomId()}`;
       localStorage.setItem("guestId", this.guestId);
     }
 

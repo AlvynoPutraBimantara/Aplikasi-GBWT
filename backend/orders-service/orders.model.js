@@ -13,8 +13,8 @@ const Orders = sequelize.define(
       field: 'id' // Explicitly set field name
     },
     user: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
+    type: DataTypes.STRING(255),
+    allowNull: true, 
       references: {
         model: 'user',
         key: 'id'
@@ -120,7 +120,7 @@ const OrderItems = sequelize.define(
 );
 
 // Define the Invoice model with updated order_id reference
-// In orders.model.js, update the Invoice model definition:
+// Define the Invoice model with proper unique constraint
 const Invoice = sequelize.define(
   "Invoice",
   {
@@ -150,7 +150,7 @@ const Invoice = sequelize.define(
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      unique: true // Only one unique constraint needed
+      unique: 'idx_invoiceurl_unique' // Explicitly name the unique constraint
     },
   },
   {
@@ -161,11 +161,7 @@ const Invoice = sequelize.define(
         fields: ['order_id'],
         name: 'order_id'
       },
-      {
-        fields: ['invoice_url'],
-        name: 'idx_invoiceurl_unique',
-        unique: true
-      }
+      // The unique constraint is automatically created by the field definition above
     ]
   }
 );

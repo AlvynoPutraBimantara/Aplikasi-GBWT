@@ -218,29 +218,37 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
-  const user = JSON.parse(localStorage.getItem("user-info"));
-  const isGuest = localStorage.getItem("guest") === "true";
+  const token = localStorage.getItem("token");
+  const userInfo = JSON.parse(localStorage.getItem("user-info"));
+  const isGuest = localStorage.getItem("isGuest") === "true";
+  
+  const publicRoutes = ["LandingPage", "Login", "SignUp", "ForgotPassword"];
+  const guestRoutes = ["GuestDashboard", "Warung", "Produk", "Kategori", "Cart", "Orders", "DetilProduk", "DetilKategori", "DetilWarung"];
 
-  // Define allowed routes for unauthenticated users
-  const allowedRoutes = [
-    "LandingPage",
-    "Login", 
-    "SignUp",
-    "ForgotPassword" // <-- Added ForgotPassword route
-  ];
-
-  if (to.matched.some((record) => record.meta.requiresAdmin)) {
-    if (user && user.role === "admin") {
-      next();
-    } else {
-      next({ name: "Dashboard" });
-    }
-  } else if (!allowedRoutes.includes(to.name) && !user && !isGuest) {
-    next({ name: "LandingPage" });
-  } else {
-    next();
+  // Allow public routes
+  if (publicRoutes.includes(to.name)) {
+    return next();
   }
-});
 
+  // Handle authenticated users (both regular and admin)
+  if (token && userInfo) {
+    // Check for admin-only routes
+    if (to.meta.requiresAdmin && userInfo.role !== "admin") {
+      return next({ name: "Dashboard" });
+    }
+    return next();
+  }
+
+  // Handle guest users
+  if (isGuest) {
+    if (guestRoutes.includes(to.name)) {
+      return next();
+    }
+    return next({ name: "GuestDashboard" });
+  }
+
+  // Redirect all other cases to landing page
+  next({ name: "LandingPage" });
+});
 
 export default router;

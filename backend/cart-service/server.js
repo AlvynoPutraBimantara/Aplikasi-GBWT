@@ -4,8 +4,9 @@ const { DataTypes } = require("sequelize");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const { CartItems } = require("./cart.model");
-const Produk = require("./produk.model");
+const { Cart, CartItems } = require('./cart.model');
+const Produk = require('./produk.model');
+const User = require('./user.model');
 const sequelize = require("./db");
 
 const app = express();
@@ -17,13 +18,14 @@ app.use(bodyParser.json());
 // Generate an 8-character random string for ID
 function generateRandomId() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return `Guest_${Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")}`;
 }
+
 
 // Update the GET /cart endpoint to handle guest users properly
 app.get("/cart", async (req, res) => {
   const { user } = req.query;
-  
+
   if (!user || typeof user !== 'string') {
     return res.status(400).json({ 
       error: "Valid user ID is required",
@@ -38,17 +40,19 @@ app.get("/cart", async (req, res) => {
     const { Cart } = require('./cart.model');
     const User = require('./user.model');
 
+    // Normalize guest user ID (e.g., 'guest_123' -> 'Guest_123')
+    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
+
     // For guest users, skip user verification
-    if (user.startsWith('Guest_')) {
-      // Find existing cart or return empty array
+    if (cartUser.startsWith('Guest_')) {
       const cart = await Cart.findOne({
-        where: { user },
+        where: { user: cartUser },
         include: [{
           model: CartItems,
           as: "cart_items",
           include: [{
             model: Produk,
-            as: "product",
+            as: "produk", // Changed from "product" to match model alias
             attributes: ["Stok", "imageUrl"]
           }]
         }]
@@ -62,35 +66,32 @@ app.get("/cart", async (req, res) => {
         price: item.price,
         quantity: item.quantity,
         pedagang: item.pedagang,
-        stock: item.product?.Stok || 0,
-        imageUrl: item.product?.imageUrl || ''
+        stock: item.produk?.Stok || 0,
+        imageUrl: item.produk?.imageUrl || ''
       })) || [];
 
       return res.status(200).json(processedItems);
     }
 
-    // For registered users, verify user exists first
-    const userExists = await User.findOne({ where: { id: user } });
+    // For registered users, verify user exists
+    const userExists = await User.findOne({ where: { id: cartUser } });
     if (!userExists) {
-      // Return empty array instead of 404
       return res.status(200).json([]);
     }
 
-    // Find cart for the user (don't create if doesn't exist)
     const cart = await Cart.findOne({
-      where: { user },
+      where: { user: cartUser },
       include: [{
         model: CartItems,
         as: "cart_items",
         include: [{
           model: Produk,
-          as: "product",
+          as: "produk", // Changed from "product" to match model alias
           attributes: ["Stok", "imageUrl"]
         }]
       }]
     });
 
-    // Process cart items or return empty array if no cart
     const processedItems = cart?.cart_items?.map(item => ({
       id: item.id,
       cart_id: item.cart_id,
@@ -99,17 +100,17 @@ app.get("/cart", async (req, res) => {
       price: item.price,
       quantity: item.quantity,
       pedagang: item.pedagang,
-      stock: item.product?.Stok || 0,
-      imageUrl: item.product?.imageUrl || ''
+      stock: item.produk?.Stok || 0,
+      imageUrl: item.produk?.imageUrl || ''
     })) || [];
 
     res.status(200).json(processedItems);
   } catch (err) {
     console.error("Error fetching cart items:", err);
-    // Return empty array on error
     res.status(200).json([]);
   }
 });
+
 
 // Add item to cart - Fixed version
 app.post("/cart", async (req, res) => {
@@ -141,14 +142,27 @@ app.post("/cart", async (req, res) => {
 
     transaction = await sequelize.transaction();
 
-    // Models required within function scope
-    const User = require('./user.model');
-    const { Cart } = require('./cart.model');
+    // Normalize user ID: guest_abc123 => Guest_abc123
+    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
 
-    // For non-guest users, verify user exists
-    if (!user.startsWith('Guest_')) {
+    // Handle guest or regular users
+    if (cartUser.startsWith('Guest_')) {
+      // Check if guest user exists, create if not
+      await User.findOrCreate({
+        where: { id: cartUser },
+        defaults: {
+          id: cartUser,
+          Nama: 'Guest User',
+          Password: 'guest_password',
+          role: 'guest',
+          is_guest: true
+        },
+        transaction
+      });
+    } else {
+      // For non-guest users, verify user exists
       const userExists = await User.findOne({
-        where: { id: user },
+        where: { id: cartUser },
         transaction
       });
       
@@ -156,7 +170,7 @@ app.post("/cart", async (req, res) => {
         await transaction.rollback();
         return res.status(404).json({ 
           error: "User not found.",
-          details: { searchedUserId: user }
+          details: { searchedUserId: cartUser }
         });
       }
     }
@@ -196,14 +210,14 @@ app.post("/cart", async (req, res) => {
 
     // Find or create cart for the user
     let cart = await Cart.findOne({ 
-      where: { user },
+      where: { user: cartUser },
       transaction
     });
 
     if (!cart) {
       cart = await Cart.create({ 
         id: generateRandomId(), 
-        user 
+        user: cartUser
       }, { transaction });
     }
 
@@ -217,7 +231,6 @@ app.post("/cart", async (req, res) => {
     });
 
     if (existingItem) {
-      // Update quantity if item exists
       const newQuantity = existingItem.quantity + quantity;
       
       if (newQuantity > productStock) {

@@ -3,7 +3,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const sequelize = require("./db");
 const { Op } = require('sequelize');
-
+const pool = require("./db");
 const app = express();
 const port = 3003;
 
@@ -355,6 +355,33 @@ app.put("/cart/:id", async (req, res) => {
   }
 });
 
+// Add to order-service server.js
+app.delete('/orders/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    await pool.query('START TRANSACTION');
+    
+    // Get all orders for this user
+    const [orders] = await pool.query("SELECT id FROM orders WHERE user = ?", [userId]);
+    
+    if (orders.length > 0) {
+      // Delete all order items
+      await pool.query("DELETE FROM order_items WHERE order_id IN (?)", [orders.map(o => o.id)]);
+      
+      // Delete all orders
+      await pool.query("DELETE FROM orders WHERE user = ?", [userId]);
+    }
+    
+    await pool.query('COMMIT');
+    res.status(200).json({ success: true, message: `Deleted ${orders.length} orders and their items` });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error("Error deleting user orders:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // Delete a cart item by ID
 app.delete("/cart/:id", async (req, res) => {
   const { id } = req.params;
@@ -519,16 +546,18 @@ app.post("/orders", async (req, res) => {
     const { Orders, OrderItems } = require('./orders.model');
     const { Produk } = require('./produk.model');
     const { Cart, CartItems } = require('./cart.model');
-    
+
+    const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+
     transaction = await sequelize.transaction();
 
-    // First validate all products and quantities
+    // Validate all products and quantities
     for (const order of orders) {
       const product = await Produk.findOne({ 
         where: { id: order.itemid },
         transaction
       });
-      
+
       if (!product) {
         await transaction.rollback();
         return res.status(404).json({ 
@@ -536,7 +565,7 @@ app.post("/orders", async (req, res) => {
           itemid: order.itemid
         });
       }
-      
+
       if (product.Stok < order.quantity) {
         await transaction.rollback();
         return res.status(400).json({
@@ -548,22 +577,22 @@ app.post("/orders", async (req, res) => {
       }
     }
 
-    // Process orders if validation passes
+    // Group and process orders (patch: handle guest users with null user field)
     const ordersGroupedByPedagang = orders.reduce((acc, order) => {
       if (!acc[order.orderid]) {
         acc[order.orderid] = {
           id: order.orderid || generateRandomId(),
-          user: order.user,
+          user: order.user || null,  // ✅ PATCH: Handle guest users
           total: 0,
           catatan: order.catatan,
-          alamat: order.alamat || order.Alamat,
-          pemesan: order.pemesan,
+          alamat: order.alamat,     // Ensure lowercase and presence
+          pemesan: order.pemesan,   // Ensure consistent field name
           created_at: new Date(),
           status: "pending",
           order_items: []
         };
       }
-      
+
       acc[order.orderid].total += parseFloat(order.price) * parseInt(order.quantity);
       acc[order.orderid].order_items.push({
         id: generateRandomId(),
@@ -574,19 +603,21 @@ app.post("/orders", async (req, res) => {
         price: order.price,
         quantity: order.quantity.toString(),
       });
-      
+
       return acc;
     }, {});
 
     const createdOrders = [];
-    
+
     for (const orderData of Object.values(ordersGroupedByPedagang)) {
-      const createdOrder = await Orders.create(orderData, { transaction });
-      
-      // Create order items
+      const createdOrder = await Orders.create({
+  ...orderData,
+  pemesan: orderData.pemesan || `guest_${orderData.user || 'unknown'}`,
+  alamat: orderData.alamat || ''
+}, { transaction });
+
       await OrderItems.bulkCreate(orderData.order_items, { transaction });
-      
-      // Update product stocks
+
       for (const item of orderData.order_items) {
         await Produk.decrement('Stok', {
           by: parseInt(item.quantity),
@@ -594,7 +625,7 @@ app.post("/orders", async (req, res) => {
           transaction
         });
       }
-      
+
       createdOrders.push({
         id: createdOrder.id,
         orderid: createdOrder.id,
@@ -606,21 +637,18 @@ app.post("/orders", async (req, res) => {
     // Clear cart if requested
     if (clearCart && orders.length > 0) {
       const userId = orders[0].user;
-      
-      // Find the user's cart
+
       const cart = await Cart.findOne({ 
         where: { user: userId },
         transaction
       });
-      
+
       if (cart) {
-        // Delete all cart items
         await CartItems.destroy({
           where: { cart_id: cart.id },
           transaction
         });
-        
-        // Delete the cart
+
         await Cart.destroy({
           where: { id: cart.id },
           transaction
@@ -642,6 +670,8 @@ app.post("/orders", async (req, res) => {
     });
   }
 });
+
+
 
 app.get("/orders/:id", async (req, res) => {
   try {

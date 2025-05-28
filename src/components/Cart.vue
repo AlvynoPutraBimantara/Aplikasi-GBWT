@@ -73,7 +73,7 @@
           </div>
 
           <!-- Guest-specific inputs (only shown for non-logged in users) -->
-          <div v-if="!user" class="guest-inputs">
+         <div v-if="isGuestUser" class="guest-inputs">
             <div>
               <label :for="`pemesan-${pedagang}`">Nama Pemesan:</label>
               <input 
@@ -149,16 +149,12 @@
 import axios from "axios";
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
 import { reactive } from 'vue';
+
 
 export default {
   data() {
-    const state = reactive({
-      pedagangNotes: {},
-      pedagangPemesan: {},
-      pedagangAlamat: {},
-    });
-
     return {
       cart: [],
       user: null,
@@ -166,27 +162,41 @@ export default {
       warningMessage: "",
       isProcessingCheckout: false,
       invoiceError: null,
-      ...state,
+      pedagangNotes: reactive({}),
+      pedagangPemesan: reactive({}),
+      pedagangAlamat: reactive({}),
     };
   },
   computed: {
+   isGuestUser() {
+    // Check if user is explicitly a guest (role = 'guest') or if any cart item has a user ID starting with "Guest_"
+    return (this.user && this.user.role === 'guest') || 
+           this.cart.some(item => item.user && item.user.startsWith('Guest_'));
+  },
     filteredCart() {
       return this.cart;
     },
-    groupedCart() {
-      // Group items by pedagang
-      return this.cart.reduce((groups, item) => {
-        if (!groups[item.pedagang]) {
-          groups[item.pedagang] = [];
-          // Initialize input values for this pedagang
-          this.pedagangNotes[item.pedagang] = "";
-          this.pedagangPemesan[item.pedagang] = "";
-          this.pedagangAlamat[item.pedagang] = "";
-        }
-        groups[item.pedagang].push(item);
-        return groups;
-      }, {});
-    },
+      groupedCart() {
+  return this.cart.reduce((groups, item) => {
+    const pedagang = item.pedagang;
+    if (!groups[pedagang]) {
+      groups[pedagang] = [];
+      
+      // Initialize input values reactively
+      if (!(pedagang in this.pedagangNotes)) {
+        this.pedagangNotes[pedagang] = "";
+      }
+      if (!(pedagang in this.pedagangPemesan)) {
+        this.pedagangPemesan[pedagang] = "";
+      }
+      if (!(pedagang in this.pedagangAlamat)) {
+        this.pedagangAlamat[pedagang] = "";
+      }
+    }
+    groups[pedagang].push(item);
+    return groups;
+  }, {});
+},
     cartTotalPrice() {
       return this.cart.reduce(
         (total, item) => total + item.price * item.quantity,
@@ -198,63 +208,71 @@ export default {
     }
   },
   methods: {
-    async fetchCart() {
-      try {
-        const identifier = this.user ? this.user.id : this.guestId;
-        if (!identifier) {
-          console.error("No user or guest ID available");
-          this.cart = [];
-          return;
-        }
+async fetchCart() {
+  try {
+    const identifier = this.user ? this.user.id : this.guestId;
+    if (!identifier) {
+      console.error("No user or guest ID available");
+      this.cart = [];
+      return;
+    }
 
-        // For guest users, prepend 'Guest_' to the ID
-        const cartUser = this.user ? this.user.id : `Guest_${this.guestId}`;
-        
-        const response = await axios.get(`http://localhost:3004/cart`, {
-          params: { user: cartUser }
-        });
+    // Ensure consistent guest ID format
+    const cartUser = this.user ? this.user.id : 
+      (identifier.startsWith('Guest_') ? identifier : `Guest_${identifier}`);
 
-        // Always treat the response as an array
-        const cartItems = Array.isArray(response.data) ? response.data : [];
-        
-        this.cart = cartItems.map(item => ({
-          ...item,
-          name: item.name || 'Unknown Product',
-          price: item.price || 0,
-          pedagang: item.pedagang || 'Unknown',
-          stock: item.stock || 0
-        }));
+    const response = await axios.get(`http://localhost:3004/cart`, {
+      params: { user: cartUser }
+    });
 
-      } catch (error) {
-        console.error("Error fetching cart:", error);
-        // Set empty cart on error
-        this.cart = [];
+    this.cart = Array.isArray(response.data) ? response.data : [];
+
+    // ✅ Patch: Initialize guest inputs for each pedagang
+    this.cart.forEach(item => {
+      const pedagang = item.pedagang;
+      if (!this.pedagangPemesan[pedagang]) {
+        this.pedagangPemesan[pedagang] = '';
       }
-    },
-
-    async fetchUser() {
-      try {
-        const userInfo = JSON.parse(localStorage.getItem("user-info"));
-        if (userInfo) {
-          // Verify user exists in database
-          try {
-            const response = await axios.get(`http://localhost:3001/user/${userInfo.id}`);
-            this.user = response.data;
-          } catch (error) {
-            console.error("User not found in database:", error);
-            localStorage.removeItem("user-info");
-            this.user = null;
-          }
-        }
-        
-        if (!this.user) {
-          this.guestId = localStorage.getItem("guestId") || `guest_${Math.random().toString(36).substr(2, 9)}`;
-          localStorage.setItem("guestId", this.guestId);
-        }
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
+      if (!this.pedagangAlamat[pedagang]) {
+        this.pedagangAlamat[pedagang] = '';
       }
-    },
+    });
+
+  } catch (error) {
+    console.error("Error fetching cart:", error);
+    this.cart = [];
+  }
+}
+,
+
+  async fetchUser() {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem("user-info"));
+    if (userInfo) {
+      const response = await axios.get(`http://localhost:3001/user/${userInfo.id}`);
+      this.user = response.data;
+      
+      // Explicitly check for guest role
+      if (this.user && this.user.role === 'guest') {
+        this.guestId = this.user.id; // Store the guest ID
+      }
+    }
+    
+    if (!this.user) {
+      // Generate guest ID with consistent format
+      this.guestId = localStorage.getItem("guestId") || 
+        `Guest_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("guestId", this.guestId);
+    }
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    // If error occurs, treat as guest
+    this.user = null;
+    this.guestId = localStorage.getItem("guestId") || 
+      `Guest_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem("guestId", this.guestId);
+  }
+},
 
     groupTotalPrice(group) {
       return group.reduce((total, item) => total + item.price * item.quantity, 0);
@@ -563,21 +581,33 @@ async generateInvoice(orderId) {
       }
     },
 
-    validatePedagangInputs(pedagang) {
-      if (!this.user) {
-        if (!this.pedagangPemesan[pedagang]?.trim()) {
-          alert(`Harap isi nama pemesan untuk ${pedagang}`);
-          return false;
-        }
-        if (!this.pedagangAlamat[pedagang]?.trim()) {
-          alert(`Harap isi alamat pengiriman untuk ${pedagang}`);
-          return false;
-        }
-      }
-      return true;
-    },
+validatePedagangInputs(pedagang) {
+  if (this.isGuestUser) {
+    if (!this.pedagangPemesan[pedagang]?.trim()) {
+      this.showWarning(`Harap isi nama pemesan untuk ${pedagang}`);
+      return false;
+    }
+    if (!this.pedagangAlamat[pedagang]?.trim()) {
+      this.showWarning(`Harap isi alamat pengiriman untuk ${pedagang}`);
+      return false;
+    }
+    
+    // Additional validation
+    if (this.pedagangPemesan[pedagang].length < 3) {
+      this.showWarning(`Nama pemesan terlalu pendek untuk ${pedagang}`);
+      return false;
+    }
+    if (this.pedagangAlamat[pedagang].length < 3) {
+      this.showWarning(`Alamat terlalu pendek untuk ${pedagang}`);
+      return false;
+    }
+  }
+  return true;
+},
 
-    async checkoutPedagang(pedagang) {
+async checkoutPedagang(pedagang) {
+  await this.fetchCart();
+
   if (!this.validatePedagangInputs(pedagang)) {
     return;
   }
@@ -589,8 +619,14 @@ async generateInvoice(orderId) {
   const orders = [];
   const orderId = generateRandomId();
   const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const cartUser = this.user ? this.user.id : this.guestId;
 
+  // Get guest inputs or logged-in user info
+ const pemesan = this.isGuestUser ? this.pedagangPemesan[pedagang] : this.user.Nama;
+const alamat = this.isGuestUser ? this.pedagangAlamat[pedagang] : this.user.Alamat;
+  // Send NULL user for guest or user ID for logged-in
+  const user = this.user ? this.user.id : null;
+
+  // Build the order array for this pedagang
   this.cart
     .filter(item => item.pedagang === pedagang)
     .forEach((item) => {
@@ -603,34 +639,53 @@ async generateInvoice(orderId) {
         price: item.price,
         quantity: item.quantity,
         total: item.price * item.quantity,
-        user: cartUser,
-        Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-        pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+        user: user,           // Send NULL for guests
+        alamat: alamat,
+        pemesan: pemesan,
         catatan: this.pedagangNotes[pedagang],
         timestamp,
       });
     });
 
   try {
-    // 1. Create order for this pedagang
-    const createResponse = await axios.post("http://localhost:3003/orders", { 
-      orders,
-      clearCart: true
+    // Debug: Show what's being sent
+    console.log('Order data being sent:', {
+      orders: orders.map(o => ({
+        pemesan: o.pemesan,
+        alamat: o.alamat,
+        orderid: o.orderid,
+        itemid: o.itemid,
+        quantity: o.quantity
+      })),
+      clearCart: false
     });
-    
-    // Verify response structure
+
+    // 1. Create order
+    const createResponse = await axios.post("http://localhost:3003/orders", {
+      orders,
+      clearCart: false
+    });
+
+    // Validate response
     if (!createResponse.data?.orders?.[0]?.id) {
-      throw new Error('Invalid order creation response');
+      throw new Error("Invalid order creation response");
     }
-    
+
     const createdOrderId = createResponse.data.orders[0].id;
 
-    // 2. Update local cart immediately after successful order creation
+    // 2. Remove ordered items from backend cart
+    const itemsToDelete = this.cart.filter(item => item.pedagang === pedagang);
+    await Promise.all(
+      itemsToDelete.map(item =>
+        axios.delete(`http://localhost:3004/cart/${item.id}`)
+      )
+    );
+
+    // 3. Update local cart
     this.cart = this.cart.filter(item => item.pedagang !== pedagang);
 
-    // 3. Generate invoice using the confirmed order ID
+    // 4. Generate invoice
     const invoiceResult = await this.generateInvoice(createdOrderId);
-    
     if (!invoiceResult.success) {
       throw invoiceResult.error;
     }
@@ -638,7 +693,7 @@ async generateInvoice(orderId) {
     alert(`Checkout berhasil untuk ${pedagang}! Invoice telah dibuat.`);
   } catch (error) {
     console.error(`Error during checkout for ${pedagang}:`, error);
-    
+
     if (error.response) {
       if (error.response.status === 400) {
         this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
@@ -648,13 +703,14 @@ async generateInvoice(orderId) {
     } else {
       this.showWarning(`Checkout gagal untuk ${pedagang}. Silakan cek koneksi internet Anda dan coba lagi.`);
     }
-    
-    // Refresh cart data in case of error
+
+    // Reload cart data
     await this.fetchCart();
   } finally {
     this.isProcessingCheckout = false;
   }
 },
+
 
 async checkoutAll() {
   if (!this.user && !this.guestId) {
@@ -676,13 +732,16 @@ async checkoutAll() {
   const allOrders = [];
   const orderIds = {};
   const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const cartUser = this.user ? this.user.id : this.guestId;
+  const cartUser = this.user ? this.user.id : this.guestId.toLowerCase();
 
   // Prepare orders for each pedagang
   for (const pedagang in this.groupedCart) {
     orderIds[pedagang] = generateRandomId();
-    
-    this.groupedCart[pedagang].forEach((item) => {
+
+    // Extract user/guest info
+const pemesan = this.isGuestUser ? this.pedagangPemesan[pedagang] : this.user.Nama;
+const alamat = this.isGuestUser ? this.pedagangAlamat[pedagang] : this.user.Alamat;  
+this.groupedCart[pedagang].forEach((item) => {
       allOrders.push({
         temporaryId: orderIds[pedagang],
         orderid: orderIds[pedagang],
@@ -693,8 +752,8 @@ async checkoutAll() {
         quantity: item.quantity,
         total: item.price * item.quantity,
         user: cartUser,
-        Alamat: this.user ? this.user.Alamat : this.pedagangAlamat[pedagang],
-        pemesan: this.user ? this.user.Nama : this.pedagangPemesan[pedagang],
+        alamat: alamat, // Changed from Alamat to alamat
+        pemesan: pemesan,
         catatan: this.pedagangNotes[pedagang],
         timestamp,
       });
@@ -702,48 +761,58 @@ async checkoutAll() {
   }
 
   try {
-    // 1. Create all orders
-    const createResponse = await axios.post("http://localhost:3003/orders", { 
-      orders: allOrders,
-      clearCart: true // Flag to indicate cart should be cleared
+    // 🔍 PATCH: Log all orders data before sending
+    console.log('All orders data being sent:', {
+      orders: allOrders.map(o => ({
+        pemesan: o.pemesan,
+        alamat: o.alamat,
+        orderid: o.orderid,
+        itemid: o.itemid,
+        quantity: o.quantity
+      })),
+      clearCart: true
     });
-    
-    // Verify response contains valid order IDs
+
+    // 1. Create all orders
+    const createResponse = await axios.post("http://localhost:3003/orders", {
+      orders: allOrders,
+      clearCart: true // Clear full cart on success
+    });
+
     const createdOrders = (createResponse.data?.orders || []).filter(o => o?.id);
     if (createdOrders.length === 0) {
-      throw new Error('No valid orders were created');
+      throw new Error("No valid orders were created");
     }
 
-    // 2. Clear local cart immediately after successful order creation
+    // 2. Clear local cart
     this.cart = [];
-    
-    // 3. Generate invoices for each unique order
+
+    // 3. Generate invoices for all successful orders
     const invoiceResults = await Promise.allSettled(
-      createdOrders.map(order => 
+      createdOrders.map(order =>
         this.generateInvoice(order.id)
           .then(result => {
             order.invoiceUrl = result.invoiceUrl;
             return result;
           })
           .catch(e => ({ success: false, orderId: order.id, error: e }))
-     )
-        );
+      )
+    );
 
-    // Check for failed invoices
     const failedInvoices = invoiceResults
-      .filter(result => 
-        result.status === 'rejected' || 
-        (result.status === 'fulfilled' && !result.value.success)
+      .filter(result =>
+        result.status === "rejected" ||
+        (result.status === "fulfilled" && !result.value.success)
       )
       .reduce((acc, result) => {
-        const error = result.status === 'rejected' ? result.reason : result.value.error;
+        const error = result.status === "rejected" ? result.reason : result.value.error;
         acc[error.orderId] = error.error;
         return acc;
       }, {});
 
     if (Object.keys(failedInvoices).length > 0) {
       this.invoiceError = failedInvoices;
-      console.warn('Some invoices failed to generate:', failedInvoices);
+      console.warn("Some invoices failed to generate:", failedInvoices);
       this.showWarning("Pesanan berhasil dibuat tetapi beberapa invoice gagal digenerate. Silakan coba generate ulang.");
     } else {
       alert("Checkout berhasil! Invoice telah dibuat.");
@@ -751,7 +820,7 @@ async checkoutAll() {
     }
   } catch (error) {
     console.error("Error during checkout:", error);
-    
+
     if (error.response) {
       if (error.response.status === 400) {
         this.showWarning("Data pesanan tidak valid. Silakan periksa kembali.");
@@ -761,13 +830,15 @@ async checkoutAll() {
     } else {
       this.showWarning("Checkout gagal. Silakan cek koneksi internet Anda dan coba lagi.");
     }
-    
-    // Refresh cart data in case of error
-    await this.fetchCart();
+
+    await this.fetchCart(); // Reload cart in case of error
   } finally {
     this.isProcessingCheckout = false;
   }
 },
+
+
+
 
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {

@@ -131,13 +131,13 @@ const Produk = require('./produk.model');
 // Define the association with Produk using updated aliases
 CartItems.belongsTo(Produk, {
   foreignKey: "itemid",
-  as: "produk",  // Changed from "product" to "produk"
+  as: "produk",  // Consistent with query
   onDelete: 'CASCADE'
 });
 
 Produk.hasMany(CartItems, {
   foreignKey: "itemid",
-  as: "cartItems",  // Changed from "cart_items" to "cartItems"
+  as: "cartItems",
   onDelete: 'CASCADE'
 });
 

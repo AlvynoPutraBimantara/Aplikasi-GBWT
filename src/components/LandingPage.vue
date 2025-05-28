@@ -4,7 +4,14 @@
       <h1 class="title">Selamat Datang di-Aplikasi GBWT</h1>
       <p class="subtitle">(Gerakan Belanja di Warung Tetangga)</p>
       <div class="button-container">
-        <button class="button" @click="guestSignIn">Masuk</button>
+        <button 
+          class="button" 
+          @click="guestSignIn"
+          :disabled="isLoading"
+        >
+          <span v-if="!isLoading">Masuk</span>
+          <span v-else>Memproses...</span>
+        </button>
         <button class="button" @click="goToLogin">Login</button>
       </div>
     </div>
@@ -12,19 +19,54 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: "LandingPage",
+  data() {
+    return {
+      isLoading: false
+    };
+  },
   methods: {
-    guestSignIn() {
-      localStorage.setItem("guest", "true");
-      this.$router.push({ name: "GuestDashboard" }).then(() => {
-        window.location.reload();
-      });
-    },
+async guestSignIn() {
+  this.isLoading = true;
+  try {
+    const response = await axios.post(
+      'http://localhost:3001/guest-signin',
+      {},
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (response.data.success && response.data.token) {
+      // Clear any existing auth state
+      localStorage.clear();
+      
+      // Store all necessary data
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('guestId', response.data.userId);
+      localStorage.setItem('isGuest', 'true');
+      localStorage.setItem('user-info', JSON.stringify(response.data.user));
+      
+      // Force reload to ensure all components pick up the new auth state
+      window.location.href = '/GuestDashboard';
+    } else {
+      throw new Error('Invalid server response');
+    }
+  } catch (error) {
+    console.error('Guest sign-in error:', {
+      message: error.response?.data?.message || error.message,
+      status: error.response?.status
+    });
+    alert(`Failed to create guest session: ${error.response?.data?.message || error.message}`);
+  } finally {
+    this.isLoading = false;
+  }
+},
     goToLogin() {
       this.$router.push({ name: "Login" });
-    },
-  },
+    }
+  }
 };
 </script>
 
@@ -68,6 +110,11 @@ export default {
 
 .button:hover {
   background-color: navy;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .landing-content {

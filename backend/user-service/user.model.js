@@ -67,12 +67,14 @@ const User = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
-    // In the User model definition, add unique constraint
-Telp: {
-  type: DataTypes.STRING(20),
-  allowNull: true,
-  unique: true // Add this line
-},
+    Telp: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      unique: 'idx_telp_unique',
+      validate: {
+        is: /^(0|\+62|62)[0-9]{9,15}$/ // Matches the CHECK constraint in the database
+      }
+    },
     Alamat: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -108,7 +110,14 @@ Telp: {
       withPassword: {
         attributes: { include: ['Password'] } // Include when needed
       }
-    }
+    },
+    indexes: [
+      {
+        fields: ['Telp'],
+        name: 'idx_telp_unique',
+        unique: true
+      }
+    ]
   }
 );
 
@@ -116,6 +125,36 @@ Telp: {
 User.hasMany(UserImages, {
   foreignKey: 'user_id',
   as: 'images',
+  onDelete: 'CASCADE'
+});
+
+User.hasMany(sequelize.models.DataProduk, {
+  foreignKey: 'user_id',
+  as: 'products',
+  onDelete: 'SET NULL'
+});
+
+User.hasMany(sequelize.models.Cart, {
+  foreignKey: 'user',
+  as: 'carts',
+  onDelete: 'SET NULL'
+});
+
+User.hasMany(sequelize.models.Orders, {
+  foreignKey: 'user',
+  as: 'orders',
+  onDelete: 'SET NULL'
+});
+
+User.hasMany(sequelize.models.Transactions, {
+  foreignKey: 'user',
+  as: 'transactions',
+  onDelete: 'CASCADE'
+});
+
+User.hasMany(sequelize.models.TransactionsHistory, {
+  foreignKey: 'user',
+  as: 'transactions_history',
   onDelete: 'CASCADE'
 });
 

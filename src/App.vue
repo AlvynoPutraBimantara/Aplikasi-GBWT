@@ -1,19 +1,19 @@
 <template>
   <div id="wrapper" class="d-flex">
     <!-- Sidebar -->
-    <Sidebar v-if="isLoggedIn && isAdmin" @logout="logout" />
-    <UserSidebar v-if="isLoggedIn && isUser" @logout="logout" />
-    <GuestSidebar v-if="isGuest" @logout="logout" />
+    <Sidebar v-if="isAdmin" @logout="logout" />
+    <UserSidebar v-else-if="isRegularUser" @logout="logout" />
+    <GuestSidebar v-else-if="isGuest" @logout="logout" />
 
     <!-- Page Content -->
     <div id="page-content-wrapper" class="flex-column">
-      <!-- Conditional header rendering -->
-      <Header v-if="isLoggedIn && isAdmin" @toggle-sidebar="toggleSidebar" />
-      <UserHeader v-if="isUser" />
-      <GuestHeader v-if="isGuest" />
+      <!-- Header -->
+      <Header v-if="isAdmin" @toggle-sidebar="toggleSidebar" />
+      <UserHeader v-else-if="isRegularUser" />
+      <GuestHeader v-else-if="isGuest" />
 
       <div class="container-fluid">
-        <router-view></router-view>
+        <router-view />
       </div>
     </div>
   </div>
@@ -25,6 +25,7 @@ import "bootstrap/dist/js/bootstrap.min.js";
 import "popper.js/dist/umd/popper.min.js";
 import "jquery/dist/jquery.min.js";
 import "./App.css";
+
 import Sidebar from "./components/Sidebar.vue";
 import UserSidebar from "./components/UserSidebar.vue";
 import GuestSidebar from "./components/GuestSidebar.vue";
@@ -44,20 +45,25 @@ export default {
   },
   computed: {
     isLoggedIn() {
-      return !!localStorage.getItem("user-info");
+      return !!localStorage.getItem("token");
+    },
+    userInfo() {
+      try {
+        return JSON.parse(localStorage.getItem("user-info")) || {};
+      } catch {
+        return {};
+      }
     },
     isAdmin() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      return user && user.role === "admin";
+      return this.userInfo.role === "admin";
     },
-    isUser() {
-      const user = JSON.parse(localStorage.getItem("user-info"));
-      return user && user.role !== "admin";
+    isRegularUser() {
+      return this.userInfo.role === "user";
     },
     isGuest() {
       return (
-        !localStorage.getItem("user-info") &&
-        localStorage.getItem("guest") === "true"
+        this.userInfo.role === "guest" ||
+        localStorage.getItem("isGuest") === "true"
       );
     },
   },
@@ -76,7 +82,6 @@ export default {
     if (!this.isLoggedIn && !this.isGuest) {
       this.$router.push({ name: "LandingPage" });
     }
-    
   },
 };
 </script>

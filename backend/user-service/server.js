@@ -33,37 +33,49 @@ async function deleteGuestUser(id) {
   const conn = await pool.getConnection();
   try {
     await conn.query('START TRANSACTION');
+    
+    // Only cleanup guest users
+    const [user] = await conn.query(
+      'SELECT * FROM user WHERE id = ? AND role = "guest" AND is_guest = 1',
+      [id]
+    );
+    
+    if (user.length === 0) return false;
 
+    // Disassociate from orders (set user to null)
+    await conn.query("UPDATE orders SET user = NULL WHERE user = ?", [id]);
+    
     // Delete cart items and cart
     await conn.query(`
-      DELETE cart_items FROM cart_items
-      JOIN cart ON cart_items.cart_id = cart.id
-      WHERE cart.user = ?`, [id]);
+      DELETE cart_items 
+      FROM cart_items 
+      JOIN cart ON cart_items.cart_id = cart.id 
+      WHERE cart.user = ?
+    `, [id]);
+    
     await conn.query("DELETE FROM cart WHERE user = ?", [id]);
-
-    // Delete orders and related data
-    const [orders] = await conn.query("SELECT id FROM orders WHERE user = ?", [id]);
-    if (orders.length > 0) {
-      const orderIds = orders.map(o => o.id);
-      await conn.query("DELETE FROM order_items WHERE order_id IN (?)", [orderIds]);
-      await conn.query("DELETE FROM invoice WHERE order_id IN (?)", [orderIds]);
-      await conn.query("DELETE FROM orders WHERE user = ?", [id]);
-    }
-
-    // Delete user images and user
+    
+    // Delete user images
     await conn.query("DELETE FROM userimages WHERE user_id = ?", [id]);
-    const [result] = await conn.query("DELETE FROM user WHERE id = ? AND role = 'guest'", [id]);
+    
+    // Delete guest user
+    const [result] = await conn.query(`
+      DELETE FROM user 
+      WHERE id = ? 
+        AND role = 'guest' 
+        AND is_guest = 1
+    `, [id]);
     
     await conn.query('COMMIT');
     return result.affectedRows > 0;
   } catch (error) {
     await conn.query('ROLLBACK');
+    console.error("Guest cleanup error:", error);
     throw error;
   } finally {
     conn.release();
   }
 }
-
 // Utility function to normalize phone numbers
 function formatPhoneNumber(telp) {
   if (!telp) return null;
@@ -93,12 +105,13 @@ app.param('id', (req, res, next, id) => {
 });
 
 // Add force cleanup endpoint
-app.post('/guest/:id/force-cleanup', async (req, res) => {
-  res.status(202).send();
+app.post('/guest/:id/cleanup', async (req, res) => {
+  res.status(202).send('Cleanup initiated');
   try {
     await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
+    console.log(`Successfully cleaned up guest ${req.params.id}`);
   } catch (error) {
-    console.error(`Force cleanup failed for ${req.params.id}:`, error);
+    console.error(`Cleanup failed for ${req.params.id}:`, error);
   }
 });
 
@@ -730,53 +743,47 @@ app.delete('/guest/:id', async (req, res) => {
   }
 });
 
-// Update cleanup endpoint to use the shared function
-// Enhanced cleanup endpoint
+
 app.post('/guest/:id/cleanup', async (req, res) => {
-  res.status(202).send('Cleanup initiated');
-  
-  // Execute cleanup in background
-  setTimeout(async () => {
-    try {
-      await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
-      console.log(`Successfully cleaned up guest ${req.params.id}`);
-    } catch (error) {
-      console.error(`Failed to cleanup guest ${req.params.id}:`, error);
-      // Retry once after short delay
-      setTimeout(async () => {
-        try {
-          await pool.query('CALL FullGuestCleanup(?)', [req.params.id]);
-        } catch (retryError) {
-          console.error(`Retry failed for guest ${req.params.id}:`, retryError);
-        }
-      }, 1000);
+  try {
+    const deleted = await deleteGuestUser(req.params.id);
+    if (deleted) {
+      // Prevent cached state in client after guest deletion
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.status(200).json({ success: true });
+    } else {
+      res.status(404).json({ success: false, message: "Guest not found" });
     }
-  }, 0);
+  } catch (error) {
+    console.error(`Cleanup failed:`, error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Cleanup failed'
+    });
+  }
 });
 
-// Enhanced Guest Cleanup Scheduler
-// Run every hour to clean up any orphaned guest users
+// Optimized scheduled cleanup
 setInterval(async () => {
   try {
-    // Find guest users older than 24 hours
-    const [oldGuests] = await pool.query(
-      `SELECT id FROM user 
-       WHERE role = 'guest' AND 
-       created_at < NOW() - INTERVAL 24 HOUR`
-    );
+    const [oldGuests] = await pool.query(`
+      SELECT id FROM user 
+      WHERE role = 'guest' 
+        AND is_guest = 1
+        AND created_at < NOW() - INTERVAL 1 HOUR
+    `);
 
     for (const guest of oldGuests) {
       try {
-        await pool.query('CALL FullGuestCleanup(?)', [guest.id]);
-        console.log(`Scheduled cleanup deleted guest ${guest.id}`);
+        await deleteGuestUser(guest.id);
       } catch (error) {
-        console.error(`Error cleaning up guest ${guest.id}:`, error);
+        console.error(`Scheduled cleanup failed:`, error);
       }
     }
   } catch (error) {
-    console.error("Error in guest cleanup scheduler:", error);
+    console.error("Cleanup scheduler error:", error);
   }
-}, 1800000); // Run every hour // Run every 30 minutes
+}, 1800000); // 30 minutes
 
 app.listen(port, () => {
   console.log(`User Service is running on http://localhost:${port}`);

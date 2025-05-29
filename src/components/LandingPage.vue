@@ -30,6 +30,12 @@ export default {
   },
   methods: {
 async guestSignIn() {
+  // Clear any existing auth state before creating new session
+  localStorage.removeItem("token");
+  localStorage.removeItem("guestId");
+  localStorage.removeItem("isGuest");
+  localStorage.removeItem("user-info");
+
   this.isLoading = true;
   try {
     const response = await axios.post(
@@ -38,17 +44,14 @@ async guestSignIn() {
       { headers: { 'Content-Type': 'application/json' } }
     );
 
-    if (response.data.success && response.data.token) {
-      // Clear any existing auth state
-      localStorage.clear();
-      
-      // Store all necessary data
+    if (response.data.token && response.data.user) {
+      // Store token, user info, and guest flag
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('guestId', response.data.userId);
-      localStorage.setItem('isGuest', 'true');
       localStorage.setItem('user-info', JSON.stringify(response.data.user));
-      
-      // Force reload to ensure all components pick up the new auth state
+      localStorage.setItem('guestId', response.data.userId || response.data.user?.id || '');
+      localStorage.setItem('isGuest', 'true');  // Crucial flag
+
+      // Redirect to GuestDashboard (reload ensures full state update)
       window.location.href = '/GuestDashboard';
     } else {
       throw new Error('Invalid server response');

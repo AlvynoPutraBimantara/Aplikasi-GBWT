@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
 
-// Define the Transactions model
+// Transactions Model
 const Transactions = sequelize.define(
   "Transactions",
   {
@@ -12,11 +12,12 @@ const Transactions = sequelize.define(
     },
     user: {
       type: DataTypes.STRING(255),
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'user',
         key: 'id'
-      }
+      },
+      onDelete: 'SET NULL'
     },
     total: {
       type: DataTypes.DECIMAL(50, 2),
@@ -25,7 +26,6 @@ const Transactions = sequelize.define(
     catatan: {
       type: DataTypes.STRING(500),
       allowNull: true,
-      defaultValue: null,
     },
     alamat: {
       type: DataTypes.STRING(255),
@@ -34,16 +34,19 @@ const Transactions = sequelize.define(
     created_at: {
       type: DataTypes.STRING(255),
       allowNull: false,
-      defaultValue: DataTypes.NOW,
     },
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      references: {
+        model: 'invoice',
+        key: 'invoice_url'
+      },
+      onDelete: 'SET NULL'
     },
     pemesan: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      defaultValue: null,
     }
   },
   {
@@ -52,7 +55,7 @@ const Transactions = sequelize.define(
   }
 );
 
-// Define the TransactionItems model
+// TransactionItems Model
 const TransactionItems = sequelize.define(
   "TransactionItems",
   {
@@ -64,10 +67,20 @@ const TransactionItems = sequelize.define(
     transactions_id: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'transactions',
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
     },
     itemid: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'dataproduk',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
     },
     name: {
       type: DataTypes.STRING(255),
@@ -92,7 +105,7 @@ const TransactionItems = sequelize.define(
   }
 );
 
-// Define the TransactionsHistory model
+// TransactionsHistory Model
 const TransactionsHistory = sequelize.define(
   "TransactionsHistory",
   {
@@ -103,7 +116,12 @@ const TransactionsHistory = sequelize.define(
     },
     user: {
       type: DataTypes.STRING(255),
-      allowNull: false,
+      allowNull: true,
+      references: {
+        model: 'user',
+        key: 'id'
+      },
+      onDelete: 'SET NULL'
     },
     total: {
       type: DataTypes.DECIMAL(50, 2),
@@ -112,7 +130,6 @@ const TransactionsHistory = sequelize.define(
     catatan: {
       type: DataTypes.STRING(500),
       allowNull: true,
-      defaultValue: null,
     },
     alamat: {
       type: DataTypes.STRING(255),
@@ -129,11 +146,15 @@ const TransactionsHistory = sequelize.define(
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      references: {
+        model: 'invoice',
+        key: 'invoice_url'
+      },
+      onDelete: 'SET NULL'
     },
     pemesan: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      defaultValue: null,
     },
   },
   {
@@ -142,7 +163,7 @@ const TransactionsHistory = sequelize.define(
   }
 );
 
-// Define the TransactionHistoryItems model
+// TransactionHistoryItems Model
 const TransactionHistoryItems = sequelize.define(
   "TransactionHistoryItems",
   {
@@ -154,10 +175,20 @@ const TransactionHistoryItems = sequelize.define(
     transaction_id: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'transactions_history',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
     },
     itemid: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      references: {
+        model: 'dataproduk',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
     },
     name: {
       type: DataTypes.STRING(255),
@@ -182,35 +213,35 @@ const TransactionHistoryItems = sequelize.define(
   }
 );
 
-// Define the relationships
+// Define Relationships
 Transactions.hasMany(TransactionItems, {
   foreignKey: "transactions_id",
   sourceKey: "id",
   as: "transaction_items",
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE"
 });
 
 TransactionItems.belongsTo(Transactions, {
   foreignKey: "transactions_id",
   targetKey: "id",
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE"
 });
 
 TransactionsHistory.hasMany(TransactionHistoryItems, {
   foreignKey: "transaction_id",
   sourceKey: "id",
   as: "transaction_history_items",
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE"
 });
 
 TransactionHistoryItems.belongsTo(TransactionsHistory, {
   foreignKey: "transaction_id",
   targetKey: "id",
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE"
 });
 
 // Export the models

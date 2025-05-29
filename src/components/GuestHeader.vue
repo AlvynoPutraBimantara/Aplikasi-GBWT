@@ -56,57 +56,69 @@ export default {
     filteredRoutes() {
       return this.routes.filter((route) => !route.adminOnly);
     },
-    guestId() {
-      return localStorage.getItem("guestId");
-    },
+     guestId() {
+    const userInfo = JSON.parse(localStorage.getItem("user-info") || '{}');
+    return userInfo.id || localStorage.getItem("guestId");
+  },
   },
   methods: {
     toggleMenu() {
       document.getElementById("wrapper").classList.toggle("toggled");
     },
 
-    async logout() {
-      if (this.isLoggingOut) return;
-      this.isLoggingOut = true;
+// Enhanced logout method
+async logout() {
+    if (this.isLoggingOut) return;
+    this.isLoggingOut = true;
+    
+    const guestId = localStorage.getItem("guestId");
+    if (!guestId) return this.forceLogout();
 
-      const guestId = localStorage.getItem("guestId");
-      if (!guestId) return this.forceLogout();
-
-      try {
-        // First try direct deletion
-        try {
-          await axios.delete(`http://localhost:3001/guest/${guestId}`, {
-            timeout: 1000,
-          });
-        } catch (error) {
-          console.log("Direct deletion failed, trying cleanup endpoint");
-          // Fallback to cleanup endpoint
-          await axios.post(
-            `http://localhost:3001/guest/${guestId}/cleanup`,
-            {},
-            { timeout: 1000 }
-          );
-        }
-      } catch (error) {
-        console.error("Cleanup error:", error);
-        // Final fallback to beacon
-        navigator.sendBeacon(
-          `http://localhost:3001/guest/${guestId}/cleanup`
-        );
-      } finally {
-        this.forceLogout();
+    try {
+      // Use Beacon API for reliable cleanup
+      const beaconSent = navigator.sendBeacon(
+        `http://localhost:3001/guest/${guestId}/cleanup`
+      );
+      
+      if (!beaconSent) {
+        // Fallback to fetch with keepalive
+        await fetch(`http://localhost:3001/guest/${guestId}/cleanup`, {
+          method: 'POST',
+          keepalive: true
+        });
       }
-    },
+    } catch (error) {
+      console.error("Cleanup request failed:", error);
+    } finally {
+      this.forceLogout();
+    }
+  },
 
-    forceLogout() {
-      // Clear all client-side storage
-      localStorage.removeItem("token");
-      localStorage.removeItem("guestId");
-      localStorage.removeItem("isGuest");
-
-      // Force redirect with full reload
-      window.location.href = "/landing";
-    },
+  handlePageExit() {
+    const guestId = localStorage.getItem("guestId");
+    if (!guestId) return;
+    
+    navigator.sendBeacon(
+      `http://localhost:3001/guest/${guestId}/cleanup`
+    );
+  },
+  
+  forceLogout() {
+  // Clear all authentication-related data
+  localStorage.removeItem("token");
+  localStorage.removeItem("guestId");
+  localStorage.removeItem("isGuest");
+  localStorage.removeItem("user-info"); // Add this line
+  
+  // Clear any Vuex store state if used
+  if (this.$store) {
+    this.$store.commit('RESET_AUTH_STATE');
+  }
+  
+  // Force redirect with full reload
+  window.location.href = "/";
+}
+,
 
     isActive(route) {
       return this.$route.path === route;
@@ -147,22 +159,7 @@ export default {
       }
     },
 
-    handlePageExit() {
-      const guestId = localStorage.getItem("guestId");
-      if (!guestId) return;
 
-      const cleanupUrl = `http://localhost:3001/guest/${guestId}/cleanup`;
-
-      // Try beacon first
-      if (!navigator.sendBeacon(cleanupUrl)) {
-        // Fallback to fetch if beacon fails
-        fetch(cleanupUrl, {
-          method: "POST",
-          keepalive: true,
-          headers: { "Content-Type": "application/json" },
-        }).catch((e) => console.error("Cleanup fetch failed:", e));
-      }
-    },
   },
 
   mounted() {

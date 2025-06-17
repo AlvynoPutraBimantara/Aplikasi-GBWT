@@ -1,42 +1,46 @@
 <template>
-  <div class="bg-light border-right" id="sidebar-wrapper">
+  <aside class="sidebar bg-light border-right hidden" id="sidebar-wrapper" aria-label="User navigation">
     <div class="sidebar-heading">Aplikasi GBWT</div>
-    <!-- Profile Image Display -->
-    <div class="profile-image-container" v-if="userImage">
-      <img :src="userImage" alt="Profile Image" class="profile-image" @error="handleImageError" />
-    </div>
-    <div class="list-group list-group-flush">
-      <router-link
-        :to="`/Profil/${userId}`"
-        class="list-group-item list-group-item-action bg-light"
-        >Profil</router-link
-      >
-      <router-link
-        to="/Orders"
-        class="list-group-item list-group-item-action bg-light"
-        >Pesanan saya</router-link
-      >
-      <router-link
-        to="/Dagangan"
-        class="list-group-item list-group-item-action bg-light"
-        >Dagangan Saya</router-link
-      >
-      <router-link
-        to="/Penjualan"
-        class="list-group-item list-group-item-action bg-light"
-        >Penjualan saya</router-link
-      >
-      <router-link
-        to="/RiwayatTransaksi"
-        class="list-group-item list-group-item-action bg-light"
-        >RiwayatTransaksi</router-link
-      >
 
-      <router-link to="/Informasi" class="list-group-item infouser bg-light"
-        ><font-awesome-icon :icon="['fas', 'circle-info']" />
-      </router-link>
+    <!-- Profile Section -->
+    <div class="profile-section">
+      <div v-if="isLoading" class="profile-loading">
+        <div class="spinner-border text-primary" role="status">
+          <span class="sr-only">Loading...</span>
+        </div>
+      </div>
+      <div v-else class="profile-image-container">
+        <img
+          v-if="fullImageUrl"
+          :src="fullImageUrl"
+          alt="Profile image"
+          class="profile-image"
+          @error="handleImageError"
+          @load="handleImageLoad"
+          loading="lazy"
+        />
+        <div v-if="showPlaceholder" class="image-placeholder">
+          <font-awesome-icon :icon="['fas', 'user-circle']" size="3x" />
+        </div>
+      </div>
     </div>
-  </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      <ul class="list-group list-group-flush">
+        <li v-for="item in navItems" :key="item.route" class="list-group-item">
+          <router-link
+            :to="item.route === '/Profil' ? `${item.route}/${userId}` : item.route"
+            class="list-group-item-action bg-light"
+            :aria-current="isActive(item.route) ? 'page' : null"
+          >
+            <font-awesome-icon v-if="item.icon" :icon="item.icon" class="me-2" />
+            {{ item.label }}
+          </router-link>
+        </li>
+      </ul>
+    </nav>
+  </aside>
 </template>
 
 <script>
@@ -47,84 +51,127 @@ export default {
   data() {
     return {
       userData: {
-        imageUrl: null
-      }
+        imageUrl: null,
+      },
+      isLoading: false,
+      imageLoaded: false,
+      imageErrored: false,
+      baseUrl: process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001",
+      navItems: [
+        { route: "/Profil", label: "Profil", icon: ["fas", "user"] },
+        { route: "/Orders", label: "Pesanan saya", icon: ["fas", "receipt"] },
+        { route: "/Dagangan", label: "Dagangan Saya", icon: ["fas", "store"] },
+        { route: "/Penjualan", label: "Penjualan saya", icon: ["fas", "circle-dollar-to-slot"] },
+        { route: "/RiwayatTransaksi", label: "Riwayat Transaksi", icon: ["fas", "history"] },
+        { route: "/Informasi", label: "Informasi", icon: ["fas", "circle-info"] }
+      ]
     };
   },
   computed: {
     userId() {
       const user = JSON.parse(localStorage.getItem("user-info"));
-      return user ? user.id : null;
+      return user?.id ?? null;
     },
     userImage() {
       return this.userData.imageUrl;
+    },
+    fullImageUrl() {
+      if (!this.userImage) return "";
+      if (this.userImage.startsWith("http")) return this.userImage;
+      return `${this.baseUrl}${this.userImage}`;
+    },
+    showPlaceholder() {
+      return !this.fullImageUrl || this.imageErrored;
     }
   },
   methods: {
-    async fetchUser() {
-      try {
-        if (!this.userId) return;
-        
-        const result = await axios.get(
-          `http://localhost:3001/user/${this.userId}`
-        );
-        this.userData = result.data;
-        
-        // Update localStorage with fresh data
-        const userInfo = JSON.parse(localStorage.getItem("user-info")) || {};
-        userInfo.imageUrl = result.data.imageUrl;
-        localStorage.setItem("user-info", JSON.stringify(userInfo));
-      } catch (error) {
-        console.error("Error fetching user:", error);
-      }
+    isActive(route) {
+      const expected = route === "/Profil" ? `${route}/${this.userId}` : route;
+      return this.$route.path.startsWith(expected);
+    },
+    handleImageLoad() {
+      this.imageLoaded = true;
+      this.imageErrored = false;
     },
     handleImageError(event) {
-      // Fallback image or hide the image container
-      event.target.style.display = 'none';
+      console.error("Image load error:", event);
+      this.imageErrored = true;
+      this.imageLoaded = false;
     },
-    logout() {
-      this.$emit("logout");
+    async fetchUser() {
+      if (!this.userId) return;
+
+      this.isLoading = true;
+      this.imageLoaded = false;
+      this.imageErrored = false;
+      
+      try {
+        const response = await axios.get(
+          `${this.baseUrl}/user/${this.userId}`,
+          {
+            timeout: 5000,
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`
+            }
+          }
+        );
+
+        if (response.data) {
+          this.userData = response.data;
+          const userInfo = JSON.parse(localStorage.getItem("user-info")) || {};
+          userInfo.imageUrl = response.data.imageUrl;
+          localStorage.setItem("user-info", JSON.stringify(userInfo));
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        const user = JSON.parse(localStorage.getItem("user-info")) || {};
+        if (user.imageUrl) {
+          this.userData.imageUrl = user.imageUrl;
+        }
+      } finally {
+        this.isLoading = false;
+      }
     },
+    toggleSidebar() {
+      this.$el.classList.toggle('hidden');
+    }
   },
   async mounted() {
-    // First check localStorage
-    const user = JSON.parse(localStorage.getItem("user-info"));
-    if (user && user.imageUrl) {
+    const user = JSON.parse(localStorage.getItem("user-info")) || {};
+    if (user.imageUrl) {
       this.userData.imageUrl = user.imageUrl;
     }
-    
-    // Then fetch fresh data from API
     await this.fetchUser();
-  },
+  }
 };
 </script>
 
 <style scoped>
-.list-group-item-action {
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-.list-group-item-action:hover {
-  background-color: darkblue;
-  color: white;
-}
 #sidebar-wrapper {
   min-height: 100vh;
-  margin-left: -300px;
   transition: margin 0.25s ease-out;
+  margin-left: -300px;
+  width: 300px;
+}
+
+#sidebar-wrapper.hidden {
+  margin-left: -300px;
 }
 
 #wrapper.toggled #sidebar-wrapper {
   margin-left: 0;
 }
 
-/* Profile Image Styles */
+.profile-section {
+  padding: 1rem;
+  text-align: center;
+}
+
 .profile-image-container {
   display: flex;
   justify-content: center;
-  margin-top: 0.5rem;
-  margin-bottom: 1rem;
-  min-height: 100px;
+  margin: 0 auto;
+  position: relative;
 }
 
 .profile-image {
@@ -134,18 +181,61 @@ export default {
   object-fit: cover;
   border: 3px solid #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
 }
 
-/* Override the padding from App.css */
-#sidebar-wrapper .sidebar-heading {
-  padding: 1rem 1rem !important;
-  margin-bottom: 0 !important;
+.profile-image:hover {
+  transform: scale(1.05);
 }
 
-/* Fallback when image fails to load */
-.profile-image-container:empty::after {
-  content: "No Image";
-  color: #666;
-  font-size: 0.8rem;
+.image-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f0f0;
+  border: 3px solid #fff;
+  color: #6c757d;
+}
+
+.profile-loading {
+  height: 106px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-group-item {
+  padding: 0;
+}
+
+.list-group-item-action {
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  color: #495057;
+  text-decoration: none;
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus,
+.list-group-item-action[aria-current="page"] {
+  background-color: var(--bs-primary);
+  color: white;
+}
+
+.sidebar-heading {
+  padding: 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-nav {
+  margin-top: 1rem;
 }
 </style>

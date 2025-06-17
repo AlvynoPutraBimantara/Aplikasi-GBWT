@@ -1,13 +1,48 @@
-
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const { Op } = require("sequelize");
 const { Produk, ProdukImages } = require("./produk.model");
 const app = express();
+//const os = require('os');
+require('dotenv').config();
+
+// Determine port from environment or default
+const port = process.env.PORT || 3002;
+
+// Enhanced CORS configuration
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:3000',
+  'http://192.168.100.8:8080',
+  'http://192.168.100.8:3000',
+  'http://192.168.100.8:3002',
+  // Allow all devices in local network
+  /^http:\/\/192\.168\.100\.\d{1,3}(:\d+)?$/,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/ // Allow any 192.168.x.x address
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.some(allowedOrigin => 
+        typeof allowedOrigin === 'string' 
+          ? origin === allowedOrigin
+          : allowedOrigin.test(origin)
+      )  // This closing parenthesis was missing
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Multer configuration
@@ -20,6 +55,12 @@ const logWarning = (message) => {
 
 // Helper function to generate random ID
 const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+
+// Update the base URL handling
+const getBaseUrl = () => {
+  const networkIp = '192.168.100.8'; // Your server's local IP
+  return process.env.BASE_URL || `http://${networkIp}:${port}`;
+};
 
 // Database synchronization
 (async () => {
@@ -94,7 +135,7 @@ app.get("/products", async (req, res) => {
 
     const processedProducts = products.map(product => ({
       ...product.get({ plain: true }),
-      imageUrl: product.imageUrl ? `http://localhost:3002/images/${product.id}` : null,
+      imageUrl: product.imageUrl ? `${getBaseUrl()}/images/${product.id}` : null,
       hasImage: product.images && product.images.length > 0
     }));
 
@@ -110,7 +151,6 @@ app.get("/products", async (req, res) => {
   }
 });
 
-// [Rest of your existing routes remain unchanged...]
 // Get product by ID
 app.get("/products/:id", async (req, res) => {
   try {
@@ -125,7 +165,7 @@ app.get("/products/:id", async (req, res) => {
       const productData = product.get({ plain: true });
       // Always set imageUrl if product has images
       productData.imageUrl = product.images && product.images.length > 0 
-        ? `http://localhost:3002/images/${product.id}`
+        ? `${getBaseUrl()}/images/${product.id}`
         : null;
       res.json(productData);
     } else {
@@ -218,6 +258,9 @@ app.get("/images/:id", async (req, res) => {
     const image = await ProdukImages.findByPk(req.params.id);
     if (image) {
       res.setHeader("Content-Type", image.mimetype);
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.send(image.data);
     } else {
       res.status(404).json({ error: "Image not found" });
@@ -326,7 +369,7 @@ app.get("/products/new", async (req, res) => {
     
     const productsWithImageUrls = products.map(product => ({
       ...product.get({ plain: true }),
-      imageUrl: product.imageUrl ? `http://localhost:3002/images/${product.id}` : null,
+      imageUrl: product.imageUrl ? `${getBaseUrl()}/images/${product.id}` : null,
       hasImage: product.images && product.images.length > 0
     }));
     
@@ -338,6 +381,10 @@ app.get("/products/new", async (req, res) => {
 });
 
 // Start server
-app.listen(3002, () => {
-  console.log("Produk service is running on http://localhost:3002");
+const HOST = '0.0.0.0'; // Listen on all network interfaces
+app.listen(port, HOST, () => {
+  console.log("Produk service is running on:");
+  console.log(`- Local: http://localhost:${port}`);
+  console.log(`- Network: http://192.168.100.8:${port}`);
+  console.log(`- Accessible from any device in your local network`);
 });

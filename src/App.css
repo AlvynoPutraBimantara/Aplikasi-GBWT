@@ -94,7 +94,7 @@ body {
   margin-left: auto;
   display: block;
   border-radius: 4px; /* From Proyek-KP-master */
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .register button:hover,
@@ -102,4 +102,44 @@ body {
 .tambah button:hover {
   background-color: skyblue; /* Retaining color from aplikasi-gbwt */
   color: black;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive styles for mobile */
+@media (max-width: 768px) {
+  #app {
+    font-size: medium;
+  }
+
+  /* Add padding to account for fixed header/footer */
+  #page-content-wrapper {
+    padding-top: 60px; /* Height of top header */
+    padding-bottom: 60px; /* Height of bottom footer */
+    min-height: calc(100vh - 120px); /* Account for both header and footer */
+  }
+
+  /* Adjust sidebar for mobile */
+  #sidebar-wrapper {
+    margin-left: -300px;
+    z-index: 1001; /* Above the header/footer */
+  }
+
+  #wrapper.toggled #sidebar-wrapper {
+    margin-left: 0;
+  }
+
+  .register input,
+  .login input,
+  .tambah input {
+    width: 90%;
+    max-width: 300px;
+  }
+
+  .register button,
+  .login button,
+  .tambah button {
+    width: 90%;
+    max-width: 300px;
+  }
 }

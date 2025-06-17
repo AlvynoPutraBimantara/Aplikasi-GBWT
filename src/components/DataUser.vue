@@ -1,7 +1,5 @@
 <template>
   <div class="data-warung-container">
-
-
     <h1>Data User</h1>
     <div class="table-container">
       <table border="1">
@@ -13,7 +11,6 @@
             <th>Nama</th>
             <th>Telp</th>
             <th>Alamat</th>
-         
             <th>Aksi</th>
           </tr>
         </thead>
@@ -21,14 +18,18 @@
           <tr v-for="item in User" :key="item.id">
             <td>{{ item.id }}</td>
             <td>
-              <img :src="item.imageUrl" alt="User Image" class="user-image" />
+              <img 
+                :src="item.imageUrl ? (item.imageUrl.startsWith('http') ? item.imageUrl : baseUrl + item.imageUrl) : ''" 
+                alt="User Image" 
+                class="user-image" 
+                v-if="item.imageUrl"
+              />
+              <span v-else>No Image</span>
             </td>
             <td>{{ item.NamaWarung }}</td>
             <td>{{ item.Nama }}</td>
             <td>{{ item.Telp }}</td>
             <td>{{ item.Alamat }}</td>
-            
-
             <td>
               <button @click="UpdateUser(item.id)">Edit</button>
               <button @click="confirmDelete(item.id)">Hapus</button>
@@ -41,7 +42,6 @@
 </template>
 
 <script>
-
 import axios from "axios";
 
 export default {
@@ -49,23 +49,44 @@ export default {
   data() {
     return {
       User: [],
+      apiBaseUrl: ""
     };
   },
-  components: {
-  
+  computed: {
+    baseUrl() {
+      return process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001";
+    }
   },
   methods: {
+    getApiBaseUrl() {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://localhost:3001";
+      } else {
+        return "http://192.168.100.8:3001";
+      }
+    },
     UpdateUser(id) {
       this.$router.push({ name: "ProfilAdmin", params: { id: id } });
     },
     async HapusUser(id) {
       try {
-        let result = await axios.delete(`http://localhost:3001/user/${id}`);
+        const token = localStorage.getItem("token");
+        let result = await axios.delete(`${this.apiBaseUrl}/user/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (result.status === 200) {
           this.loadData();
         }
       } catch (error) {
         console.error("Error deleting user:", error);
+        if (error.response && error.response.status === 400) {
+          alert(error.response.data.message);
+        } else {
+          alert("Gagal menghapus user. Silakan coba lagi.");
+        }
       }
     },
     confirmDelete(id) {
@@ -75,23 +96,60 @@ export default {
     },
     async loadData() {
       try {
+        const token = localStorage.getItem("token");
         let user = localStorage.getItem("user-info");
-        if (!user) {
-          this.$router.push({ name: "SignUp" });
-        } else {
-          let result = await axios.get("http://localhost:3001/users");
-          this.User = result.data.filter((user) => user.role !== "admin");
+        if (!user || !token) {
+          this.$router.push({ name: "Login" });
+          return;
         }
+
+        const response = await axios.get(`${this.apiBaseUrl}/users/all`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        this.User = response.data.filter(user => user.role !== "admin").map(user => {
+          return {
+            ...user,
+            Telp: this.formatPhoneDisplay(user.Telp)
+          };
+        });
       } catch (error) {
         console.error("Error loading users:", error);
+        if (error.response && error.response.status === 401) {
+          this.$router.push({ name: "Login" });
+        } else {
+          alert("Gagal memuat data user. Silakan coba lagi.");
+        }
       }
     },
+    formatPhoneDisplay(telp) {
+      if (!telp) return "-";
+      const cleaned = telp.toString().replace(/\D/g, '');
+      if (cleaned.startsWith('62')) {
+        return '0' + cleaned.substring(2);
+      }
+      return telp;
+    }
   },
   async mounted() {
+    this.apiBaseUrl = this.getApiBaseUrl();
+
+    const userInfo = localStorage.getItem("user-info");
+    if (userInfo) {
+      const user = JSON.parse(userInfo);
+      if (user.role !== "admin") {
+        this.$router.push({ name: "Dashboard" });
+        return;
+      }
+    }
+
     this.loadData();
-  },
+  }
 };
 </script>
+
 
 
 <style>

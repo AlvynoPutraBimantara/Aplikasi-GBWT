@@ -68,6 +68,13 @@ module.exports = function setupAssociations(models) {
     onDelete: 'CASCADE'
   });
 
+  // Add simplified invoice association
+  Orders.hasOne(Invoice, {
+    foreignKey: "order_id",
+    as: "invoice",
+    onDelete: 'SET NULL'
+  });
+
   // OrderItems associations
   OrderItems.belongsTo(Orders, {
     foreignKey: "order_id",
@@ -80,7 +87,4 @@ module.exports = function setupAssociations(models) {
     as: "order_item_product",
     onDelete: 'CASCADE'
   });
-
-  // Invoice associations - REMOVED duplicate definitions
-  // These are already properly defined in orders.model.js
 };

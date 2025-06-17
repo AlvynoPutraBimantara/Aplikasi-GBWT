@@ -85,6 +85,8 @@ export default {
       quantity: 1,
       user: JSON.parse(localStorage.getItem("user-info")),
       guestId: localStorage.getItem("guestId") || null,
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
+      baseCartUrl: process.env.VUE_APP_CART_SERVICE_URL || "http://192.168.100.8:3004"
     };
   },
   computed: {
@@ -92,26 +94,26 @@ export default {
       return this.user && this.product.Pedagang === this.user.NamaWarung;
     },
   },
-async mounted() {
-  const productId = this.$route.params.id;
-  try {
-    const response = await axios.get(
-      `http://localhost:3002/products/${productId}`
-    );
-    this.product = {
-      ...response.data,
-      imageUrl: response.data.imageUrl 
-        ? response.data.imageUrl 
-        : `http://localhost:3002/images/${response.data.id}`
-    };
-    this.product.Harga = parseFloat(this.product.Harga);
-    if (this.product.Harga_diskon) {
-      this.product.Harga_diskon = parseFloat(this.product.Harga_diskon);
+  async mounted() {
+    const productId = this.$route.params.id;
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/products/${productId}`
+      );
+      
+      this.product = {
+        ...response.data,
+        imageUrl: response.data.imageUrl 
+          ? response.data.imageUrl 
+          : `${this.baseUrl}/images/${response.data.id}?t=${Date.now()}`,
+        Harga: parseFloat(response.data.Harga),
+        Harga_diskon: response.data.Harga_diskon ? parseFloat(response.data.Harga_diskon) : null
+      };
+      
+    } catch (error) {
+      console.error("Error loading product details:", error);
     }
-  } catch (error) {
-    console.error("Error loading product details:", error);
-  }
-},
+  },
   methods: {
     incrementQuantity() {
       if (this.quantity < this.product.Stok) {
@@ -134,79 +136,73 @@ async mounted() {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
       return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     },
- async addToCart() {
-  try {
-    // Add validation for product existence
-    if (!this.product || !this.product.id) {
-      alert("Product information is missing");
-      return;
-    }
+    async addToCart() {
+      try {
+        if (!this.product || !this.product.id) {
+          alert("Product information is missing");
+          return;
+        }
 
-    // Validate quantity and stock
-    if (
-      this.quantity <= 0 ||
-      !this.product.Stok ||
-      this.quantity > this.product.Stok ||
-      (this.isOwnProduct && this.user)
-    ) {
-      alert("Invalid quantity selected or insufficient stock.");
-      return;
-    }
+        if (
+          this.quantity <= 0 ||
+          !this.product.Stok ||
+          this.quantity > this.product.Stok ||
+          (this.isOwnProduct && this.user)
+        ) {
+          alert("Invalid quantity selected or insufficient stock.");
+          return;
+        }
 
-    // Handle guest users
-    if (!this.user && !this.guestId) {
-      this.guestId = `guest_${this.generateRandomId()}`;
-      localStorage.setItem("guestId", this.guestId);
-    }
+        if (!this.user && !this.guestId) {
+          this.guestId = `guest_${this.generateRandomId()}`;
+          localStorage.setItem("guestId", this.guestId);
+        }
 
-    // Use user ID for logged-in users, guest ID for guests
-    const user = this.user ? this.user.id : this.guestId;
-    const payload = {
-      user: user,
-      itemid: this.product.id,
-      name: this.product.Nama,
-      price: this.product.Harga_diskon ? parseFloat(this.product.Harga_diskon) : parseFloat(this.product.Harga),
-      quantity: this.quantity,
-      pedagang: this.product.Pedagang,
-    };
+        const user = this.user ? this.user.id : this.guestId;
+        const payload = {
+          user: user,
+          itemid: this.product.id,
+          name: this.product.Nama,
+          price: this.product.Harga_diskon ? this.product.Harga_diskon : this.product.Harga,
+          quantity: this.quantity,
+          pedagang: this.product.Pedagang,
+        };
 
-    // First check if product already exists in cart
-    const cartResponse = await axios.get(`http://localhost:3004/cart?user=${encodeURIComponent(user)}`);
-    const existingItem = cartResponse.data.find(item => item.itemid === this.product.id);
+        const cartResponse = await axios.get(`${this.baseCartUrl}/cart?user=${encodeURIComponent(user)}`);
+        const existingItem = cartResponse.data.find(item => item.itemid === this.product.id);
 
-    if (existingItem) {
-      // Update quantity if item exists
-      const newQuantity = existingItem.quantity + this.quantity;
-      if (newQuantity > this.product.Stok) {
-        alert(`Cannot add more than ${this.product.Stok} items total`);
-        return;
+        if (existingItem) {
+          const newQuantity = existingItem.quantity + this.quantity;
+          if (newQuantity > this.product.Stok) {
+            alert(`Cannot add more than ${this.product.Stok} items total`);
+            return;
+          }
+
+          const updateResponse = await axios.put(`${this.baseCartUrl}/cart/${existingItem.id}`, {
+            quantity: newQuantity
+          });
+
+          if (updateResponse.status === 200) {
+            this.product.Stok -= this.quantity;
+            alert("Item quantity updated in cart!");
+            this.$router.push("/cart");
+          }
+        } else {
+          const addResponse = await axios.post(`${this.baseCartUrl}/cart`, payload);
+
+          if (addResponse.status === 201) {
+            this.product.Stok -= this.quantity;
+            alert("Pesanan berhasil dimasukkan dalam keranjang!");
+            this.$router.push("/cart");
+          }
+        }
+      } catch (error) {
+        console.error("Error adding to cart:", error);
+        alert("Failed to add product to cart. Please try again.");
       }
-      
-      const updateResponse = await axios.put(`http://localhost:3004/cart/${existingItem.id}`, {
-        quantity: newQuantity
-      });
-      
-      if (updateResponse.status === 200) {
-        this.product.Stok -= this.quantity;
-        alert("Item quantity updated in cart!");
-        this.$router.push("/cart");
-      }
-    } else {
-      // Add new item to cart
-      const addResponse = await axios.post("http://localhost:3004/cart", payload);
-      
-      if (addResponse.status === 201) {
-        this.product.Stok -= this.quantity;
-        alert("Pesanan berhasil dimasukkan dalam keranjang!");
-        this.$router.push("/cart");
-      }
-    }
-  } catch (error) {
-    console.error("Error adding to cart:", error);
-    alert("Failed to add product to cart. Please try again.");
-  }
-},
+    },
     formatPrice(value) {
+      if (!value) return "Rp0";
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
@@ -352,7 +348,7 @@ async mounted() {
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
-  margin-left: auto; /* Changed from fixed margin to auto */
+  margin-left: auto;
 }
 
 .add-to-cart-btn:hover {
@@ -369,5 +365,67 @@ async mounted() {
   font-size: 14px;
   margin-left: 95px;
   margin-top: -5px;
+}
+
+@media only screen and (max-width: 768px) {
+  .container {
+    max-width: 100%;
+    margin: 10px 0;
+    padding: 10px;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .product-details {
+    padding: 10px 5px;
+  }
+
+  .product-image {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .detail-item {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+
+  .detail-item h1 {
+    font-size: 24px;
+  }
+
+  .detail-item p {
+    font-size: 14px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: center; /* Changed from flex-start to center */
+    gap: 8px;
+  }
+
+  .form-row label {
+    min-width: auto;
+    text-align: center; /* Changed from left to center */
+    width: 100%;
+  }
+
+  .quantity-controls {
+    width: 100%;
+    justify-content: center; /* Changed from flex-start to center */
+  }
+
+  .add-to-cart-btn {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 10px;
+  }
+
+  .warning-message {
+    margin-left: 0;
+    margin-top: 5px;
+    width: 100%;
+    text-align: center; /* Added center alignment for warning message */
+  }
 }
 </style>

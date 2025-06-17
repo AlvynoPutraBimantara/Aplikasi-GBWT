@@ -3,9 +3,9 @@
     <h1>Profil</h1>
     <div class="update-container">
       <!-- Preview or Existing Profile Image -->
-      <div v-if="previewImage || User.imageUrl" class="image-container">
+      <div v-if="previewImage || fullImageUrl" class="image-container">
         <img
-          :src="previewImage || User.imageUrl"
+          :src="previewImage || fullImageUrl"
           alt="Profile Image"
           class="product-image"
         />
@@ -19,6 +19,16 @@
         Batalkan Pilihan Gambar
       </button>
       <form class="update" @submit.prevent="UpdateProfil">
+        <div class="form-row">
+          <label for="image">Gambar Profil:</label>
+          <input 
+            type="file" 
+            id="image" 
+            @change="onImageChange" 
+            accept="image/*"
+            class="file-input"
+          />
+        </div>
         <div class="form-row">
           <label for="NamaWarung">Nama Warung:</label>
           <input
@@ -64,18 +74,9 @@
             v-model="newPassword"
           />
         </div>
-        <div class="form-row">
-          <label for="image">Gambar Profil:</label>
-          <input 
-            type="file" 
-            id="image" 
-            @change="onImageChange" 
-            accept="image/*"
-            class="file-input"
-          />
-        </div>
+
         <div class="form-actions">
-          <button type="submit">Update Profil</button>
+          <button type="submit" class="update-btn">Update Profil</button>
         </div>
       </form>
     </div>
@@ -96,57 +97,96 @@ export default {
         Alamat: "",
         imageUrl: "",
       },
-      newPassword: "", // Separate field for new password
+      newPassword: "",
       imageFile: null,
       previewImage: null,
+      previousImageId: null,
+      baseUrl: process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001"
     };
+  },
+  computed: {
+    fullImageUrl() {
+      if (!this.User.imageUrl) return null;
+      // If it's already a full URL (for backward compatibility)
+      if (this.User.imageUrl.startsWith('http')) {
+        return this.User.imageUrl;
+      }
+      // Construct full URL from relative path
+      return `${this.baseUrl}${this.User.imageUrl}`;
+    }
   },
   methods: {
     async UpdateProfil() {
       try {
-        let previousImageId = null;
+        let newImageId = null;
         
-        // Handle image upload if there's a new image
-        if (this.User.imageUrl) {
-          const urlParts = this.User.imageUrl.split("/");
-          previousImageId = urlParts[urlParts.length - 1];
-        }
-
         if (this.imageFile) {
           const formData = new FormData();
           formData.append("image", this.imageFile);
 
-          const response = await axios.post("http://localhost:3001/uploads", formData);
-          const newImageId = response.data.id;
-          this.User.imageUrl = `http://localhost:3001/uploads/${newImageId}`;
+          const response = await axios.post(
+            `${this.baseUrl}/images`,
+            formData,
+            { 
+              headers: { 
+                "Content-Type": "multipart/form-data",
+                "Authorization": `Bearer ${localStorage.getItem('token')}`
+              } 
+            }
+          );
+          
+          newImageId = response.data.id;
+          this.User.imageUrl = `/images/${newImageId}`; // Store relative path
 
-          if (previousImageId) {
-            await axios.delete(`http://localhost:3001/uploads/${previousImageId}`);
+          if (this.previousImageId) {
+            await axios.delete(`${this.baseUrl}/images/${this.previousImageId}`, {
+              headers: {
+                "Authorization": `Bearer ${localStorage.getItem('token')}`
+              }
+            });
           }
         }
 
-        // Prepare update data
+        // Format phone number to start with 0 if it starts with 62
+        if (this.User.Telp && this.User.Telp.startsWith('62')) {
+          this.User.Telp = '0' + this.User.Telp.substring(2);
+        }
+
         const updateData = {
           ...this.User,
-          Password: this.newPassword || undefined // Only include password if it's not empty
+          Password: this.newPassword || undefined
         };
 
-        // Update user profile
         const updateResponse = await axios.put(
-          `http://localhost:3001/user/${this.$route.params.id}`,
-          updateData
+          `${this.baseUrl}/user/${this.$route.params.id}`,
+          updateData,
+          {
+            headers: {
+              "Authorization": `Bearer ${localStorage.getItem('token')}`
+            }
+          }
         );
 
         if (updateResponse.data.message && updateResponse.data.message.includes("Maaf nama warung")) {
           alert(updateResponse.data.message);
         } else {
           alert("Profil berhasil diperbarui.");
-          this.newPassword = ""; // Clear password field after successful update
-          window.location.reload();
+          this.newPassword = "";
+          this.imageFile = null;
+          this.previewImage = null;
+          
+          if (newImageId) {
+            this.previousImageId = newImageId;
+          }
+          
+          await this.fetchUser();
+          this.$router.push('/datauser'); // Unique to ProfilAdmin: redirect to datauser
         }
       } catch (error) {
         console.error("Error updating profile:", error);
-        if (error.response && error.response.data && error.response.data.message) {
+        if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+        } else if (error.response && error.response.data && error.response.data.message) {
           alert(error.response.data.message);
         } else {
           alert("Terjadi kesalahan saat memperbarui profil.");
@@ -156,14 +196,35 @@ export default {
     async fetchUser() {
       try {
         const result = await axios.get(
-          `http://localhost:3001/user/${this.$route.params.id}`
+          `${this.baseUrl}/user/${this.$route.params.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
         );
-        // Don't store password in component state
         // eslint-disable-next-line no-unused-vars
         const { Password, ...userData } = result.data;
         this.User = userData;
+        
+        if (this.User.imageUrl) {
+          const urlParts = this.User.imageUrl.split("/");
+          this.previousImageId = urlParts[urlParts.length - 1];
+        }
+
+        // Format phone number on initial load if it starts with 62
+        if (this.User.Telp && this.User.Telp.startsWith('62')) {
+          this.User.Telp = '0' + this.User.Telp.substring(2);
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
+        if (error.message.includes('Network Error')) {
+          alert('Cannot connect to server. Please check: \n1. Your network connection\n2. Server is running\n3. Correct server address');
+        } else if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+        } else {
+          alert('Error loading profile data');
+        }
       }
     },
     onImageChange(event) {
@@ -177,6 +238,16 @@ export default {
       this.imageFile = null;
       this.previewImage = null;
     },
+  },
+  watch: {
+    'User.Telp': {
+      handler(newVal) {
+        if (newVal && newVal.startsWith('62')) {
+          this.User.Telp = '0' + newVal.substring(2);
+        }
+      },
+      immediate: true
+    }
   },
   async mounted() {
     await this.fetchUser();

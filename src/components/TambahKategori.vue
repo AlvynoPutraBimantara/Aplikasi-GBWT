@@ -26,6 +26,7 @@
             id="Kategori"
             placeholder="Masukan Nama Kategori"
             v-model="DataKategori.Kategori"
+            required
           />
         </div>
         <div class="form-row">
@@ -36,6 +37,7 @@
             @change="onImageChange" 
             accept="image/*"
             class="file-input"
+            required
           />
         </div>
         <div class="form-actions">
@@ -64,33 +66,77 @@ export default {
   methods: {
     async addKategori() {
       try {
+        // Validate inputs
         if (!this.imageFile || !this.DataKategori.Kategori) {
           alert("Nama kategori dan gambar wajib diisi!");
           return;
         }
 
-        // Upload the image
+        // Create FormData for image upload
         const formData = new FormData();
         formData.append("image", this.imageFile);
-        const imageResponse = await axios.post("http://localhost:3006/images", formData);
+
+        // Upload the image to the category service
+        const imageResponse = await axios.post(
+          `${process.env.VUE_APP_CATEGORY_SERVICE_URL}/images`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+
         const imageUrl = imageResponse.data.imageUrl;
 
         // Add category with the uploaded image URL
-        await axios.post("http://localhost:3006/categories", {
-          category: this.DataKategori.Kategori,
-          imageUrl,
-        });
+        await axios.post(
+          `${process.env.VUE_APP_CATEGORY_SERVICE_URL}/categories`,
+          {
+            category: this.DataKategori.Kategori,
+            imageUrl,
+          }
+        );
 
         alert("Kategori berhasil ditambahkan!");
         this.$router.push({ name: "DataKategori" });
       } catch (error) {
         console.error("Error adding category:", error);
-        alert("Gagal menambahkan kategori. Silakan coba lagi.");
+        let errorMessage = "Gagal menambahkan kategori. Silakan coba lagi.";
+        
+        if (error.response) {
+          if (error.response.status === 400) {
+            errorMessage = error.response.data.message || errorMessage;
+          } else if (error.response.status === 413) {
+            errorMessage = "Ukuran gambar terlalu besar. Silakan pilih gambar yang lebih kecil.";
+          }
+        }
+        
+        alert(errorMessage);
+      } finally {
+        // Clean up the object URL to prevent memory leaks
+        if (this.previewImage) {
+          URL.revokeObjectURL(this.previewImage);
+        }
       }
     },
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
+        // Validate file size (e.g., 2MB limit)
+        if (file.size > 2 * 1024 * 1024) {
+          alert("Ukuran gambar tidak boleh melebihi 2MB");
+          event.target.value = "";
+          return;
+        }
+        
+        // Validate file type
+        if (!file.type.match('image.*')) {
+          alert("Hanya file gambar yang diperbolehkan");
+          event.target.value = "";
+          return;
+        }
+
         this.imageFile = file;
         this.previewImage = URL.createObjectURL(file);
       }
@@ -98,7 +144,15 @@ export default {
     cancelImageSelection() {
       this.previewImage = null;
       this.imageFile = null;
+      // Reset file input
+      document.getElementById('image').value = '';
     },
+  },
+  beforeUnmount() {
+    // Clean up the object URL when component is destroyed
+    if (this.previewImage) {
+      URL.revokeObjectURL(this.previewImage);
+    }
   },
 };
 </script>
@@ -119,6 +173,8 @@ export default {
   width: 50%;
   height: auto;
   margin-bottom: 20px;
+  max-height: 300px;
+  object-fit: contain;
 }
 
 .update {
@@ -180,6 +236,7 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.3s;
 }
 
 .cancel-preview-btn:hover {
@@ -195,9 +252,27 @@ export default {
   cursor: pointer;
   font-size: 16px;
   margin-top: 20px;
+  transition: background-color 0.3s;
 }
 
 .form-actions button:hover {
   background-color: #388e3c;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .form-row label {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 5px;
+  }
+
+  .product-image {
+    width: 80%;
+  }
 }
 </style>

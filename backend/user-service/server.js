@@ -6,16 +6,36 @@ const app = express();
 const cors = require("cors");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-//const axios = require('axios');
 require('dotenv').config();
 const port = process.env.PORT || 3001;
+// eslint-disable-next-line no-unused-vars
+const os = require('os');
+
+const corsOptions = {
+  origin: [
+    'http://localhost:8080',
+    'http://192.168.100.8:8080',
+    /\.local$/,
+    /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'X-Device-Id'], // Added X-Device-Id here
+  credentials: true,
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400
+};
+app.use(cors(corsOptions));
+
+
+app.options('*', cors(corsOptions));
+
+
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const saltRounds = 10;
 
-app.use(cors());
 app.use(bodyParser.json());
 
 // Generate a 8-digit random string for ID
@@ -28,7 +48,33 @@ function generateRandomId() {
   }
   return result;
 }
-
+// Add this function before app.listen()
+function getNetworkIP() {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  
+  // Check for the most likely network interface
+  for (const name of ['Ethernet', 'Wi-Fi', 'eth0', 'wlan0']) {
+    if (interfaces[name]) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+  }
+  
+  // Fallback to first non-internal IPv4 address
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  
+  return 'localhost'; // Fallback if no network IP found
+}
 async function deleteGuestUser(id) {
   const conn = await pool.getConnection();
   try {
@@ -496,6 +542,7 @@ app.post("/user", async (req, res) => {
 });
 
 // Upload or Update User Image
+// In your image upload endpoint
 app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
   const { id } = req.params;
 
@@ -513,11 +560,14 @@ app.post("/user/:id/upload-image", upload.single("image"), async (req, res) => {
       [imageId, originalname, buffer, mimetype]
     );
 
-    // Update user table with image URL
-    const imageUrl = `http://localhost:3001/images/${imageId}`;
+    // Store only the relative path in the database
+    const imageUrl = `/images/${imageId}`;
     await pool.query("UPDATE gbwt.user SET imageUrl = ? WHERE id = ?", [imageUrl, id]);
 
-    res.status(200).json({ message: "Image uploaded and user updated successfully." });
+    res.status(200).json({ 
+      message: "Image uploaded and user updated successfully.",
+      imageUrl: imageUrl
+    });
   } catch (error) {
     console.error("Error uploading image:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -620,8 +670,8 @@ app.delete("/user/:id", async (req, res) => {
   }
 });
 
-// Upload user image
-app.post("/uploads", upload.single("image"), async (req, res) => {
+// Changed endpoint: General image upload
+app.post("/images", upload.single("image"), async (req, res) => {
   const id = generateRandomId();
   const { originalname, mimetype, buffer } = req.file;
 
@@ -638,8 +688,8 @@ app.post("/uploads", upload.single("image"), async (req, res) => {
   }
 });
 
-// Serve user image
-app.get("/uploads/:id", async (req, res) => {
+// Changed endpoint: Serve user image
+app.get("/images/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -658,8 +708,8 @@ app.get("/uploads/:id", async (req, res) => {
   }
 });
 
-// Delete Image by ID
-app.delete("/uploads/:id", async (req, res) => {
+// Changed endpoint: Delete Image by ID
+app.delete("/images/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -674,7 +724,7 @@ app.delete("/uploads/:id", async (req, res) => {
 });
 
 // Guest Sign-in Endpoint
-app.post('/guest-signin', async (req, res) => {
+app.post('/user-service/guest-signin', async (req, res) => {
   const guestId = generateRandomId();
   const guestName = `guest_${guestId}`;
   const guestPassword = generateRandomId();
@@ -682,10 +732,9 @@ app.post('/guest-signin', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(guestPassword, saltRounds);
 
-    // Fixed table name to lowercase 'user' and added is_guest
     const query = `
-      INSERT INTO user (id, Nama, Password, role, is_guest)
-      VALUES (?, ?, ?, 'guest', 1)`;
+      INSERT INTO user (id, Nama, Password, role, is_guest, created_at)
+      VALUES (?, ?, ?, 'guest', 1, NOW())`;
 
     await pool.query(query, [guestId, guestName, hashedPassword]);
 
@@ -704,22 +753,22 @@ app.post('/guest-signin', async (req, res) => {
     const guestUser = userResults[0];
     const token = generateToken(guestUser);
     
-res.status(201).json({
-  success: true,
-  message: "Guest session created",
-  token: token,
-  userId: guestUser.id,
-  role: guestUser.role,
-  isGuest: true,
-  user: {  // Include minimal user data
-    id: guestUser.id,
-    role: guestUser.role,
-    Nama: guestUser.Nama
-  }
-});
+    res.status(201).json({
+      success: true,
+      message: "Guest session created",
+      token: token,
+      userId: guestUser.id,
+      role: guestUser.role,
+      isGuest: true,
+      user: {
+        id: guestUser.id,
+        role: guestUser.role,
+        Nama: guestUser.Nama
+      }
+    });
 
   } catch (err) {
-    console.error("Database Error:", {
+    console.error("Guest Sign-in Error:", {
       code: err.code,
       sqlMessage: err.sqlMessage,
       sql: err.sql
@@ -728,6 +777,45 @@ res.status(201).json({
       success: false,
       message: "Internal server error",
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+app.post('/user-service/guest/:id/cleanup', async (req, res) => {
+  try {
+    const guestId = req.params.id;
+    if (!guestId || !/^[A-Za-z0-9]{8}$/.test(guestId)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid guest ID format" 
+      });
+    }
+
+    // Immediate response to client
+    res.status(202).json({ 
+      success: true,
+      message: "Cleanup initiated" 
+    });
+
+    // Perform cleanup in background
+    setTimeout(async () => {
+      try {
+        const deleted = await deleteGuestUser(guestId);
+        if (deleted) {
+          console.log(`Successfully cleaned up guest ${guestId}`);
+        } else {
+          console.log(`Guest ${guestId} not found for cleanup`);
+        }
+      } catch (error) {
+        console.error(`Cleanup failed for ${guestId}:`, error);
+      }
+    }, 0);
+
+  } catch (error) {
+    console.error('Cleanup endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error during cleanup' 
     });
   }
 });
@@ -785,6 +873,10 @@ setInterval(async () => {
   }
 }, 1800000); // 30 minutes
 
-app.listen(port, () => {
-  console.log(`User Service is running on http://localhost:${port}`);
+// Update the server listening configuration at the bottom
+app.listen(port, '0.0.0.0', () => {
+  const networkIP = getNetworkIP(); 
+  console.log(`Server accessible at:
+    - Local: http://localhost:${port}
+    - Network: http://${networkIP}:${port}`);
 });

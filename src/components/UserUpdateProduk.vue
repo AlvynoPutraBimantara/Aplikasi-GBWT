@@ -3,14 +3,14 @@
     <h1>Update Produk</h1>
     <div class="update-container">
       <!-- Preview or Existing Product Image -->
-     <div v-if="previewImage || DataProduk.imageUrl" class="image-container">
-  <img
-    :src="previewImage || DataProduk.imageUrl"
-    alt="Product Image"
-    class="product-image"
-    @error="handleImageError"
-  />
-</div>
+      <div v-if="previewImage || DataProduk.imageUrl" class="image-container">
+        <img
+          :src="previewImage || getImageUrlWithTimestamp(DataProduk.imageUrl)"
+          alt="Product Image"
+          class="product-image"
+          @error="handleImageError"
+        />
+      </div>
       <!-- Cancel Preview Button -->
       <button
         v-if="previewImage"
@@ -27,6 +27,7 @@
             id="image" 
             @change="onImageChange" 
             class="file-input"
+            accept="image/*"
           />
         </div>
         <div class="form-row">
@@ -156,12 +157,20 @@ export default {
       discountPercentage: 0,
       formattedHarga: "",
       rawHarga: "",
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
+      categoryServiceUrl: process.env.VUE_APP_CATEGORY_SERVICE_URL || "http://192.168.100.8:3006"
     };
   },
   methods: {
-    async fetchKategori() {
+    getImageUrlWithTimestamp(url) {
+      if (!url) return '';
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}t=${Date.now()}`;
+    },
+    
+   async fetchKategori() {
       try {
-        const response = await axios.get("http://localhost:3006/categories");
+        const response = await axios.get(`http://192.168.100.8:3006/categories`);
         this.kategoriList = response.data.map((item) => ({
           id: item.id,
           category: item.category,
@@ -170,31 +179,32 @@ export default {
         console.error("Error fetching categories:", error);
       }
     },
-    async fetchWarung() {
-      try {
-        const response = await axios.get("http://localhost:3002/users");
-        this.warungList = response.data;
-      } catch (error) {
-        console.error("Error fetching warung list:", error.message);
-      }
-    },
+    
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
+        if (!file.type.match('image.*')) {
+          alert('Please select an image file');
+          return;
+        }
         this.imageFile = file;
         this.previewImage = URL.createObjectURL(file);
       }
     },
+    
     cancelImageSelection() {
       this.imageFile = null;
       this.previewImage = null;
+      document.getElementById('image').value = '';
     },
+    
     validateDiscount() {
       if (this.discountPercentage > 100) {
         this.discountPercentage = 100;
       }
       this.calculateDiscountedPrice();
     },
+    
     calculateDiscountedPrice() {
       const harga = parseFloat(this.rawHarga);
       const discount = parseFloat(this.discountPercentage);
@@ -205,6 +215,7 @@ export default {
         this.DataProduk.Harga_diskon = "";
       }
     },
+    
     formatHarga(event) {
       // Remove all non-digit characters
       const numericValue = event.target.value.replace(/[^0-9]/g, '');
@@ -224,6 +235,7 @@ export default {
         this.calculateDiscountedPrice();
       }
     },
+    
     validateHarga() {
       // Ensure we always have a valid number
       if (!this.rawHarga) {
@@ -231,15 +243,17 @@ export default {
         this.DataProduk.Harga = '';
       }
     },
+    
     formatCurrency(value) {
       return parseInt(value, 10).toLocaleString('id-ID');
     },
+    
     async resetDiscount() {
       try {
         this.discountPercentage = 0;
         this.DataProduk.Harga_diskon = "";
         await axios.put(
-          `http://localhost:3002/products/${this.DataProduk.id}/reset-discount`
+          `${this.baseUrl}/products/${this.DataProduk.id}/reset-discount`
         );
         alert("Discount reset successfully!");
       } catch (error) {
@@ -247,6 +261,7 @@ export default {
         alert("Failed to reset discount.");
       }
     },
+    
     async updateProduk() {
       try {
         const formData = new FormData();
@@ -262,63 +277,117 @@ export default {
         }
 
         await axios.put(
-          `http://localhost:3002/products/${this.DataProduk.id}`,
+          `${this.baseUrl}/products/${this.DataProduk.id}`,
           formData,
           { headers: { "Content-Type": "multipart/form-data" } }
         );
 
         alert("Product updated successfully!");
         this.$router.push("/Dagangan");
-        setTimeout(() => window.location.reload(), 0.1);
       } catch (error) {
         console.error("Error updating product:", error.message);
-        alert("Failed to update product.");
+        alert(`Failed to update product. ${error.response?.data?.message || error.message}`);
       }
     },
-    async deleteProduk() {
-      try {
-        await axios.delete(`http://localhost:3002/products/${this.DataProduk.id}`);
-        alert("Product deleted successfully!");
-        this.$router.push("/Dagangan");
-      } catch (error) {
-        console.error("Error deleting product:", error.message);
-        alert("Failed to delete product.");
-      }
-    },
-  },
- async mounted() {
-  const productId = this.$route.params.id;
+    
+   async deleteProduk() {
+  // Use Indonesian language for confirmation and messages
+  if (!confirm("Apakah Anda yakin ingin menghapus produk ini?")) return;
+  
   try {
-    const response = await axios.get(
-      `http://localhost:3002/products/${productId}`
+    // Show loading state if needed (you can add a loading variable to data() if desired)
+    
+    // eslint-disable-next-line no-unused-vars
+    const response = await axios.delete(
+      `${this.baseUrl}/products/${this.DataProduk.id}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        validateStatus: (status) => status === 200
+      }
     );
-    this.DataProduk = {
-      ...response.data,
-      imageUrl: response.data.imageUrl 
-        ? response.data.imageUrl 
-        : `http://localhost:3002/images/${response.data.id}`
-    };
+
+    // Show success message in Indonesian
+    alert("Produk berhasil dihapus!");
     
-    // Format existing price
-    if (this.DataProduk.Harga) {
-      this.rawHarga = this.DataProduk.Harga;
-      this.formattedHarga = this.formatCurrency(this.DataProduk.Harga);
-    }
+    // Navigate to Dagangan page using named route
+    this.$router.push({ name: 'Dagangan' });
     
-    if (this.DataProduk.Harga_diskon) {
-      const harga = parseFloat(this.DataProduk.Harga);
-      const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
-      if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
-        this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
+  } catch (error) {
+    console.error("Error deleting product:", {
+      message: error.message,
+      response: error.response?.data
+    });
+    
+    // Show appropriate error message in Indonesian
+    let errorMessage = "Gagal menghapus produk.";
+    if (error.response) {
+      if (error.response.status === 401) {
+        errorMessage = "Anda tidak memiliki izin untuk menghapus produk ini.";
+      } else if (error.response.data?.message) {
+        errorMessage = error.response.data.message;
       }
     }
-  } catch (error) {
-    console.error("Error fetching product data:", error.message);
+    
+    alert(errorMessage);
+    
+    // If unauthorized, redirect to login
+    if (error.response?.status === 401) {
+      this.$router.push('/login');
+    }
   }
-
-  await this.fetchKategori();
-  await this.fetchWarung();
 },
+    
+    handleImageError(event) {
+      console.error("Image load error", event);
+      // Fallback to default image if available
+      if (this.DataProduk.imageUrl) {
+        event.target.src = `${this.baseUrl}/images/${this.DataProduk.id}`;
+      }
+    }
+  },
+  
+  async mounted() {
+    const productId = this.$route.params.id;
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/products/${productId}`
+      );
+      this.DataProduk = {
+        ...response.data,
+        imageUrl: response.data.imageUrl 
+          ? this.getImageUrlWithTimestamp(response.data.imageUrl)
+          : `${this.baseUrl}/images/${response.data.id}`
+      };
+      
+      // Format existing price
+      if (this.DataProduk.Harga) {
+        this.rawHarga = this.DataProduk.Harga;
+        this.formattedHarga = this.formatCurrency(this.DataProduk.Harga);
+      }
+      
+      if (this.DataProduk.Harga_diskon) {
+        const harga = parseFloat(this.DataProduk.Harga);
+        const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
+        if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
+          this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching product data:", error.message);
+      alert("Failed to fetch product data. Please try again.");
+    }
+
+    await this.fetchKategori();
+  },
+  
+  beforeUnmount() {
+    // Clean up object URLs to prevent memory leaks
+    if (this.previewImage) {
+      URL.revokeObjectURL(this.previewImage);
+    }
+  }
 };
 </script>
 

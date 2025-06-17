@@ -5,6 +5,15 @@
     <UserSidebar v-else-if="isRegularUser" @logout="logout" />
     <GuestSidebar v-else-if="isGuest" @logout="logout" />
 
+    <!-- Mobile Sidebar Toggle Button -->
+    <button 
+      v-if="showMobileToggle"
+      class="mobile-sidebar-toggle"
+      @click="toggleSidebar"
+    >
+      <font-awesome-icon :icon="['fas', isSidebarOpen ? 'times' : 'bars']" />
+    </button>
+
     <!-- Page Content -->
     <div id="page-content-wrapper" class="flex-column">
       <!-- Header -->
@@ -32,6 +41,10 @@ import GuestSidebar from "./components/GuestSidebar.vue";
 import Header from "./components/Header.vue";
 import GuestHeader from "./components/GuestHeader.vue";
 import UserHeader from "./components/UserHeader.vue";
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faBars, faTimes } from '@fortawesome/free-solid-svg-icons';
+
+library.add(faBars, faTimes);
 
 export default {
   name: "App",
@@ -42,6 +55,12 @@ export default {
     Header,
     GuestHeader,
     UserHeader,
+  },
+  data() {
+    return {
+      isSidebarOpen: false,
+      isMobile: false
+    };
   },
   computed: {
     isLoggedIn() {
@@ -66,6 +85,9 @@ export default {
         localStorage.getItem("isGuest") === "true"
       );
     },
+    showMobileToggle() {
+      return this.isMobile && (this.isAdmin || this.isRegularUser || this.isGuest);
+    }
   },
   methods: {
     logout() {
@@ -76,53 +98,64 @@ export default {
     },
     toggleSidebar() {
       document.getElementById("wrapper").classList.toggle("toggled");
+      this.isSidebarOpen = !this.isSidebarOpen;
     },
+    checkScreenSize() {
+      this.isMobile = window.innerWidth <= 768;
+    }
   },
   mounted() {
+    this.checkScreenSize();
+    window.addEventListener('resize', this.checkScreenSize);
+    
     if (!this.isLoggedIn && !this.isGuest) {
       this.$router.push({ name: "LandingPage" });
     }
   },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.checkScreenSize);
+  }
 };
 </script>
 
-<style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
-
-body {
-  padding: 0;
-  margin: 0;
-}
-
-.register input,
-.login input,
-.tambah input {
-  width: 300px;
+<style scoped>
+.mobile-sidebar-toggle {
+  display: none;
+  position: fixed;
+  left: 10px;
+  top: 60px; /* Position below the header */
+  z-index: 999;
+  width: 40px;
   height: 40px;
-  display: block;
-  margin-bottom: 30px;
-  margin-right: auto;
-  margin-left: auto;
-  border: 1px solid skyblue;
-}
-
-.register button,
-.login button,
-.tambah button {
-  width: 300px;
-  height: 40px;
-  border: 1px solid black;
-  background: darkblue;
+  border-radius: 50%;
+  background-color: darkblue;
   color: white;
+  border: none;
   cursor: pointer;
-  margin-right: auto;
-  margin-left: auto;
-  display: block;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-sidebar-toggle:hover {
+  background-color: #1a237e;
+  transform: scale(1.1);
+}
+
+@media (max-width: 768px) {
+  .mobile-sidebar-toggle {
+    display: flex;
+  }
+  
+  #wrapper.toggled .mobile-sidebar-toggle {
+    left: 310px;
+  }
+  
+  /* Adjust for mobile header if needed */
+  .mobile-top-nav ~ .mobile-sidebar-toggle {
+    top: 50px; /* Adjust based on your mobile header height */
+  }
 }
 </style>

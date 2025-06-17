@@ -4,13 +4,13 @@
     <div class="update-container">
       <!-- Preview or Existing Product Image -->
       <div v-if="previewImage || DataProduk.imageUrl" class="image-container">
-  <img
-    :src="previewImage || DataProduk.imageUrl"
-    @error="handleImageError"
-    alt="Product Image"
-    class="product-image"
-  />
-</div>
+        <img
+          :src="previewImage || getImageUrlWithTimestamp(DataProduk.imageUrl)"
+          @error="handleImageError"
+          alt="Product Image"
+          class="product-image"
+        />
+      </div>
       <!-- Cancel Preview Button -->
       <button
         v-if="previewImage"
@@ -87,7 +87,7 @@
         </div>
         <div class="form-row">
           <label for="image">Gambar Produk:</label>
-          <input type="file" id="image" @change="onImageChange" />
+          <input type="file" id="image" @change="onImageChange" accept="image/*" />
         </div>
         <!-- Discount Percentage Input -->
         <div class="form-row">
@@ -151,15 +151,21 @@ export default {
       imageFile: null,
       previewImage: null,
       discountPercentage: 0,
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
     };
   },
   methods: {
+    getImageUrlWithTimestamp(url) {
+      if (!url) return '';
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}t=${Date.now()}`;
+    },
+
     calculateDiscountedPrice() {
-      // Ensure we're working with a clean numeric value
       const rawHarga = this.DataProduk.Harga.toString().replace(/[^\d]/g, '');
       const harga = parseFloat(rawHarga);
       const discount = parseFloat(this.discountPercentage);
-      
+
       if (!isNaN(harga)) {
         if (!isNaN(discount) && discount > 0) {
           const discountedPrice = harga - (harga * discount) / 100;
@@ -175,13 +181,9 @@ export default {
     },
 
     formatHarga(event) {
-      // Get the input value and remove all non-digit characters
       let value = event.target.value.replace(/[^\d]/g, '');
-      
-      // Store the raw numeric value
       this.DataProduk.Harga = value;
-      
-      // Format with thousand separators if value is not empty
+
       if (value.length > 0) {
         this.formattedHarga = parseInt(value).toLocaleString('id-ID');
       } else {
@@ -189,9 +191,9 @@ export default {
       }
     },
 
-    async fetchKategori() {
+  async fetchKategori() {
       try {
-        const response = await axios.get("http://localhost:3006/categories");
+        const response = await axios.get(`http://192.168.100.8:3006/categories`);
         this.kategoriList = response.data.map((item) => ({
           id: item.id,
           category: item.category,
@@ -200,37 +202,52 @@ export default {
         console.error("Error fetching categories:", error);
       }
     },
+
 async fetchWarung() {
   try {
-    const response = await axios.get("http://localhost:3001/users");
-    this.warungList = response.data.filter(user => user.NamaWarung); // Only include users with NamaWarung
+    const baseUrl = process.env.VUE_APP_USER_SERVICE_URL 
+      ? process.env.VUE_APP_USER_SERVICE_URL.replace('/user-service', '')
+      : 'http://192.168.100.8:3001';
+    const response = await axios.get(`${baseUrl}/users`);
+    this.warungList = response.data.filter(user => user.NamaWarung);
   } catch (error) {
     console.error("Error fetching warung list:", error.message);
   }
 },
+
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
+        if (!file.type.match('image.*')) {
+          alert('Please select an image file');
+          return;
+        }
+
         this.imageFile = file;
         this.previewImage = URL.createObjectURL(file);
+        event.target.value = '';
       }
     },
+
     cancelImageSelection() {
       this.imageFile = null;
       this.previewImage = null;
+      document.getElementById('image').value = '';
     },
+
     validateDiscount() {
       if (this.discountPercentage > 100) {
         this.discountPercentage = 100;
       }
       this.calculateDiscountedPrice();
     },
+
     async resetDiscount() {
       try {
         this.discountPercentage = 0;
         this.DataProduk.Harga_diskon = null;
         await axios.put(
-          `http://localhost:3002/products/${this.DataProduk.id}/reset-discount`
+          `${this.baseUrl}/products/${this.DataProduk.id}/reset-discount`
         );
         alert("Discount reset successfully!");
       } catch (error) {
@@ -238,52 +255,71 @@ async fetchWarung() {
         alert("Failed to reset discount.");
       }
     },
+
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
       }).format(value);
     },
+
+    handleImageError(event) {
+      console.error("Image load error", event);
+    },
+
     async updateProduk() {
       try {
         const formData = new FormData();
         formData.append("Nama", this.DataProduk.Nama);
-        // Remove thousand separators before submitting
-        formData.append("Harga", this.DataProduk.Harga.replace(/\./g, ''));
+        formData.append("Harga", this.DataProduk.Harga.toString().replace(/\./g, ''));
         formData.append("Kategori", this.DataProduk.Kategori);
         formData.append("Keterangan", this.DataProduk.Keterangan);
         formData.append("Pedagang", this.DataProduk.Pedagang);
         formData.append("Stok", this.DataProduk.Stok);
-        
-        // Handle discount value properly
-        const discountValue = this.discountPercentage === 0 || 
-                           this.discountPercentage === '' || 
-                           !this.DataProduk.Harga_diskon ? 
-                           null : 
-                           this.DataProduk.Harga_diskon;
-        formData.append("Harga_diskon", discountValue === null ? '' : discountValue);
-        
+
+        const discountValue = this.discountPercentage === 0 ||
+          this.discountPercentage === '' ||
+          !this.DataProduk.Harga_diskon ?
+          null :
+          this.DataProduk.Harga_diskon;
+        formData.append("Harga_diskon", discountValue === null ? '' : discountValue.toString());
+
         if (this.imageFile) {
           formData.append("image", this.imageFile);
         }
 
         await axios.put(
-          `http://localhost:3002/products/${this.DataProduk.id}`,
+          `${this.baseUrl}/products/${this.DataProduk.id}`,
           formData,
-          { headers: { "Content-Type": "multipart/form-data" } }
+          {
+            headers: {
+              "Content-Type": "multipart/form-data"
+            }
+          }
         );
 
+        const response = await axios.get(
+          `${this.baseUrl}/products/${this.DataProduk.id}`
+        );
+        this.DataProduk = {
+          ...response.data,
+          imageUrl: this.getImageUrlWithTimestamp(response.data.imageUrl ||
+            `${this.baseUrl}/images/${response.data.id}`)
+        };
+
         alert("Product updated successfully!");
-        this.$router.push("/DataProduk");
-        setTimeout(() => window.location.reload(), 100);
+        this.$router.push({ name: 'DataProduk' });
       } catch (error) {
-        console.error("Error updating product:", error.message);
-        alert("Failed to update product.");
+        console.error("Error updating product:", error);
+        alert(`Failed to update product. Error: ${error.message}`);
       }
     },
+
     async deleteProduk() {
+      if (!confirm("Are you sure you want to delete this product?")) return;
+
       try {
-        await axios.delete(`http://localhost:3002/products/${this.DataProduk.id}`);
+        await axios.delete(`${this.baseUrl}/products/${this.DataProduk.id}`);
         alert("Product deleted successfully!");
         this.$router.push("/DataProduk");
       } catch (error) {
@@ -292,42 +328,49 @@ async fetchWarung() {
       }
     },
   },
-async mounted() {
-  const productId = this.$route.params.id;
-  try {
-    const response = await axios.get(
-      `http://localhost:3002/products/${productId}`
-    );
-    this.DataProduk = {
-      ...response.data,
-      imageUrl: response.data.imageUrl 
-        ? response.data.imageUrl 
-        : `http://localhost:3002/images/${response.data.id}`
-    };
-    
-    // Initialize formatted price with proper handling
-    if (this.DataProduk.Harga) {
-      const rawHarga = parseFloat(this.DataProduk.Harga).toString();
-      this.DataProduk.Harga = rawHarga.replace(/\./g, '');
-      this.formattedHarga = parseInt(rawHarga).toLocaleString('id-ID');
-    }
-    
-    if (this.DataProduk.Harga_diskon) {
-      const harga = parseFloat(this.DataProduk.Harga);
-      const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
-      if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
-        this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
-      }
-    }
-  } catch (error) {
-    console.error("Error fetching product data:", error.message);
-  }
 
-  await this.fetchKategori();
-  await this.fetchWarung();
-},
+  async mounted() {
+    const productId = this.$route.params.id;
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/products/${productId}`
+      );
+      this.DataProduk = {
+        ...response.data,
+        imageUrl: this.getImageUrlWithTimestamp(response.data.imageUrl ||
+          `${this.baseUrl}/images/${response.data.id}`)
+      };
+
+      if (this.DataProduk.Harga) {
+        const rawHarga = parseFloat(this.DataProduk.Harga).toString();
+        this.DataProduk.Harga = rawHarga.replace(/\./g, '');
+        this.formattedHarga = parseInt(rawHarga).toLocaleString('id-ID');
+      }
+
+      if (this.DataProduk.Harga_diskon) {
+        const harga = parseFloat(this.DataProduk.Harga);
+        const hargaDiskon = parseFloat(this.DataProduk.Harga_diskon);
+        if (!isNaN(harga) && !isNaN(hargaDiskon) && harga > 0) {
+          this.discountPercentage = ((harga - hargaDiskon) / harga * 100).toFixed(2);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching product data:", error);
+      alert("Failed to fetch product data. Please try again.");
+    }
+
+    await this.fetchKategori();
+    await this.fetchWarung();
+  },
+
+  beforeUnmount() {
+    if (this.previewImage) {
+      URL.revokeObjectURL(this.previewImage);
+    }
+  }
 };
 </script>
+
 
 <style scoped>
 .update-container {

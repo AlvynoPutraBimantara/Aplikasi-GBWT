@@ -1,39 +1,50 @@
 <template>
-  <div>
-    <div class="search-container">
-      <input type="text" v-model="searchQuery" placeholder="Cari Produk..." />
+  <div class="produk-container">
+    <div class="top-container">
+      <div class="search-container">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Cari Produk..." 
+          class="search-input"
+        />
+      </div>
+      <router-link to="/TambahDagangan" class="btn-add">Tambah Produk</router-link>
     </div>
+
     <div class="products-container">
       <div
         class="product-card"
         v-for="(product, index) in filteredProducts"
         :key="index"
         @click="goToProductPage(product.id)"
-        style="width: 15rem; cursor: pointer; margin: 10px"
       >
-        <div class="card-body">
+        <div class="card-image-container">
           <img
-            :src="product.imageUrl"
+            :src="getProductImageUrl(product)"
             alt="Product Image"
-            style="width: 100%; height: auto"
+            class="product-image"
+            @error="handleImageError"
           />
-          <h5 class="card-title">{{ product.Nama }}</h5>
-          <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
-          <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
-            Harga: {{ formatPrice(product.Harga) }}
+          <div v-if="product.Harga_diskon" class="discount-badge">
+            DISKON
+          </div>
+        </div>
+        <div class="card-content">
+          <h5 class="product-title">{{ product.Nama }}</h5>
+          <div class="price-container">
+            <p class="product-price" :class="{ 'strikethrough': product.Harga_diskon }">
+              {{ formatPrice(product.Harga) }}
+            </p>
+            <p v-if="product.Harga_diskon" class="product-discount-price">
+              {{ formatPrice(product.Harga_diskon) }}
+            </p>
+          </div>
+          <p class="product-stock" :class="{ 'in-stock': product.Stok > 0, 'out-of-stock': product.Stok <= 0 }">
+            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
           </p>
-          <!-- Display Harga_diskon in red if it exists -->
-          <p v-if="product.Harga_diskon" class="card-text discount-price">
-            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
-          </p>
-          <p class="card-text">Kategori: {{ product.Kategori }}</p>
-          <p class="card-text">Keterangan: {{ product.Keterangan }}</p>
-          <p class="card-text">Stok: {{ product.Stok }}</p>
         </div>
       </div>
-    </div>
-    <div class="button-container">
-      <router-link to="/TambahDagangan" class="btn-add">Tambah Produk</router-link>
     </div>
   </div>
 </template>
@@ -46,148 +57,322 @@ export default {
     return {
       products: [],
       searchQuery: "",
-      user: null, // Store logged-in user data
+      user: null,
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
+      userServiceUrl: process.env.VUE_APP_USER_SERVICE_URL
+        ? process.env.VUE_APP_USER_SERVICE_URL.replace('/user-service', '')
+        : "http://192.168.100.8:3001",
+      defaultImage: "https://via.placeholder.com/300x200?text=No+Image"
     };
   },
   methods: {
-    // Fetch the logged-in user's profile
     async fetchUser() {
       try {
-        const userId = JSON.parse(localStorage.getItem("user-info")).id; // Get user ID from localStorage
-        const response = await axios.get(`http://localhost:3001/user/${userId}`);
-        this.user = response.data; // Store user data
+        const userInfo = localStorage.getItem("user-info");
+        if (!userInfo) throw new Error("User not logged in");
+
+        const userId = JSON.parse(userInfo).id;
+        const response = await axios.get(
+          `${this.userServiceUrl}/user/${userId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            timeout: 5000
+          }
+        );
+        this.user = response.data;
       } catch (error) {
         console.error("Error fetching user profile:", error);
-        this.$router.push({ name: "Login" }); // Redirect to login on error
+        this.showNetworkError(error);
+        this.$router.push({ name: "Login" });
       }
     },
-    // Load products and filter based on user's "NamaWarung"
+
     async loadProducts() {
-  if (this.user && this.user.NamaWarung) {
-    try {
-      const response = await axios.get("http://localhost:3002/products");
-      this.products = response.data
-        .filter((product) => product.Pedagang === this.user.NamaWarung)
-        .map((product) => ({
-          ...product,
-          imageUrl: product.imageUrl 
-            ? `http://localhost:3002/images/${product.id}`
-            : "default-image.jpg",
-        }));
-    } catch (error) {
-      console.error("Error loading products:", error);
-    }
-  }
-},
-    // Navigate to product update page
+      if (!this.user?.NamaWarung) return;
+      try {
+        const response = await axios.get(
+          `${this.baseUrl}/products`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            timeout: 5000
+          }
+        );
+        this.products = response.data
+          .filter(product => product.Pedagang === this.user.NamaWarung)
+          .map(product => ({
+            ...product,
+            imageUrl: product.imageUrl 
+              ? `${this.baseUrl}/images/${product.id}`
+              : this.defaultImage
+          }));
+      } catch (error) {
+        console.error("Error loading products:", error);
+        this.showNetworkError(error);
+      }
+    },
+
+    getProductImageUrl(product) {
+      if (product.imageUrl) return product.imageUrl;
+      if (product.images && product.images.length > 0) {
+        return `${this.baseUrl}/images/${product.id}`;
+      }
+      return this.defaultImage;
+    },
+
+    handleImageError(event) {
+      event.target.src = this.defaultImage;
+    },
+
+    showNetworkError(error) {
+      let message = "Terjadi kesalahan jaringan";
+      if (error.response) {
+        message = `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        message = "Tidak dapat terhubung ke server. Periksa:\n1. Jaringan Anda\n2. Server sedang berjalan";
+      } else {
+        message = `Error: ${error.message}`;
+      }
+      alert(message);
+    },
+
     goToProductPage(productId) {
       this.$router.push({
         name: "UserUpdateProduk",
         params: { id: productId },
       });
     },
-    // Format currency
+
     formatPrice(value) {
+      if (!value) return "Rp0";
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
+        minimumFractionDigits: 0
       }).format(value);
-    },
+    }
   },
   computed: {
-    // Filter products based on search query
     filteredProducts() {
-      return this.products.filter((product) =>
-        product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
+      const query = this.searchQuery.toLowerCase();
+      return this.products.filter(product =>
+        product.Nama.toLowerCase().includes(query) ||
+        product.Kategori.toLowerCase().includes(query)
       );
-    },
+    }
   },
   async mounted() {
-    await this.fetchUser(); // Fetch logged-in user's profile
-    await this.loadProducts(); // Load and filter products
+    await this.fetchUser();
+    await this.loadProducts();
+    this.refreshInterval = setInterval(this.loadProducts, 30000);
   },
+  beforeUnmount() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+  }
 };
 </script>
 
 <style scoped>
+.produk-container {
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.top-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 .search-container {
-  margin: 20px;
+  margin: 20px 0;
   text-align: left;
 }
 
-.search-container input {
-  padding: 10px;
+.search-input {
+  padding: 12px;
   font-size: 16px;
   width: 100%;
-  max-width: 300px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
-.products-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 20px;
-}
-
-.product-card {
-  border: 1px solid #ccc;
-  padding: 0;
-  margin: 10px;
-  width: 200px;
-  display: inline-block;
-  cursor: pointer;
-}
-
-.product-card:hover {
-  box-shadow: 1px 1px 1px black;
-}
-
-.card-body {
-  padding: 10px;
-}
-
-.card-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 0;
-}
-
-.card-text {
-  margin: 5px 0;
-}
-
-.strikethrough {
-  text-decoration: line-through;
-  color: gray;
-}
-
-.discount-price {
-  color: red;
-  font-weight: bold;
-}
-
-.product-card img {
-  width: 100%;
-  height: auto;
-}
-
-.button-container {
-  text-align: center;
-  margin-top: 20px;
-}
-
 .btn-add {
-  padding: 10px 20px;
+  padding: 12px 20px;
   font-size: 16px;
   text-decoration: none;
   background-color: #007bff;
   color: #fff;
   border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  display: inline-block;
 }
 
 .btn-add:hover {
   background-color: #0056b3;
+}
+
+.products-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.product-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-image-container {
+  position: relative;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  overflow: hidden;
+}
+
+.product-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discount-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #ff4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.product-title {
+  font-size: 14px;
+  font-weight: bolder;
+  margin: 0 0 1px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  min-height: 40px;
+}
+
+.price-container {
+  margin: 2px 0;
+}
+
+.product-price {
+  font-size: 14px;
+  color: #757575;
+  margin: 0;
+}
+
+.product-discount-price {
+  font-size: 16px;
+  color: #ff4444;
+  font-weight: bold;
+  margin: 2px 0 0 0;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+}
+
+.product-stock {
+  font-size: 12px;
+  margin: 0;
+}
+
+.in-stock {
+  color: #00c853;
+}
+
+.out-of-stock {
+  color: #ff4444;
+}
+
+/* Desktop styles */
+@media (min-width: 768px) {
+  .top-container {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .search-container {
+    flex: 1;
+    margin: 0;
+    margin-right: 1rem;
+  }
+
+  .search-input {
+    max-width: 300px;
+  }
+
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .product-title {
+    font-size: 14px;
+    font-weight: bolder;
+  }
+
+  .product-price {
+    font-size: 15px;
+  }
+
+  .product-discount-price {
+    font-size: 18px;
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .search-container {
+    margin: 20px 0;
+  }
+
+  .search-input {
+    max-width: 100%;
+    padding: 12px;
+  }
 }
 </style>

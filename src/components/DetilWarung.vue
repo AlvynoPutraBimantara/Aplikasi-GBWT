@@ -1,14 +1,14 @@
 <template>
-  <div>
-    <div class="warung-details">
+  <div class="warung-container">
+    <div class="warung-header">
       <h1>{{ warung.NamaWarung }}</h1>
       <img
-        :src="warung.imageUrl"
+        :src="fullImageUrl"
         alt="Warung Image"
-        style="width: 20%; height: auto; margin-bottom: 20px"
+        class="warung-image"
       />
-      <p>Telp: {{ warung.Telp }}</p>
-      <p>Alamat: {{ warung.Alamat }}</p>
+      <p class="warung-info">Telp: {{ warung.Telp }}</p>
+      <p class="warung-info">Alamat: {{ warung.Alamat }}</p>
       <div class="button-container">
         <button @click="goToWhatsApp" class="whatsapp-button">
           Kontak via WhatsApp <font-awesome-icon icon="fa-brands fa-whatsapp" />
@@ -17,7 +17,12 @@
     </div>
     <div class="top-container">
       <div class="search-container">
-        <input type="text" v-model="searchQuery" placeholder="Cari Produk..." />
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Cari Produk..." 
+          class="search-input"
+        />
       </div>
       <select
         class="select-container"
@@ -35,27 +40,33 @@
     </div>
     <div class="products-container">
       <div
-        class="card"
+        class="product-card"
         v-for="(product, index) in sortedAndFilteredProducts"
         :key="index"
         @click="goToProductPage(product.id)"
-        style="width: 15rem; cursor: pointer; margin: 10px"
       >
-        <div class="card-body">
+        <div class="card-image-container">
           <img
-            :src="product.imageUrl"
+            :src="getProductImageUrl(product)"
             alt="Product Image"
-            style="width: 100%; height: auto"
+            class="product-image"
           />
-          <h5 class="card-title">{{ product.Nama }}</h5>
-          <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
-            Harga: {{ formatPrice(product.Harga) }}
-          </p>
-          <p v-if="product.Harga_diskon" class="card-text discount-price">
-            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
-          </p>
-          <p class="card-text">
-            {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+          <div v-if="product.Harga_diskon" class="discount-badge">
+            DISKON
+          </div>
+        </div>
+        <div class="card-content">
+          <h5 class="product-title">{{ product.Nama }}</h5>
+          <div class="price-container">
+            <p class="product-price" :class="{ 'strikethrough': product.Harga_diskon }">
+              {{ formatPrice(product.Harga) }}
+            </p>
+            <p v-if="product.Harga_diskon" class="product-discount-price">
+              {{ formatPrice(product.Harga_diskon) }}
+            </p>
+          </div>
+          <p class="product-stock" :class="{ 'in-stock': product.Stok > 0, 'out-of-stock': product.Stok <= 0 }">
+            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
           </p>
         </div>
       </div>
@@ -73,10 +84,21 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
-      productPurchaseCounts: {}, // Store purchase counts for each product
+      productPurchaseCounts: {},
+      baseUrl: process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001",
+      productServiceUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002"
     };
   },
   computed: {
+    fullImageUrl() {
+      if (!this.warung.imageUrl) return null;
+      // If it's already a full URL (for backward compatibility)
+      if (this.warung.imageUrl.startsWith('http')) {
+        return this.warung.imageUrl;
+      }
+      // Construct full URL from relative path
+      return `${this.baseUrl}${this.warung.imageUrl}`;
+    },
     filteredProducts() {
       return this.products.filter((product) =>
         product.Nama.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -95,36 +117,33 @@ export default {
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
       } else if (this.selectedSortOption === "mostPurchased") {
-        // Sort by purchase count (descending)
         sortedProducts.sort((a, b) => {
           const countA = this.productPurchaseCounts[a.id] || 0;
           const countB = this.productPurchaseCounts[b.id] || 0;
           return countB - countA;
         });
       }
-      return sortedProducts.map((product) => ({
-    ...product,
-    imageUrl: product.imageUrl
-      ? `http://localhost:3002/images/${product.id}`  // Changed this line
-      : "default-image.jpg",
-  }));
-    },
+      return sortedProducts;
+    }
   },
   methods: {
     async loadWarung() {
       const userId = this.$route.params.id;
       try {
-        const response = await axios.get(`http://localhost:3001/user/${userId}`);
+        const response = await axios.get(`${this.baseUrl}/user/${userId}`);
         const warungData = response.data;
         this.warung = warungData;
         this.loadProducts(warungData.NamaWarung);
       } catch (error) {
         console.error("Error loading warung details:", error);
+        if (error.message.includes('Network Error')) {
+          alert('Cannot connect to server. Please check: \n1. Your network connection\n2. Server is running\n3. Correct server address');
+        }
       }
     },
     async loadProducts(warungName) {
       try {
-        const response = await axios.get("http://localhost:3002/products");
+        const response = await axios.get(`${this.productServiceUrl}/products`);
         this.products = response.data.filter(
           (product) => product.Pedagang === warungName
         );
@@ -134,11 +153,8 @@ export default {
     },
     async fetchPurchaseCounts() {
       try {
-        // Fetch transaction history items
-        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const response = await axios.get("http://192.168.100.8:3005/transactions-history-items");
         const items = response.data;
-
-        // Count how many times each product appears in the transaction history
         this.productPurchaseCounts = items.reduce((acc, item) => {
           acc[item.itemid] = (acc[item.itemid] || 0) + 1;
           return acc;
@@ -146,6 +162,15 @@ export default {
       } catch (error) {
         console.error("Failed to fetch purchase counts:", error);
       }
+    },
+    getProductImageUrl(product) {
+      if (!product.imageUrl) return "default-image.jpg";
+      // If it's already a full URL (for backward compatibility)
+      if (product.imageUrl.startsWith('http')) {
+        return product.imageUrl;
+      }
+      // Construct full URL from relative path
+      return `${this.productServiceUrl}${product.imageUrl}`;
     },
     goToProductPage(productId) {
       this.$router.push({ name: "DetilProduk", params: { id: productId } });
@@ -172,14 +197,32 @@ export default {
 </script>
 
 <style scoped>
-.warung-details {
-  padding: 20px;
+.warung-container {
+  padding: 1rem;
+}
+
+.warung-header {
   text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.warung-image {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  margin: 0 auto 1rem;
+  border-radius: 8px;
+}
+
+.warung-info {
+  margin: 0.5rem 0;
+  font-size: 1rem;
 }
 
 .button-container {
   display: flex;
   justify-content: center;
+  margin: 1rem 0;
 }
 
 .whatsapp-button {
@@ -193,12 +236,6 @@ export default {
   font-size: 16px;
   cursor: pointer;
   transition: background-color 0.3s ease;
-  margin-bottom: 20px;
-}
-
-.whatsapp-button font-awesome-icon {
-  margin-left: 10px;
-  font-size: 24px;
 }
 
 .whatsapp-button:hover {
@@ -207,80 +244,167 @@ export default {
 
 .top-container {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 20px;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .search-container {
-  flex: 1;
-  text-align: left;
-}
-
-.search-container input {
-  padding: 10px;
-  font-size: 16px;
-  width: 100%;
-  max-width: 300px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.select-container {
-  padding: 10px;
-  font-size: 16px;
-  width: 100%;
-  max-width: 300px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.products-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 20px;
-}
-
-.card {
-  border: 1px solid #ccc;
-  padding: 0;
-  margin: 10px;
-  width: 200px;
-  display: inline-block;
-  cursor: pointer;
-}
-
-.card:hover {
-  box-shadow: 1px 1px 1px black;
-}
-
-.card-body {
-  padding: 10px;
-}
-
-.card-title {
-  font-size: 18px;
-  font-weight: bold;
   margin: 0;
 }
 
-.card-text {
-  margin: 5px 0;
+.search-container input {
+  padding: 0.75rem;
+  font-size: 1rem;
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.select-container {
+  padding: 0.75rem;
+  font-size: 1rem;
+  width: 100%;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.products-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.product-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-image-container {
+  position: relative;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  overflow: hidden;
+}
+
+.product-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discount-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #ff4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.product-title {
+  font-size: 14px;
+  font-weight: bolder;
+  margin: 0 0 1px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  min-height: 40px;
+}
+
+.price-container {
+  margin: 2px 0;
+}
+
+.product-price {
+  font-size: 14px;
+  color: #757575;
+  margin: 0;
+}
+
+.product-discount-price {
+  font-size: 16px;
+  color: #ff4444;
+  font-weight: bold;
+  margin: 2px 0 0 0;
 }
 
 .strikethrough {
   text-decoration: line-through;
-  color: gray;
 }
 
-.discount-price {
-  color: red;
-  font-weight: bold;
+.product-stock {
+  font-size: 12px;
+  margin: 0;
 }
 
-.card img {
-  width: 100%;
-  height: auto;
+.in-stock {
+  color: #00c853;
+}
+
+.out-of-stock {
+  color: #ff4444;
+}
+
+/* Desktop styles */
+@media (min-width: 768px) {
+  .warung-image {
+    width: 20%;
+    margin-bottom: 20px;
+  }
+
+  .top-container {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px;
+  }
+
+  .search-container {
+    flex: 1;
+    text-align: left;
+  }
+
+  .search-container input {
+    max-width: 300px;
+  }
+
+  .select-container {
+    max-width: 300px;
+  }
+
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
 }
 </style>

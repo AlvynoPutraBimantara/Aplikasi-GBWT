@@ -60,10 +60,10 @@
           <div class="carousel">
             <div
               class="card"
-              v-for="(product, index) in getCarouselItems()"
-              :key="`${index}-${product.id}`"
+              v-for="(product, index) in newProducts"
+              :key="product.id"
               @click="goToProductPage(product.id)"
-              :data-index="index % newProducts.length"
+              :class="{ 'active': currentIndex === index }"
             >
               <div class="card-body">
                 <img
@@ -158,10 +158,8 @@ export default {
   },
   methods: {
     getCarouselItems() {
-      // Only duplicate items if we have more than 1 but less than 4 products
-      return this.newProducts.length > 1 && this.newProducts.length < 4 
-        ? [...this.newProducts, ...this.newProducts] 
-        : this.newProducts;
+      // Only return the original array - no duplication needed
+      return this.newProducts;
     },
     goToProductPage(productId) {
       if (productId === 1) {
@@ -259,36 +257,19 @@ export default {
       }
     },
     resumeAutoScroll() {
-      if (!this.autoScrollInterval) {
+      if (!this.autoScrollInterval && this.newProducts.length > 1) {
         this.setupAutoScroll();
       }
     },
     handleScroll() {
+      if (this.newProducts.length <= 1) return;
+      
       const carousel = this.$refs.carousel;
       if (!carousel) return;
 
-      const scrollWidth = carousel.scrollWidth / 2;
-      const scrollLeft = carousel.scrollLeft;
-
-      if (scrollLeft < scrollWidth / 2) {
-        this.isScrolling = true;
-        carousel.scrollTo({
-          left: scrollLeft + scrollWidth,
-          behavior: 'auto'
-        });
-        this.isScrolling = false;
-      }
-      else if (scrollLeft > scrollWidth + scrollWidth / 2) {
-        this.isScrolling = true;
-        carousel.scrollTo({
-          left: scrollLeft - scrollWidth,
-          behavior: 'auto'
-        });
-        this.isScrolling = false;
-      }
-
       const cardWidth = this.scrollAmount;
-      this.currentIndex = Math.round((scrollLeft % scrollWidth) / cardWidth) % this.newProducts.length;
+      const scrollPosition = carousel.scrollLeft;
+      this.currentIndex = Math.round(scrollPosition / cardWidth) % this.newProducts.length;
     },
     scroll(direction) {
       if (this.newProducts.length <= 1) return;
@@ -297,30 +278,13 @@ export default {
       if (carousel && !this.isScrolling) {
         this.isScrolling = true;
         
-        let newScrollLeft = carousel.scrollLeft + (direction * this.scrollAmount);
-        const scrollWidth = carousel.scrollWidth / 2;
-        
-        if (direction === 1 && newScrollLeft >= scrollWidth * 1.5) {
-          newScrollLeft = scrollWidth / 2 + (newScrollLeft - scrollWidth * 1.5);
-          carousel.scrollTo({
-            left: scrollWidth * 1.5,
-            behavior: 'auto'
-          });
-        }
-        else if (direction === -1 && newScrollLeft <= scrollWidth / 2) {
-          newScrollLeft = scrollWidth * 1.5 - (scrollWidth / 2 - newScrollLeft);
-          carousel.scrollTo({
-            left: scrollWidth / 2,
-            behavior: 'auto'
-          });
-        }
+        const newIndex = (this.currentIndex + direction + this.newProducts.length) % this.newProducts.length;
+        this.currentIndex = newIndex;
         
         carousel.scrollTo({
-          left: newScrollLeft,
+          left: newIndex * this.scrollAmount,
           behavior: 'smooth'
         });
-        
-        this.currentIndex = (this.currentIndex + direction + this.newProducts.length) % this.newProducts.length;
         
         setTimeout(() => {
           this.isScrolling = false;
@@ -329,19 +293,22 @@ export default {
     },
   },
   mounted() {
-      if (!localStorage.getItem('isGuest') || !localStorage.getItem('token')) {
-    this.$router.push({ name: 'LandingPage' });
-  }
+    if (!localStorage.getItem('isGuest') || !localStorage.getItem('token')) {
+      this.$router.push({ name: 'LandingPage' });
+    }
     this.fetchPopularProducts();
     this.fetchNewProducts().then(() => {
       if (this.newProducts.length > 0) {
         this.$nextTick(() => {
-          const carousel = this.$refs.carousel;
-          if (carousel) {
-            carousel.scrollLeft = carousel.scrollWidth / 4;
+          if (this.newProducts.length > 1) {
+            const carousel = this.$refs.carousel;
+            if (carousel) {
+              // Start at the first product
+              carousel.scrollLeft = 0;
+            }
+            this.setupAutoScroll();
           }
         });
-        this.setupAutoScroll();
       }
     });
   },

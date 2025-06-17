@@ -3,12 +3,19 @@
     <h1>Update Kategori</h1>
     <div class="update-container">
       <!-- Image Preview -->
-      <div v-if="previewImage || DataKategori.imageUrl" class="image-container">
+      <div v-if="previewImage || fullImageUrl" class="image-container">
         <img
-          :src="previewImage || DataKategori.imageUrl"
+          :src="previewImage || fullImageUrl"
           alt="Category Image"
           class="product-image"
+          @error="handleImageError"
+          @load="handleImageLoad"
+          crossorigin="anonymous"
         />
+        <div v-if="imageLoading" class="image-loading">Loading image...</div>
+      </div>
+      <div v-else class="image-placeholder">
+        <span>No Image Available</span>
       </div>
 
       <button
@@ -26,7 +33,8 @@
             type="text"
             id="Kategori"
             placeholder="Ubah Nama Kategori"
-            v-model="DataKategori.Kategori"
+            v-model="DataKategori.category"
+            required
           />
         </div>
 
@@ -57,102 +65,167 @@ export default {
   data() {
     return {
       DataKategori: {
-        Kategori: "",
+        id: "",
+        category: "",
         imageUrl: "",
       },
       previewImage: null,
       imageFile: null,
+      imageLoading: true,
+      baseUrl: "http://192.168.100.8:3006"
     };
   },
-  methods: {
-    async fetchCategory() {
-  try {
-    const result = await axios.get(
-      `http://localhost:3006/categories/${this.$route.params.id}`
-    );
-    console.log('Category data received:', result.data); // Add this
-    this.DataKategori = {
-      Kategori: result.data.category,
-      imageUrl: result.data.imageurl
-    };
-    console.log('Image URL set to:', this.DataKategori.imageUrl); // Add this
-  } catch (error) {
-    console.error("Error fetching category data:", error);
-  }
-},
+  computed: {
+    fullImageUrl() {
+      if (!this.DataKategori.imageUrl) return null;
 
-  normalizeImageUrl(url) {
-    if (!url) return null;
-    if (url.startsWith('http')) return url;
-    return `http://localhost:3006${url.startsWith('/') ? '' : '/'}${url}`;
-  }
-,
+      // Already full URL
+      if (this.DataKategori.imageUrl.startsWith("http")) {
+        return this.DataKategori.imageUrl;
+      }
+
+      // Extract image ID from path or plain ID
+      const imageId = this.DataKategori.imageUrl.includes("/")
+        ? this.DataKategori.imageUrl.split("/").pop()
+        : this.DataKategori.imageUrl;
+
+      return `${this.baseUrl}/images/${imageId}`;
+    }
+  },
+  methods: {
+    handleImageLoad() {
+      this.imageLoading = false;
+      console.log("Image loaded successfully");
+    },
+
+    handleImageError(event) {
+      this.imageLoading = false;
+      console.error("Image load error - Details:", {
+        attemptedUrl: event.target.src,
+        imageUrl: this.DataKategori.imageUrl,
+        fullImageUrl: this.fullImageUrl
+      });
+
+      // Hide broken image
+      event.target.style.display = "none";
+    },
+
+    async fetchCategory() {
+      try {
+        const response = await axios.get(
+          `${this.baseUrl}/categories/${this.$route.params.id}`
+        );
+
+        this.DataKategori = {
+          id: response.data.id,
+          category: response.data.category,
+          imageUrl: response.data.imageUrl || null
+        };
+
+        console.log("Fetched category data:", this.DataKategori);
+      } catch (error) {
+        console.error("Error fetching category:", error);
+        alert("Gagal memuat data kategori");
+      }
+    },
 
     async updateKategori() {
-  try {
-    let imageUrl = this.DataKategori.imageUrl;
-    let previousImageId = null;
+      try {
+        let imageUrl = this.DataKategori.imageUrl;
+        let previousImageId = null;
 
-    // Extract previous image ID if exists
-    if (imageUrl) {
-      const urlParts = imageUrl.split("/");
-      previousImageId = urlParts[urlParts.length - 1];
-    }
-
-    // Handle new image upload if exists
-    if (this.imageFile) {
-      const formData = new FormData();
-      formData.append("image", this.imageFile);
-
-      // Upload new image
-      const response = await axios.post("http://localhost:3006/images", formData);
-      imageUrl = `http://localhost:3006/images/${response.data.id}`;
-
-      // Delete previous image if exists
-      if (previousImageId) {
-        try {
-          await axios.delete(`http://localhost:3006/images/${previousImageId}`);
-        } catch (error) {
-          console.error("Error deleting old image:", error);
-          // Continue even if deletion fails
+        if (imageUrl) {
+          const urlParts = imageUrl.split("/");
+          previousImageId = urlParts[urlParts.length - 1];
         }
+
+        if (this.imageFile) {
+          const formData = new FormData();
+          formData.append("image", this.imageFile);
+
+          const uploadResponse = await axios.post(
+            `${this.baseUrl}/images`,
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" }
+            }
+          );
+
+          imageUrl = `/images/${uploadResponse.data.id}`;
+
+          // Delete old image
+          if (previousImageId) {
+            try {
+              await axios.delete(`${this.baseUrl}/images/${previousImageId}`);
+            } catch (err) {
+              console.error("Old image delete failed:", err);
+            }
+          }
+        }
+
+        await axios.put(`${this.baseUrl}/categories/${this.DataKategori.id}`, {
+          category: this.DataKategori.category,
+          imageUrl: imageUrl || null
+        });
+
+        alert("Kategori berhasil diperbarui!");
+        this.$router.push({ name: "DataKategori" });
+      } catch (error) {
+        console.error("Error updating category:", error);
+        alert(
+          `Gagal memperbarui kategori. ${error.response?.data?.message || error.message}`
+        );
       }
-    }
-
-    // Update category with the new data
-    await axios.put(`http://localhost:3006/categories/${this.$route.params.id}`, {
-      category: this.DataKategori.Kategori,
-      imageurl: imageUrl || null,
-    });
-
-    alert("Kategori berhasil diperbarui.");
-    this.$router.push({ name: "DataKategori" });
-  } catch (error) {
-    console.error("Error updating category:", error);
-    alert(`Gagal memperbarui kategori. ${error.response?.data?.message || error.message}`);
-  }
-},
+    },
 
     onImageChange(event) {
       const file = event.target.files[0];
       if (file) {
+        if (!file.type.match("image.*")) {
+          alert("Harap pilih file gambar");
+          return;
+        }
         this.imageFile = file;
         this.previewImage = URL.createObjectURL(file);
+        this.imageLoading = true;
       }
     },
 
     cancelImageSelection() {
       this.previewImage = null;
       this.imageFile = null;
-      // Reset file input
-      document.getElementById('image').value = '';
-    },
+      this.imageLoading = false;
+      document.getElementById("image").value = "";
+    }
   },
   async mounted() {
     await this.fetchCategory();
+
+    console.log("Current image configuration:", {
+      storedPath: this.DataKategori.imageUrl,
+      computedUrl: this.fullImageUrl
+    });
+
+    if (this.fullImageUrl) {
+      try {
+        const response = await fetch(this.fullImageUrl, { method: "HEAD" });
+        console.log("Image accessibility:", response.ok ? "OK" : "Failed");
+      } catch (error) {
+        console.error("Image test failed:", error);
+      }
+    }
   },
+  beforeUnmount() {
+    if (this.previewImage) {
+      URL.revokeObjectURL(this.previewImage);
+    }
+  }
 };
 </script>
+
+
+
+
 
 <style scoped>
 .update-container {

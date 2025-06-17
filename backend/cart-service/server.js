@@ -8,19 +8,44 @@ const { Cart, CartItems } = require('./cart.model');
 const Produk = require('./produk.model');
 const User = require('./user.model');
 const sequelize = require("./db");
+require('dotenv').config();
 
 const app = express();
-const port = 3004;
 
-app.use(cors());
+// Determine port from environment or default
+const port = process.env.PORT || 3004;
+
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow all local network requests
+    if (/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+        /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+        /^http:\/\/192\.168\.100\.8(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+
+// Middleware
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-// Generate an 8-character random string for ID
-function generateRandomId() {
+// Update the generateRandomId function to handle both guest and regular users
+function generateRandomId(isGuest = false) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  return `Guest_${Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")}`;
+  const randomString = Array.from({ length: 8 }, () => 
+    chars[Math.floor(Math.random() * chars.length)]).join("");
+  return isGuest ? `Guest_${randomString}` : randomString;
 }
-
 
 // Update the GET /cart endpoint to handle guest users properly
 app.get("/cart", async (req, res) => {
@@ -37,62 +62,29 @@ app.get("/cart", async (req, res) => {
   }
 
   try {
-    const { Cart } = require('./cart.model');
-    const User = require('./user.model');
-
-    // Normalize guest user ID (e.g., 'guest_123' -> 'Guest_123')
-    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
-
-    // For guest users, skip user verification
-    if (cartUser.startsWith('Guest_')) {
-      const cart = await Cart.findOne({
-        where: { user: cartUser },
-        include: [{
-          model: CartItems,
-          as: "cart_items",
-          include: [{
-            model: Produk,
-            as: "produk", // Changed from "product" to match model alias
-            attributes: ["Stok", "imageUrl"]
-          }]
-        }]
-      });
-
-      const processedItems = cart?.cart_items?.map(item => ({
-        id: item.id,
-        cart_id: item.cart_id,
-        itemid: item.itemid,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        pedagang: item.pedagang,
-        stock: item.produk?.Stok || 0,
-        imageUrl: item.produk?.imageUrl || ''
-      })) || [];
-
-      return res.status(200).json(processedItems);
-    }
-
-    // For registered users, verify user exists
-    const userExists = await User.findOne({ where: { id: cartUser } });
-    if (!userExists) {
-      return res.status(200).json([]);
-    }
+    // Normalize user ID (handle both Guest_ and guest_ formats)
+    const normalizedUser = user.startsWith('guest_') 
+      ? `Guest_${user.substring(6)}` 
+      : user;
 
     const cart = await Cart.findOne({
-      where: { user: cartUser },
+      where: { user: normalizedUser },
       include: [{
         model: CartItems,
         as: "cart_items",
         include: [{
           model: Produk,
-          as: "produk", // Changed from "product" to match model alias
+          as: "produk",
           attributes: ["Stok", "imageUrl"]
         }]
       }]
     });
 
-    const processedItems = cart?.cart_items?.map(item => ({
+    if (!cart) {
+      return res.status(200).json([]);
+    }
+
+    const processedItems = cart.cart_items.map(item => ({
       id: item.id,
       cart_id: item.cart_id,
       itemid: item.itemid,
@@ -102,17 +94,19 @@ app.get("/cart", async (req, res) => {
       pedagang: item.pedagang,
       stock: item.produk?.Stok || 0,
       imageUrl: item.produk?.imageUrl || ''
-    })) || [];
+    }));
 
     res.status(200).json(processedItems);
   } catch (err) {
     console.error("Error fetching cart items:", err);
-    res.status(200).json([]);
+    res.status(500).json({ 
+      error: "Failed to fetch cart items",
+      details: err.message
+    });
   }
 });
 
-
-// Add item to cart - Fixed version
+// Update the POST /cart endpoint to use the new ID generation
 app.post("/cart", async (req, res) => {
   let transaction;
   try {
@@ -142,12 +136,12 @@ app.post("/cart", async (req, res) => {
 
     transaction = await sequelize.transaction();
 
-    // Normalize user ID: guest_abc123 => Guest_abc123
-    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
+    // Normalize user ID and determine if guest
+    const isGuest = user.startsWith('guest_');
+    const cartUser = isGuest ? `Guest_${user.substring(6)}` : user;
 
     // Handle guest or regular users
-    if (cartUser.startsWith('Guest_')) {
-      // Check if guest user exists, create if not
+    if (isGuest) {
       await User.findOrCreate({
         where: { id: cartUser },
         defaults: {
@@ -160,7 +154,6 @@ app.post("/cart", async (req, res) => {
         transaction
       });
     } else {
-      // For non-guest users, verify user exists
       const userExists = await User.findOne({
         where: { id: cartUser },
         transaction
@@ -216,7 +209,7 @@ app.post("/cart", async (req, res) => {
 
     if (!cart) {
       cart = await Cart.create({ 
-        id: generateRandomId(), 
+        id: generateRandomId(isGuest), // Use proper ID generation
         user: cartUser
       }, { transaction });
     }
@@ -249,9 +242,9 @@ app.post("/cart", async (req, res) => {
         }
       );
     } else {
-      // Add new item to cart
+      // Add new item to cart with proper ID
       await CartItems.create({
-        id: generateRandomId(),
+        id: generateRandomId(isGuest), // Use proper ID generation
         cart_id: cart.id,
         itemid,
         name,
@@ -276,6 +269,81 @@ app.post("/cart", async (req, res) => {
       details: err.message,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
+  }
+});
+
+// Get cart count for a user
+app.get("/cart/count", async (req, res) => {
+  const { user } = req.query;
+
+  if (!user) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  try {
+    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
+    
+    const [result] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM cart_items ci
+       JOIN cart c ON ci.cart_id = c.id
+       WHERE c.user = ?`,
+      {
+        replacements: [cartUser],
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+
+    res.status(200).json({ count: result.count || 0 });
+  } catch (err) {
+    console.error("Error getting cart count:", err);
+    res.status(500).json({ error: "Failed to get cart count" });
+  }
+});
+
+// Sync cart between devices
+app.post("/cart/sync", async (req, res) => {
+  const { user, items } = req.body;
+
+  if (!user || !Array.isArray(items)) {
+    return res.status(400).json({ error: "Invalid request data" });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const cartUser = user.startsWith('guest_') ? `Guest_${user.substring(6)}` : user;
+
+    // Find or create cart
+    let cart = await Cart.findOne({ where: { user: cartUser }, transaction });
+    if (!cart) {
+      cart = await Cart.create({
+        id: generateRandomId(user.startsWith('guest_')),
+        user: cartUser
+      }, { transaction });
+    }
+
+    // Clear existing items
+    await CartItems.destroy({ where: { cart_id: cart.id }, transaction });
+
+    // Add new items
+    await Promise.all(items.map(item => 
+      CartItems.create({
+        id: generateRandomId(user.startsWith('guest_')),
+        cart_id: cart.id,
+        itemid: item.itemid,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        pedagang: item.pedagang
+      }, { transaction })
+    ));
+
+    await transaction.commit();
+    res.status(200).json({ message: "Cart synced successfully" });
+  } catch (err) {
+    if (transaction) await transaction.rollback();
+    console.error("Error syncing cart:", err);
+    res.status(500).json({ error: "Failed to sync cart" });
   }
 });
 
@@ -525,8 +593,13 @@ async function initializeDatabase() {
     }
   }
 }
+
 initializeDatabase().then(() => {
-  app.listen(port, () => {
-    console.log(`Cart service is running on http://localhost:${port}`);
+  const HOST = '0.0.0.0'; // Listen on all network interfaces
+  app.listen(port, HOST, () => {
+    console.log("Cart service is running on:");
+    console.log(`- Local: http://localhost:${port}`);
+    console.log(`- Network: http://192.168.100.8:${port}`);
+    console.log(`- Accessible from any device in your local network`);
   });
 });

@@ -50,75 +50,73 @@ export default {
       cartItemCount: 0,
       orderCount: 0,
       isLoggingOut: false,
+      apiBaseUrl: process.env.VUE_APP_USER_SERVICE_URL || 'http://localhost:3001/user-service'
     };
   },
   computed: {
     filteredRoutes() {
       return this.routes.filter((route) => !route.adminOnly);
     },
-     guestId() {
-    const userInfo = JSON.parse(localStorage.getItem("user-info") || '{}');
-    return userInfo.id || localStorage.getItem("guestId");
-  },
+    guestId() {
+      const userInfo = JSON.parse(localStorage.getItem("user-info") || '{}');
+      return userInfo.id || localStorage.getItem("guestId");
+    },
   },
   methods: {
     toggleMenu() {
       document.getElementById("wrapper").classList.toggle("toggled");
     },
 
-// Enhanced logout method
-async logout() {
-    if (this.isLoggingOut) return;
-    this.isLoggingOut = true;
-    
-    const guestId = localStorage.getItem("guestId");
-    if (!guestId) return this.forceLogout();
-
-    try {
-      // Use Beacon API for reliable cleanup
-      const beaconSent = navigator.sendBeacon(
-        `http://localhost:3001/guest/${guestId}/cleanup`
-      );
+    async logout() {
+      if (this.isLoggingOut) return;
+      this.isLoggingOut = true;
       
-      if (!beaconSent) {
-        // Fallback to fetch with keepalive
-        await fetch(`http://localhost:3001/guest/${guestId}/cleanup`, {
-          method: 'POST',
-          keepalive: true
-        });
+      try {
+        // Use both Beacon API and fetch with keepalive for maximum reliability
+        const cleanupUrl = `${this.apiBaseUrl}/guest/${this.guestId}/cleanup`;
+        
+        // First try with Beacon API
+        const beaconSent = navigator.sendBeacon(cleanupUrl);
+        
+        if (!beaconSent) {
+          // Fallback to fetch with keepalive
+          await fetch(cleanupUrl, {
+            method: 'POST',
+            keepalive: true,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Cleanup request failed:", error);
+      } finally {
+        this.forceLogout();
       }
-    } catch (error) {
-      console.error("Cleanup request failed:", error);
-    } finally {
-      this.forceLogout();
-    }
-  },
+    },
 
-  handlePageExit() {
-    const guestId = localStorage.getItem("guestId");
-    if (!guestId) return;
+    handlePageExit() {
+      if (!this.guestId) return;
+      
+      const cleanupUrl = `${this.apiBaseUrl}/guest/${this.guestId}/cleanup`;
+      navigator.sendBeacon(cleanupUrl);
+    },
     
-    navigator.sendBeacon(
-      `http://localhost:3001/guest/${guestId}/cleanup`
-    );
-  },
-  
-  forceLogout() {
-  // Clear all authentication-related data
-  localStorage.removeItem("token");
-  localStorage.removeItem("guestId");
-  localStorage.removeItem("isGuest");
-  localStorage.removeItem("user-info"); // Add this line
-  
-  // Clear any Vuex store state if used
-  if (this.$store) {
-    this.$store.commit('RESET_AUTH_STATE');
-  }
-  
-  // Force redirect with full reload
-  window.location.href = "/";
-}
-,
+    forceLogout() {
+      // Clear all authentication-related data
+      localStorage.removeItem("token");
+      localStorage.removeItem("guestId");
+      localStorage.removeItem("isGuest");
+      localStorage.removeItem("user-info");
+      
+      // Clear any Vuex store state if used
+      if (this.$store) {
+        this.$store.commit('RESET_AUTH_STATE');
+      }
+      
+      // Force redirect with full reload
+      window.location.href = "/";
+    },
 
     isActive(route) {
       return this.$route.path === route;
@@ -128,7 +126,7 @@ async logout() {
       if (!this.guestId) return;
 
       try {
-        const response = await axios.get("http://localhost:3004/cart", {
+        const response = await axios.get(`${process.env.VUE_APP_PRODUCT_SERVICE_URL}/cart`, {
           params: { user: this.guestId },
           timeout: 3000,
         });
@@ -146,7 +144,7 @@ async logout() {
       if (!this.guestId) return;
 
       try {
-        const response = await axios.get("http://localhost:3003/orders", {
+        const response = await axios.get(`${process.env.VUE_APP_PRODUCT_SERVICE_URL}/orders`, {
           timeout: 3000,
         });
         const orders = response.data;
@@ -158,13 +156,12 @@ async logout() {
         console.error("Error fetching orders:", error);
       }
     },
-
-
   },
 
   mounted() {
     if (this.guestId) {
       window.addEventListener("beforeunload", this.handlePageExit);
+      window.addEventListener("pagehide", this.handlePageExit);
       this.fetchCartItems();
       this.fetchOrders();
     }
@@ -172,10 +169,10 @@ async logout() {
 
   beforeUnmount() {
     window.removeEventListener("beforeunload", this.handlePageExit);
+    window.removeEventListener("pagehide", this.handlePageExit);
   },
 };
 </script>
-
 
 <style scoped>
 .nav {

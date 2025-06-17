@@ -1,7 +1,8 @@
 <template>
-  <nav class="nav">
+  <!-- Desktop Navigation -->
+  <nav class="nav desktop-nav">
     <button class="bg-light btn-primary" @click="toggleMenu" id="menu-toggle">
-      Menu
+      <font-awesome-icon :icon="['fas', menuToggled ? 'caret-left' : 'caret-right']" />
     </button>
     <router-link
       v-for="route in routes"
@@ -10,21 +11,18 @@
       :class="{ active: isActive(route.path) }"
     >
       <div class="icon-container">
-        <!-- Cart Icon and Badge -->
         <template v-if="route.name === 'Cart'">
           <font-awesome-icon :icon="['fas', 'shopping-cart']" />
           <span v-if="cartItemCount > 0" class="badge">
             {{ cartItemCount }}
           </span>
         </template>
-        <!-- Receipt Icon and Badge -->
         <template v-else-if="route.name === 'STRUK'">
           <font-awesome-icon :icon="['fas', 'receipt']" />
           <span v-if="orderCount > 0" class="badge">
             {{ orderCount }}
           </span>
         </template>
-        <!-- Dollar Icon for Penjualan -->
         <template v-else-if="route.name === 'Penjualan'">
           <font-awesome-icon :icon="['fas', 'circle-dollar-to-slot']" />
           <span v-if="transactionCount > 0" class="badge badge-red">
@@ -34,22 +32,82 @@
             {{ kasbonCount }}
           </span>
         </template>
-        <!-- Default Route Name -->
         <span v-else>{{ route.name }}</span>
       </div>
     </router-link>
-    <a @click.prevent="logout" class="logout-btn" href="#">Logout</a>
   </nav>
+
+  <!-- Mobile Navigation -->
+  <div class="mobile-nav">
+    <!-- Top Header -->
+    <nav class="nav mobile-top-nav">
+      <router-link
+        v-for="route in topRoutes"
+        :key="route.path"
+        :to="getRoutePath(route)"
+        :class="{ active: isActive(route.path) }"
+      >
+        <div class="icon-container">
+          <span>{{ route.name }}</span>
+        </div>
+      </router-link>
+    </nav>
+
+    <!-- Bottom Footer -->
+    <nav class="nav mobile-bottom-nav">
+      <router-link
+        v-for="route in bottomRoutes"
+        :key="route.path"
+        :to="getRoutePath(route)"
+        :class="{ active: isActive(route.path) }"
+      >
+        <div class="icon-container">
+          <template v-if="route.name === 'Cart'">
+            <font-awesome-icon :icon="['fas', 'shopping-cart']" />
+            <span v-if="cartItemCount > 0" class="badge">
+              {{ cartItemCount }}
+            </span>
+          </template>
+          <template v-else-if="route.name === 'STRUK'">
+            <font-awesome-icon :icon="['fas', 'receipt']" />
+            <span v-if="orderCount > 0" class="badge">
+              {{ orderCount }}
+            </span>
+          </template>
+          <template v-else-if="route.name === 'Penjualan'">
+            <font-awesome-icon :icon="['fas', 'circle-dollar-to-slot']" />
+            <span v-if="transactionCount > 0" class="badge badge-red">
+              {{ transactionCount }}
+            </span>
+            <span v-if="kasbonCount > 0" class="badge badge-yellow">
+              {{ kasbonCount }}
+            </span>
+          </template>
+          <template v-else-if="route.name === 'Dashboard'">
+            <font-awesome-icon :icon="['fas', 'house']" />
+          </template>
+          <template v-else-if="route.name === 'Profil'">
+            <font-awesome-icon :icon="['fas', 'user']" />
+          </template>
+          <span v-else>{{ route.name }}</span>
+        </div>
+      </router-link>
+    </nav>
+  </div>
 </template>
 
 <script>
 import axios from "axios";
+import { faCaretLeft, faCaretRight } from "@fortawesome/free-solid-svg-icons";
+import { library } from "@fortawesome/fontawesome-svg-core";
+
+library.add(faCaretLeft, faCaretRight);
 
 export default {
   name: "UserHeader",
   data() {
     return {
-      routes: [
+      allRoutes: [
         { name: "Dashboard", path: "/Dashboard" },
         { name: "Warung", path: "/Warung" },
         { name: "Produk", path: "/Produk" },
@@ -62,6 +120,7 @@ export default {
       orderCount: 0,
       transactionCount: 0,
       kasbonCount: 0,
+      menuToggled: false
     };
   },
   computed: {
@@ -69,26 +128,49 @@ export default {
       const userInfo = localStorage.getItem("user-info");
       return userInfo ? JSON.parse(userInfo) : null;
     },
+    userId() {
+      return this.user?.id ?? null;
+    },
     isGuest() {
       return localStorage.getItem("guest") === "true";
     },
+    routes() {
+      return this.allRoutes;
+    },
+    topRoutes() {
+      return [
+        { name: "Warung", path: "/Warung" },
+        { name: "Produk", path: "/Produk" },
+        { name: "Kategori", path: "/Kategori" },
+      ];
+    },
+    bottomRoutes() {
+      return [
+        { name: "STRUK", path: "/Orders" },
+        { name: "Cart", path: "/Cart" },
+        { name: "Dashboard", path: "/Dashboard" },
+        { name: "Penjualan", path: "/Penjualan" },
+        { name: "Profil", path: "/Profil" },
+      ];
+    }
   },
   methods: {
     toggleMenu() {
       document.getElementById("wrapper").classList.toggle("toggled");
-    },
-    logout() {
-      localStorage.clear();
-      this.$router.push({ name: "LandingPage" }).then(() => {
-        window.location.reload();
-      });
+      this.menuToggled = !this.menuToggled;
     },
     isActive(route) {
+      if (route === "/Profil") {
+        return this.$route.path.startsWith(`${route}/${this.userId}`);
+      }
       return this.$route.path === route;
     },
     getRoutePath(route) {
       if (route.name === "Dashboard") {
         return this.isGuest || !this.user ? "/GuestDashboard" : "/Dashboard";
+      }
+      if (route.name === "Profil" && this.userId) {
+        return `${route.path}/${this.userId}`;
       }
       return route.path;
     },
@@ -96,7 +178,7 @@ export default {
       if (!userId) return;
 
       try {
-        const response = await axios.get("http://localhost:3004/cart", {
+        const response = await axios.get(`${process.env.VUE_APP_CART_SERVICE_URL}/cart`, {
           params: { user: userId },
         });
         const cartItems = response.data;
@@ -113,7 +195,7 @@ export default {
       if (!userId) return;
 
       try {
-        const response = await axios.get("http://localhost:3003/orders", {
+        const response = await axios.get(`${process.env.VUE_APP_ORDERS_SERVICE_URL}/orders`, {
           params: { user: userId }
         });
         this.orderCount = response.data.length;
@@ -134,10 +216,10 @@ export default {
           historyResponse,
           historyItemsResponse
         ] = await Promise.all([
-          axios.get("http://localhost:3005/transactions"),
-          axios.get("http://localhost:3005/transactions-items"),
-          axios.get("http://localhost:3005/transactions-history"),
-          axios.get("http://localhost:3005/transactions-history-items")
+          axios.get(`${process.env.VUE_APP_TRANSACTIONS_SERVICE_URL}/transactions`),
+          axios.get(`${process.env.VUE_APP_TRANSACTIONS_SERVICE_URL}/transactions-items`),
+          axios.get(`${process.env.VUE_APP_TRANSACTIONS_SERVICE_URL}/transactions-history`),
+          axios.get(`${process.env.VUE_APP_TRANSACTIONS_SERVICE_URL}/transactions-history-items`)
         ]);
 
         const transactionItemsForPedagang = transactionItemsResponse.data.filter(
@@ -168,6 +250,18 @@ export default {
         this.kasbonCount = 0;
       }
     },
+    setupEventListeners() {
+      window.addEventListener('storage', (event) => {
+        if (event.key === 'cart-updated') {
+          const userId = this.user ? this.user.id : localStorage.getItem("guestId");
+          this.fetchCartItems(userId);
+        }
+        if (event.key === 'orders-updated') {
+          const userId = this.user ? this.user.id : localStorage.getItem("guestId");
+          this.fetchOrders(userId);
+        }
+      });
+    }
   },
   mounted() {
     if (this.user || this.isGuest) {
@@ -175,7 +269,10 @@ export default {
       this.fetchCartItems(userId);
       this.fetchOrders(userId);
       this.fetchTransactions(userId);
+      this.setupEventListeners();
     }
+    
+    this.menuToggled = document.getElementById("wrapper").classList.contains("toggled");
   },
 };
 </script>
@@ -208,23 +305,6 @@ export default {
   color: #333;
 }
 
-.logout-btn {
-  background-color: red;
-  color: white;
-  padding: 10px 20px;
-  text-align: center;
-  font-size: 15px;
-  border-radius: 5px;
-  text-decoration: none;
-  margin-left: auto;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-.logout-btn:hover {
-  background-color: darkred;
-  color: white;
-}
-
 .icon-container {
   position: relative;
   display: inline-block;
@@ -234,7 +314,7 @@ export default {
   position: absolute;
   top: -8px;
   right: -8px;
-  background-color: red; /* Add this line to match the old version */
+  background-color: red;
   color: white;
   border-radius: 50%;
   padding: 2px 6px;
@@ -251,5 +331,63 @@ export default {
   background-color: #ffcc00;
   right: 8px;
   color: black;
+}
+
+/* Mobile Navigation Styles */
+.mobile-nav {
+  display: none;
+}
+
+.mobile-top-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .desktop-nav {
+    display: none;
+  }
+  
+  .mobile-nav {
+    display: block;
+  }
+  
+  .mobile-top-nav,
+  .mobile-bottom-nav {
+    justify-content: space-around;
+  }
+  
+  .mobile-top-nav a,
+  .mobile-bottom-nav a {
+    flex: 1;
+    padding: 10px 5px;
+    font-size: 14px;
+  }
+  
+  #menu-toggle {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-nav {
+    display: none;
+  }
+  
+  .desktop-nav {
+    display: flex;
+  }
 }
 </style>

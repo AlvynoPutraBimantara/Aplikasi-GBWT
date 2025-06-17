@@ -5,15 +5,39 @@ const sequelize = require("./db");
 const { Op } = require('sequelize');
 const pool = require("./db");
 const app = express();
-const port = 3003;
+const port = process.env.PORT || 3003;
+const baseUrl = process.env.BASE_URL || 'http://localhost:3003';
 
-app.use(cors({
-  origin: true,
+// Enhanced CORS configuration similar to produk-service
+const allowedOrigins = [
+  'http://192.168.100.8:8080',
+  'http://192.168.100.8:3000',
+  'http://192.168.100.8:3003',
+  baseUrl,
+  // Allow all devices in local network
+  /^http:\/\/192\.168\.100\.\d{1,3}(:\d+)?$/,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.some(allowedOrigin => 
+      typeof allowedOrigin === 'string' 
+        ? origin === allowedOrigin
+        : allowedOrigin.test(origin)
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control'],
-  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length'],
-  credentials: true
-}));
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length']
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 // Generate an 8-character random string for ID
@@ -22,57 +46,45 @@ function generateRandomId() {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-// Initialize database models with proper relationships
 async function initializeModels() {
   try {
+    // eslint-disable-next-line no-unused-vars
     const sequelizeInstance = require('./db');
     
-    // Import models in the correct order
+    // Load models FIRST
     const User = require('./user.model');
     const { Produk } = require('./produk.model');
     const { Cart, CartItems } = require('./cart.model');
     const { Orders, OrderItems, Invoice } = require('./orders.model');
 
-    // Setup associations
+    // THEN setup associations
     const setupAssociations = require('./associations');
-    setupAssociations({ User, Cart, CartItems, Produk, Orders, OrderItems, Invoice });
+    setupAssociations({ 
+      User, 
+      Produk, 
+      Cart, 
+      CartItems, 
+      Orders, 
+      OrderItems, 
+      Invoice 
+    });
 
-    // Clean up any invalid foreign key references before syncing
-    await sequelizeInstance.query(`
-      DELETE FROM orders 
-      WHERE user NOT IN (SELECT id FROM user)
-    `);
-
-    await sequelizeInstance.query(`
-      DELETE FROM cart 
-      WHERE user NOT IN (SELECT id FROM user)
-    `);
-
-    await sequelizeInstance.query(`
-      DELETE FROM invoice 
-      WHERE order_id NOT IN (SELECT id FROM orders)
-    `);
-
-    await sequelizeInstance.query(`
-      DELETE FROM order_items 
-      WHERE order_id NOT IN (SELECT id FROM orders)
-    `);
-
-    // Sync models in proper dependency order
-    await User.sync({ alter: true });  // Base table must sync first
-    await Produk.sync({ alter: true }); // Independent product table
-    await Cart.sync({ alter: true });  // Depends only on User
-    await Orders.sync({ alter: true }); // Must sync before Invoice and OrderItems
-    await Invoice.sync({ alter: true }); // Depends on Orders
-    await CartItems.sync({ alter: true }); // Depends on Cart and Produk
-    await OrderItems.sync({ alter: true }); // Depends on Orders and Produk
-
-    console.log('Database models synchronized successfully');
+    // Sync only necessary models
+    await Promise.all([
+      User.sync(),
+      Produk.sync(),
+      Cart.sync(),
+      Orders.sync(),
+      Invoice.sync()
+    ]);
+    
+    console.log('Models synchronized successfully');
   } catch (error) {
-    console.error('Failed to initialize models:', error);
+    console.error('Model initialization failed:', error);
     process.exit(1);
   }
 }
+
 
 // Get all orders for a specific user
 app.get("/orders", async (req, res) => {
@@ -537,8 +549,21 @@ app.get("/cart/total", async (req, res) => {
 // Update the POST /orders endpoint to handle stock validation
 app.post("/orders", async (req, res) => {
   const { orders, clearCart } = req.body;
+
   if (!Array.isArray(orders)) {
-    return res.status(400).json({ error: "Invalid order data - expected array" });
+    return res.status(400).json({ error: "Orders must be an array" });
+  }
+
+  for (const order of orders) {
+    if (!order.itemid || !order.pedagang || !order.price || !order.quantity) {
+      return res.status(400).json({ 
+        error: "Missing required fields",
+        details: {
+          required: ['itemid', 'pedagang', 'price', 'quantity'],
+          received: order
+        }
+      });
+    }
   }
 
   let transaction;
@@ -546,59 +571,67 @@ app.post("/orders", async (req, res) => {
     const { Orders, OrderItems } = require('./orders.model');
     const { Produk } = require('./produk.model');
     const { Cart, CartItems } = require('./cart.model');
+    const { Op } = require("sequelize");
 
     const generateRandomId = () => Math.random().toString(36).substr(2, 8).toUpperCase();
 
     transaction = await sequelize.transaction();
 
-    // Validate all products and quantities
-    for (const order of orders) {
-      const product = await Produk.findOne({ 
-        where: { id: order.itemid },
-        transaction
-      });
+    // --- PATCH CODE START ---
+    const productIds = [...new Set(orders.map(o => o.itemid))].sort();
 
+    const products = await Produk.findAll({
+      where: { id: { [Op.in]: productIds } },
+      order: [['id', 'ASC']],
+      lock: transaction.LOCK.UPDATE,
+      transaction
+    });
+
+    const productMap = {};
+    products.forEach(p => productMap[p.id] = p);
+
+    for (const order of orders) {
+      const product = productMap[order.itemid];
       if (!product) {
         await transaction.rollback();
-        return res.status(404).json({ 
-          error: `Product not found: ${order.itemid}`,
-          itemid: order.itemid
-        });
+        return res.status(404).json({ error: `Product not found: ${order.itemid}` });
       }
-
       if (product.Stok < order.quantity) {
         await transaction.rollback();
-        return res.status(400).json({
-          error: `Insufficient stock for product: ${order.name}`,
-          itemid: order.itemid,
+        return res.status(400).json({ 
+          error: `Insufficient stock for ${order.name}`,
           available: product.Stok,
           requested: order.quantity
         });
       }
     }
+    // --- PATCH CODE END ---
 
-    // Group and process orders (patch: handle guest users with null user field)
     const ordersGroupedByPedagang = orders.reduce((acc, order) => {
-      if (!acc[order.orderid]) {
-        acc[order.orderid] = {
-          id: order.orderid || generateRandomId(),
-          user: order.user || null,  // ✅ PATCH: Handle guest users
+      const orderId = order.orderid || order.orderId || generateRandomId();
+
+      if (!acc[orderId]) {
+        acc[orderId] = {
+          id: orderId,
+          user: order.user || null,
           total: 0,
-          catatan: order.catatan,
-          alamat: order.alamat,     // Ensure lowercase and presence
-          pemesan: order.pemesan,   // Ensure consistent field name
+          catatan: order.catatan || '',
+          alamat: order.alamat || '',
+          pemesan: order.pemesan || `guest_${order.user || 'unknown'}`,
           created_at: new Date(),
           status: "pending",
           order_items: []
         };
       }
 
-      acc[order.orderid].total += parseFloat(order.price) * parseInt(order.quantity);
-      acc[order.orderid].order_items.push({
+      const itemTotal = parseFloat(order.price) * parseInt(order.quantity);
+      acc[orderId].total += itemTotal;
+
+      acc[orderId].order_items.push({
         id: generateRandomId(),
-        order_id: acc[order.orderid].id,
+        order_id: orderId,
         itemid: order.itemid,
-        name: order.name,
+        name: order.name || `Product ${order.itemid}`,
         pedagang: order.pedagang,
         price: order.price,
         quantity: order.quantity.toString(),
@@ -610,12 +643,7 @@ app.post("/orders", async (req, res) => {
     const createdOrders = [];
 
     for (const orderData of Object.values(ordersGroupedByPedagang)) {
-      const createdOrder = await Orders.create({
-  ...orderData,
-  pemesan: orderData.pemesan || `guest_${orderData.user || 'unknown'}`,
-  alamat: orderData.alamat || ''
-}, { transaction });
-
+      const createdOrder = await Orders.create(orderData, { transaction });
       await OrderItems.bulkCreate(orderData.order_items, { transaction });
 
       for (const item of orderData.order_items) {
@@ -626,20 +654,12 @@ app.post("/orders", async (req, res) => {
         });
       }
 
-      createdOrders.push({
-        id: createdOrder.id,
-        orderid: createdOrder.id,
-        user: createdOrder.user,
-        total: createdOrder.total
-      });
+      createdOrders.push(createdOrder);
     }
 
-    // Clear cart if requested
-    if (clearCart && orders.length > 0) {
-      const userId = orders[0].user;
-
+    if (clearCart && orders.length > 0 && orders[0].user) {
       const cart = await Cart.findOne({ 
-        where: { user: userId },
+        where: { user: orders[0].user },
         transaction
       });
 
@@ -648,7 +668,6 @@ app.post("/orders", async (req, res) => {
           where: { cart_id: cart.id },
           transaction
         });
-
         await Cart.destroy({
           where: { id: cart.id },
           transaction
@@ -659,7 +678,12 @@ app.post("/orders", async (req, res) => {
     await transaction.commit();
     res.status(201).json({ 
       message: "Orders created successfully",
-      orders: createdOrders
+      orders: createdOrders.map(o => ({
+        id: o.id,
+        orderid: o.id,
+        user: o.user,
+        total: o.total
+      }))
     });
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -672,6 +696,28 @@ app.post("/orders", async (req, res) => {
 });
 
 
+app.put("/orders/:id", async (req, res) => {
+  const { id } = req.params;
+  const { invoice_url } = req.body;
+
+  try {
+    const { Orders } = require('./orders.model');
+    
+    const order = await Orders.findByPk(id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    await order.update({ invoice_url });
+    res.status(200).json(order);
+  } catch (error) {
+    console.error("Error updating order invoice:", error);
+    res.status(500).json({ 
+      error: "Failed to update order invoice",
+      details: process.env.NODE_ENV === 'development' ? error.message : null
+    });
+  }
+});
 
 app.get("/orders/:id", async (req, res) => {
   try {
@@ -699,7 +745,6 @@ app.get("/orders/:id", async (req, res) => {
   }
 });
 
-// Mark order as complete and delete it
 // Mark order as complete and delete it
 app.delete("/orders/:id/complete", async (req, res) => {
   const orderId = req.params.id;
@@ -747,7 +792,6 @@ app.delete("/orders/:id/complete", async (req, res) => {
     });
   }
 });
-
 
 app.post("/orders/:id/refund", async (req, res) => {
   let transaction;
@@ -944,9 +988,22 @@ app.get('/invoices/:id/verify', async (req, res) => {
   }
 });
 
-// Initialize models before starting server
 initializeModels().then(() => {
-  app.listen(port, () => {
-    console.log(`Orders service is running on http://localhost:${port}`);
+  const HOST = '0.0.0.0'; // Explicitly set to 0.0.0.0 to match .env configuration
+  const server = app.listen(port, HOST, () => {
+    console.log(`Orders service running at ${baseUrl}`);
+    console.log(`Server running on http://${HOST}:${port}`);
   });
+  
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use`);
+    } else {
+      console.error('Server error:', err);
+    }
+    process.exit(1);
+  });
+}).catch(err => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });

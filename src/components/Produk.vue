@@ -1,8 +1,13 @@
 <template>
-  <div>
+  <div class="produk-container">
     <div class="top-container">
       <div class="search-container">
-        <input type="text" v-model="searchQuery" placeholder="Cari Produk..." />
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Cari Produk..." 
+          class="search-input"
+        />
       </div>
       <select
         class="select-container"
@@ -21,29 +26,34 @@
 
     <div class="products-container">
       <div
-        class="card"
+        class="product-card"
         v-for="(product, index) in sortedAndFilteredProducts"
         :key="index"
         @click="goToProductPage(product.id)"
-        style="width: 15rem; cursor: pointer; margin: 10px"
       >
-        <div class="card-body">
+        <div class="card-image-container">
           <img
-            :src="product.imageUrl"
+            :src="getProductImageUrl(product)"
             alt="Product Image"
-            style="width: 100%; height: auto"
+            class="product-image"
+            @error="handleImageError"
           />
-          <h5 class="card-title">{{ product.Nama }}</h5>
-          <!-- Display Harga with strikethrough and gray color if Harga_diskon exists -->
-          <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
-            Harga: {{ formatPrice(product.Harga) }}
-          </p>
-          <!-- Display Harga_diskon in red if it exists -->
-          <p v-if="product.Harga_diskon" class="card-text discount-price">
-            Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
-          </p>
-          <p class="card-text">
-            {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+          <div v-if="product.Harga_diskon" class="discount-badge">
+            DISKON
+          </div>
+        </div>
+        <div class="card-content">
+          <h5 class="product-title">{{ product.Nama }}</h5>
+          <div class="price-container">
+            <p class="product-price" :class="{ 'strikethrough': product.Harga_diskon }">
+              {{ formatPrice(product.Harga) }}
+            </p>
+            <p v-if="product.Harga_diskon" class="product-discount-price">
+              {{ formatPrice(product.Harga_diskon) }}
+            </p>
+          </div>
+          <p class="product-stock" :class="{ 'in-stock': product.Stok > 0, 'out-of-stock': product.Stok <= 0 }">
+            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
           </p>
         </div>
       </div>
@@ -60,7 +70,9 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
-      productPurchaseCounts: {}, // Store purchase counts for each product
+      productPurchaseCounts: {},
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
+      defaultImage: "https://via.placeholder.com/300x200?text=No+Image",
     };
   },
   computed: {
@@ -82,7 +94,6 @@ export default {
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
       } else if (this.selectedSortOption === "mostPurchased") {
-        // Sort by purchase count (descending)
         sortedProducts.sort((a, b) => {
           const countA = this.productPurchaseCounts[a.id] || 0;
           const countB = this.productPurchaseCounts[b.id] || 0;
@@ -95,24 +106,24 @@ export default {
   methods: {
     async fetchProducts() {
       try {
-        const response = await axios.get("http://localhost:3002/products");
+        const response = await axios.get(`${this.baseUrl}/products`, {
+          timeout: 5000,
+        });
+
         this.products = response.data.map((product) => ({
           ...product,
-          imageUrl: product.imageUrl
-            ? `http://localhost:3002/images/${product.id}`
-            : "default-image.jpg", // Placeholder image if none provided
+          imageUrl: product.imageUrl || this.defaultImage,
         }));
       } catch (error) {
         console.error("Failed to fetch products:", error);
+        this.showNetworkError(error);
       }
     },
+
     async fetchPurchaseCounts() {
       try {
-        // Fetch transaction history items
-        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const response = await axios.get("http://192.168.100.8:3005/transactions-history-items");
         const items = response.data;
-
-        // Count how many times each product appears in the transaction history
         this.productPurchaseCounts = items.reduce((acc, item) => {
           acc[item.itemid] = (acc[item.itemid] || 0) + 1;
           return acc;
@@ -121,86 +132,243 @@ export default {
         console.error("Failed to fetch purchase counts:", error);
       }
     },
+
+    getProductImageUrl(product) {
+      if (product.imageUrl) return product.imageUrl;
+      if (product.images && product.images.length > 0) {
+        return `${this.baseUrl}/images/${product.id}`;
+      }
+      return this.defaultImage;
+    },
+
+    handleImageError(event) {
+      event.target.src = this.defaultImage;
+    },
+
+    showNetworkError(error) {
+      let message = "Terjadi kesalahan jaringan";
+      if (error.response) {
+        message = `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        message = "Tidak dapat terhubung ke server. Periksa:\n1. Jaringan Anda\n2. Server sedang berjalan";
+      } else {
+        message = `Error: ${error.message}`;
+      }
+      alert(message);
+    },
+
     formatPrice(price) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
+        minimumFractionDigits: 0,
       }).format(price);
     },
+
     goToProductPage(productId) {
       this.$router.push(`/DetilProduk/${productId}`);
     },
   },
   mounted() {
     this.fetchProducts();
-    this.fetchPurchaseCounts(); // Fetch purchase counts when the component is mounted
+    this.fetchPurchaseCounts();
   },
 };
 </script>
 
 <style scoped>
+.produk-container {
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 .top-container {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 20px;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .search-container {
-  flex: 1;
+  margin: 20px 0;
   text-align: left;
 }
 
-.search-container input {
-  padding: 10px;
+.search-input {
+  padding: 12px;
   font-size: 16px;
   width: 100%;
-  max-width: 300px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
 .select-container {
-  padding: 10px;
-  font-size: 16px;
+  padding: 0.75rem;
+  font-size: 1rem;
   width: 100%;
-  max-width: 300px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
 }
 
 .products-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
 }
 
-.card:hover {
-  box-shadow: 1px 1px 1px black;
+.product-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
-.card-body {
-  padding: 20px;
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.card-title {
-  font-size: 24px;
+.card-image-container {
+  position: relative;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  overflow: hidden;
+}
+
+.product-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discount-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #ff4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: bold;
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.product-title {
+   font-size: 14px;
+    font-weight: bolder;
+  margin: 0 0 1px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  min-height: 40px;
+}
+
+.price-container {
+  margin: 2px 0;
+}
+
+.product-price {
+  font-size: 14px;
+  color: #757575;
   margin: 0;
 }
 
-.card-text {
-  margin: 5px 0;
+.product-discount-price {
+  font-size: 16px;
+  color: #ff4444;
+  font-weight: bold;
+  margin: 2px 0 0 0;
 }
 
 .strikethrough {
   text-decoration: line-through;
-  color: gray;
 }
 
-.discount-price {
-  color: red;
-  font-weight: bold;
+.product-stock {
+  font-size: 12px;
+  margin: 0;
+}
+
+.in-stock {
+  color: #00c853;
+}
+
+.out-of-stock {
+  color: #ff4444;
+}
+
+/* Desktop styles */
+@media (min-width: 768px) {
+  .top-container {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .search-container {
+    flex: 1;
+    margin: 0;
+    margin-right: 1rem;
+  }
+
+  .search-input {
+    max-width: 300px;
+  }
+
+  .select-container {
+    max-width: 250px;
+  }
+
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .product-title {
+     font-size: 14px;
+    font-weight: bolder;
+  }
+
+  .product-price {
+    font-size: 15px;
+  }
+
+  .product-discount-price {
+    font-size: 18px;
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .search-container {
+    margin: 20px 0;
+  }
+
+  .search-input {
+    max-width: 100%;
+    padding: 12px;
+  }
 }
 </style>

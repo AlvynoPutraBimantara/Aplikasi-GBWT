@@ -1,54 +1,61 @@
 <template>
-  <div>
-    <div class="category-details">
-      <h1>{{ categoryName }}</h1>
-      <div class="top-container">
-        <div class="search-container">
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Cari Produk..."
-          />
-        </div>
-        <select
-          class="select-container"
-          v-model="selectedSortOption"
-          @change="sortProducts"
-        >
-          <option value="">Urutkan Berdasarkan...</option>
-          <option value="alphabetAsc">Alfabet: A ke Z</option>
-          <option value="alphabetDesc">Alfabet: Z ke A</option>
-          <option value="priceAsc">Harga: Termurah ke Termahal</option>
-          <option value="priceDesc">Harga: Termahal ke Termurah</option>
-          <option value="availability">Ketersediaan</option>
-          <option value="mostPurchased">Paling Banyak Dibeli</option>
-        </select>
+  <div class="produk-container">
+    <h1>{{ categoryName }}</h1>
+    <div class="top-container">
+      <div class="search-container">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Cari Produk..." 
+          class="search-input"
+        />
       </div>
-      <div class="products-container">
-        <div
-          class="card"
-          v-for="(product, index) in sortedAndFilteredProducts"
-          :key="index"
-          @click="goToProductPage(product.id)"
-          style="width: 15rem; cursor: pointer; margin: 10px"
-        >
-          <div class="card-body">
-            <img
-              :src="product.imageUrl"
-              alt="Product Image"
-              style="width: 100%; height: auto"
-            />
-            <h5 class="card-title">{{ product.Nama }}</h5>
-            <p class="card-text" :class="{ 'strikethrough': product.Harga_diskon }">
-              Harga: {{ formatPrice(product.Harga) }}
+      <select
+        class="select-container"
+        v-model="selectedSortOption"
+        @change="sortProducts"
+      >
+        <option value="">Urutkan Berdasarkan...</option>
+        <option value="alphabetAsc">Alfabet: A ke Z</option>
+        <option value="alphabetDesc">Alfabet: Z ke A</option>
+        <option value="priceAsc">Harga: Termurah ke Termahal</option>
+        <option value="priceDesc">Harga: Termahal ke Termurah</option>
+        <option value="availability">Ketersediaan</option>
+        <option value="mostPurchased">Paling Banyak Dibeli</option>
+      </select>
+    </div>
+
+    <div class="products-container">
+      <div
+        class="product-card"
+        v-for="(product, index) in sortedAndFilteredProducts"
+        :key="index"
+        @click="goToProductPage(product.id)"
+      >
+        <div class="card-image-container">
+          <img
+            :src="getProductImageUrl(product)"
+            alt="Product Image"
+            class="product-image"
+            @error="handleImageError"
+          />
+          <div v-if="product.Harga_diskon" class="discount-badge">
+            DISKON
+          </div>
+        </div>
+        <div class="card-content">
+          <h5 class="product-title">{{ product.Nama }}</h5>
+          <div class="price-container">
+            <p class="product-price" :class="{ 'strikethrough': product.Harga_diskon }">
+              {{ formatPrice(product.Harga) }}
             </p>
-            <p v-if="product.Harga_diskon" class="card-text discount-price">
-              Harga Diskon: {{ formatPrice(product.Harga_diskon) }}
-            </p>
-            <p class="card-text">
-              {{ product.Stok > 0 ? "(Tersedia)" : "(Kosong)" }}
+            <p v-if="product.Harga_diskon" class="product-discount-price">
+              {{ formatPrice(product.Harga_diskon) }}
             </p>
           </div>
+          <p class="product-stock" :class="{ 'in-stock': product.Stok > 0, 'out-of-stock': product.Stok <= 0 }">
+            {{ product.Stok > 0 ? "Tersedia" : "Kosong" }}
+          </p>
         </div>
       </div>
     </div>
@@ -65,7 +72,9 @@ export default {
       products: [],
       searchQuery: "",
       selectedSortOption: "",
-      productPurchaseCounts: {}, // Store purchase counts for each product
+      productPurchaseCounts: {},
+      baseUrl: process.env.VUE_APP_PRODUCT_SERVICE_URL || "http://192.168.100.8:3002",
+      defaultImage: "https://via.placeholder.com/300x200?text=No+Image",
     };
   },
   computed: {
@@ -87,7 +96,6 @@ export default {
       } else if (this.selectedSortOption === "availability") {
         sortedProducts.sort((a, b) => b.Stok - a.Stok);
       } else if (this.selectedSortOption === "mostPurchased") {
-        // Sort by purchase count (descending)
         sortedProducts.sort((a, b) => {
           const countA = this.productPurchaseCounts[a.id] || 0;
           const countB = this.productPurchaseCounts[b.id] || 0;
@@ -101,54 +109,95 @@ export default {
     async loadCategory() {
       const categoryId = this.$route.params.id;
       try {
-        const response = await axios.get("http://localhost:3006/categories");
+        const response = await axios.get(
+          `${process.env.VUE_APP_CATEGORY_SERVICE_URL}/categories`
+        );
         const category = response.data.find((cat) => cat.id === categoryId);
         this.categoryName = category ? category.category : "";
-        this.loadProducts(category ? category.category : "");
+        this.loadProducts(this.categoryName);
       } catch (error) {
         console.error("Error loading category details:", error);
+        try {
+          const fallbackResponse = await axios.get("http://192.168.100.8:3006/categories");
+          const category = fallbackResponse.data.find((cat) => cat.id === categoryId);
+          this.categoryName = category ? category.category : "";
+          this.loadProducts(this.categoryName);
+        } catch (fallbackError) {
+          console.error("Fallback category fetch failed:", fallbackError);
+        }
       }
     },
     async loadProducts(categoryName) {
-  try {
-    const response = await axios.get("http://localhost:3002/products");
-    this.products = response.data
-      .filter((product) => product.Kategori === categoryName)
-      .map((product) => ({
-        ...product,
-        imageUrl: product.imageUrl
-          ? `http://localhost:3002/images/${product.id}`  // Changed this line
-          : "default-image.jpg",
-      }));
-  } catch (error) {
-    console.error("Error loading products:", error);
-  }
-},
+      try {
+        const response = await axios.get(
+          `${process.env.VUE_APP_PRODUCT_SERVICE_URL}/products`
+        );
+        this.products = response.data
+          .filter((product) => product.Kategori === categoryName)
+          .map((product) => ({
+            ...product,
+            imageUrl: product.imageUrl
+              ? `${process.env.VUE_APP_PRODUCT_SERVICE_URL}/images/${product.id}`
+              : this.defaultImage,
+          }));
+      } catch (error) {
+        console.error("Error loading products:", error);
+        try {
+          const fallbackResponse = await axios.get("http://192.168.100.8:3002/products");
+          this.products = fallbackResponse.data
+            .filter((product) => product.Kategori === categoryName)
+            .map((product) => ({
+              ...product,
+              imageUrl: product.imageUrl
+                ? `http://192.168.100.8:3002/images/${product.id}`
+                : this.defaultImage,
+            }));
+        } catch (fallbackError) {
+          console.error("Fallback product fetch failed:", fallbackError);
+        }
+      }
+    },
     async fetchPurchaseCounts() {
       try {
-        // Fetch transaction history items
-        const response = await axios.get("http://localhost:3005/transactions-history-items");
+        const transactionUrl = process.env.VUE_APP_CATEGORY_SERVICE_URL.replace("3006", "3005");
+        const response = await axios.get(`${transactionUrl}/transactions-history-items`);
         const items = response.data;
-
-        // Count how many times each product appears in the transaction history
         this.productPurchaseCounts = items.reduce((acc, item) => {
           acc[item.itemid] = (acc[item.itemid] || 0) + 1;
           return acc;
         }, {});
       } catch (error) {
         console.error("Failed to fetch purchase counts:", error);
+        try {
+          const fallbackResponse = await axios.get("http://192.168.100.8:3005/transactions-history-items");
+          const items = fallbackResponse.data;
+          this.productPurchaseCounts = items.reduce((acc, item) => {
+            acc[item.itemid] = (acc[item.itemid] || 0) + 1;
+            return acc;
+          }, {});
+        } catch (fallbackError) {
+          console.error("Fallback purchase count fetch failed:", fallbackError);
+        }
       }
+    },
+    getProductImageUrl(product) {
+      if (product.imageUrl) return product.imageUrl;
+      if (product.images && product.images.length > 0) {
+        return `${this.baseUrl}/images/${product.id}`;
+      }
+      return this.defaultImage;
+    },
+    handleImageError(event) {
+      event.target.src = this.defaultImage;
     },
     goToProductPage(productId) {
       this.$router.push({ name: "DetilProduk", params: { id: productId } });
-    },
-    sortProducts() {
-      // Sorting is handled by computed property
     },
     formatPrice(value) {
       return new Intl.NumberFormat("id-ID", {
         style: "currency",
         currency: "IDR",
+        minimumFractionDigits: 0,
       }).format(value);
     },
   },
@@ -160,86 +209,203 @@ export default {
 </script>
 
 <style scoped>
-.category-details {
-  padding: 20px;
+.produk-container {
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 1rem 0;
+  text-align: center;
 }
 
 .top-container {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 20px;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .search-container {
-  flex: 1;
+  margin: 20px 0;
   text-align: left;
 }
 
-.search-container input {
-  padding: 10px;
+.search-input {
+  padding: 12px;
   font-size: 16px;
   width: 100%;
-  max-width: 300px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
 .select-container {
-  padding: 10px;
-  font-size: 16px;
+  padding: 0.75rem;
+  font-size: 1rem;
   width: 100%;
-  max-width: 300px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.products-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 20px;
-}
-
-.card {
-  border: 1px solid #ccc;
-  padding: 0;
-  margin: 10px;
-  width: 200px;
-  display: inline-block;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: white;
   cursor: pointer;
 }
 
-.card:hover {
-  box-shadow: 1px 1px 1px black;
+.products-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
 }
 
-.card-body {
-  padding: 10px;
+.product-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
-.card-title {
-  font-size: 18px;
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-image-container {
+  position: relative;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  overflow: hidden;
+}
+
+.product-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discount-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #ff4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: bold;
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.product-title {
+  font-size: 14px;
+  font-weight: bolder;
+  margin: 0 0 1px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  min-height: 40px;
+}
+
+.price-container {
+  margin: 2px 0;
+}
+
+.product-price {
+  font-size: 14px;
+  color: #757575;
   margin: 0;
 }
 
-.card-text {
-  margin: 5px 0;
+.product-discount-price {
+  font-size: 16px;
+  color: #ff4444;
+  font-weight: bold;
+  margin: 2px 0 0 0;
 }
 
 .strikethrough {
   text-decoration: line-through;
-  color: gray;
 }
 
-.discount-price {
-  color: red;
-  font-weight: bold;
+.product-stock {
+  font-size: 12px;
+  margin: 0;
 }
 
-.card img {
-  width: 100%;
-  height: auto;
+.in-stock {
+  color: #00c853;
+}
+
+.out-of-stock {
+  color: #ff4444;
+}
+
+/* Desktop styles */
+@media (min-width: 768px) {
+  .top-container {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .search-container {
+    flex: 1;
+    margin: 0;
+    margin-right: 1rem;
+  }
+
+  .search-input {
+    max-width: 300px;
+  }
+
+  .select-container {
+    max-width: 250px;
+  }
+
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .product-title {
+    font-size: 14px;
+    font-weight: bolder;
+  }
+
+  .product-price {
+    font-size: 15px;
+  }
+
+  .product-discount-price {
+    font-size: 18px;
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .products-container {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .search-container {
+    margin: 20px 0;
+  }
+
+  .search-input {
+    max-width: 100%;
+    padding: 12px;
+  }
 }
 </style>

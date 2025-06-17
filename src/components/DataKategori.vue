@@ -1,6 +1,5 @@
 <template>
   <div class="data-kategori-container">
-   
     <h1>Data Kategori</h1>
     <div class="table-container">
       <table border="1">
@@ -17,10 +16,13 @@
             <td>{{ item.id }}</td>
             <td>
               <img
-                :src="item.imageUrl"
+                :src="getFullImageUrl(item.imageUrl)"
                 alt="Category Image"
                 class="category-image"
+                @error="handleImageError"
+                crossorigin="anonymous"
               />
+
             </td>
             <td>{{ item.category }}</td>
             <td>
@@ -38,7 +40,6 @@
 </template>
 
 <script>
-
 import axios from "axios";
 
 export default {
@@ -46,90 +47,99 @@ export default {
   data() {
     return {
       DataKategori: [],
+      imageLoading: {},
+      baseUrl: "http://192.168.100.8:3006" // Use your network IP
     };
   },
-  components: {
-  
-  },
   methods: {
-    UpdateKategori(id) {
-      this.$router.push({ name: "UpdateKategori", params: { id: id } });
+    getFullImageUrl(imageUrl) {
+      if (!imageUrl) return '';
+      
+      // If it's already a full URL
+      if (imageUrl.startsWith('http')) {
+        return imageUrl;
+      }
+      
+      // Extract image ID from path or plain ID
+      const imageId = imageUrl.includes('/') 
+        ? imageUrl.split('/').pop() 
+        : imageUrl;
+      
+      return `${this.baseUrl}/images/${imageId}`;
     },
+    
+    handleImageError(event) {
+      const img = event.target;
+      img.style.display = 'none';
+      console.error("Image load error:", img.src);
+    },
+    
+    UpdateKategori(id) {
+      this.$router.push({ name: "UpdateKategori", params: { id } });
+    },
+    
     async HapusKategori(id) {
       try {
-        const result = await axios.delete(
-          `http://localhost:3006/categories/${id}`
-        );
-        if (result.status === 200) {
-          this.loadData();
+        // First get the category to find the associated image
+        const category = this.DataKategori.find(item => item.id === id);
+        if (category && category.imageUrl) {
+          const imageId = category.imageUrl.split('/').pop();
+          await axios.delete(`${this.baseUrl}/images/${imageId}`);
         }
+        
+        // Then delete the category
+        await axios.delete(`${this.baseUrl}/categories/${id}`);
+        
+        this.loadData();
+        alert("Kategori berhasil dihapus");
       } catch (error) {
         console.error("Error deleting category:", error);
         alert("Gagal menghapus kategori.");
       }
     },
+    
     confirmDelete(id) {
       if (confirm("Apakah anda yakin akan menghapus?")) {
         this.HapusKategori(id);
       }
     },
-    async loadData() {
-      try {
-        const result = await axios.get("http://localhost:3006/categories");
-        this.DataKategori = result.data;
-      } catch (error) {
-        console.error("Error loading categories:", error);
-        alert("Gagal memuat data kategori.");
-      }
-    },
+    
+async loadData() {
+  try {
+    const response = await axios.get(`${this.baseUrl}/categories`);
+    this.DataKategori = response.data;
+    
+    // Reset imageLoading and initialize with new values
+    this.imageLoading = {};
+    this.DataKategori.forEach(item => {
+      this.imageLoading[item.id] = true;
+    });
+  } catch (error) {
+    console.error("Error loading categories:", error);
+    alert("Gagal memuat data kategori.");
+  }
+},
+    
     goToTambahKategori() {
       this.$router.push({ name: "TambahKategori" });
     },
+    
     async uploadImage(file) {
-      try {
-        const formData = new FormData();
-        formData.append("image", file);
+      const formData = new FormData();
+      formData.append("image", file);
 
-        const result = await axios.post(
-          "http://localhost:3006/images",
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
+      const response = await axios.post(
+        `${this.baseUrl}/images`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
 
-        return result.data.id; // Return image ID
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        throw new Error("Gagal mengunggah gambar.");
-      }
-    },
-    async TambahKategori(categoryName, imageFile) {
-      try {
-        // Upload the image and get its ID
-        const imageId = await this.uploadImage(imageFile);
-
-        // Create the category with the image URL
-        const imageUrl = `http://localhost:3006/images/${imageId}`;
-        await axios.post("http://localhost:3006/categories", {
-          id: Date.now().toString(),
-          category: categoryName,
-          imageurl: imageUrl,
-        });
-
-        alert("Kategori berhasil ditambahkan.");
-        this.loadData();
-      } catch (error) {
-        console.error("Error adding category:", error);
-        alert("Gagal menambahkan kategori.");
-      }
-    },
+      return response.data.id;
+    }
   },
   async mounted() {
-    this.loadData();
-  },
+    await this.loadData();
+  }
 };
 </script>
 

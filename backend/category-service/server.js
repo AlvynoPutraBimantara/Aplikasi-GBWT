@@ -1,16 +1,49 @@
+/* eslint-disable no-unused-vars */
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const db = require("./db"); // Importing the database connection from db.js
+const db = require("./db");
 const crypto = require("crypto");
+const os = require('os');
+require('dotenv').config();
 
 const app = express();
-const port = 3006;
+const port = process.env.PORT || 3006;
 
-app.use(cors());
+// Calculate base URL for image serving
+const baseUrl = process.env.BASE_URL || `http://${os.hostname()}:${port}`;
+
+// Enhanced CORS configuration
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:3000',
+  'http://192.168.100.8:8080',
+  'http://192.168.100.8:3000',
+  'http://192.168.100.8:3006' 
+];
+
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('CORS blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -42,7 +75,6 @@ app.get("/images", (req, res) => {
     });
 });
 
-
 // Delete an image by ID
 app.delete("/images/:id", (req, res) => {
   const { id } = req.params;
@@ -61,19 +93,20 @@ app.delete("/images/:id", (req, res) => {
       res.status(500).send("Server error");
     });
 });
+
+// backend/category-service/server.js
 app.get("/images/:id", (req, res) => {
   const { id } = req.params;
   const query = "SELECT data, mimetype FROM appimages WHERE id = ?";
+  
   db.query(query, [id])
     .then(([results]) => {
       if (results.length === 0) {
-        res.status(404).send("Image not found");
-      } else {
-        const { data, mimetype } = results[0];
-        res.setHeader("Content-Type", mimetype);
-        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin"); // Add this line
-        res.send(Buffer.from(data, 'binary'));
+        return res.status(404).send("Image not found");
       }
+      const image = results[0];
+      res.setHeader("Content-Type", image.mimetype);
+      res.send(image.data);
     })
     .catch((err) => {
       console.error("Error fetching image:", err);
@@ -120,7 +153,8 @@ app.post("/images", upload.single("image"), (req, res) => {
   const query = "INSERT INTO appimages (id, filename, data, mimetype) VALUES (?, ?, ?, ?)";
   db.query(query, [id, originalname, data, mimetype])
     .then(() => {
-      const imageUrl = `http://localhost:${port}/images/${id}`;
+      // Use baseUrl instead of hardcoded localhost
+      const imageUrl = `${baseUrl}/images/${id}`;
       res.status(201).send({ id, imageUrl });
     })
     .catch((err) => {
@@ -137,7 +171,7 @@ app.post("/categories", (req, res) => {
     return res.status(400).send("Category and imageUrl are required.");
   }
 
-  const categoryId = generateRandomId(); // Use the ID generator function
+  const categoryId = generateRandomId();
 
   const query = "INSERT INTO categories (id, category, imageUrl) VALUES (?, ?, ?)";
   db.query(query, [categoryId, category, imageUrl])
@@ -151,19 +185,24 @@ app.post("/categories", (req, res) => {
 // Update a category
 app.put("/categories/:id", (req, res) => {
   const { id } = req.params;
-  const { category, imageurl } = req.body;  // Changed from imageurl to imageUrl for consistency
+  const { category, imageurl, imageUrl } = req.body; // Accept both 'imageurl' and 'imageUrl'
 
+  // Validate that the 'category' field is provided
   if (!category) {
     return res.status(400).send("Category name is required");
   }
 
+  // Determine the final image URL, giving precedence to 'imageurl' if both are provided
+  const finalImageUrl = imageurl || imageUrl || null;
+
   const query = "UPDATE categories SET category = ?, imageUrl = ? WHERE id = ?";
-  db.query(query, [category, imageurl || null, id])
+
+  db.query(query, [category, finalImageUrl, id])
     .then(([results]) => {
       if (results.affectedRows === 0) {
         res.status(404).send("Category not found");
       } else {
-        res.send({ message: "Category updated successfully", id });  // Return the ID for confirmation
+        res.send({ message: "Category updated successfully", id });
       }
     })
     .catch((err) => {
@@ -191,9 +230,10 @@ app.delete("/categories/:id", (req, res) => {
     });
 });
 
-
-
-// Start server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// Start server with network accessibility
+const HOST = '0.0.0.0'; // Listen on all network interfaces
+app.listen(port, HOST, () => {
+  console.log(`Category service is running on:`);
+  console.log(`- Local: http://localhost:${port}`);
+  console.log(`- Network: http://192.168.100.8:${port}`);
 });

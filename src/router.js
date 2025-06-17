@@ -219,7 +219,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem("token");
-  const userInfo = JSON.parse(localStorage.getItem("user-info"));
+  const userInfo = localStorage.getItem("user-info");
   const isGuest = localStorage.getItem("isGuest") === "true";
   
   const publicRoutes = ["LandingPage", "Login", "SignUp", "ForgotPassword"];
@@ -230,25 +230,37 @@ router.beforeEach((to, from, next) => {
     return next();
   }
 
-  // Handle authenticated users (both regular and admin)
-  if (token && userInfo) {
-    // Check for admin-only routes
-    if (to.meta.requiresAdmin && userInfo.role !== "admin") {
-      return next({ name: "Dashboard" });
-    }
+  // Special case: Allow Dashboard access right after signup
+  if (to.name === "Dashboard" && userInfo && !token) {
+    localStorage.setItem("token", "temp-auth-token"); // Set temporary token
     return next();
   }
 
-  // Handle guest users
-  if (isGuest) {
-    if (guestRoutes.includes(to.name)) {
+  try {
+    const parsedUserInfo = userInfo ? JSON.parse(userInfo) : null;
+    
+    // Handle authenticated users
+    if ((token || parsedUserInfo) && !isGuest) {
+      if (to.meta.requiresAdmin && parsedUserInfo?.role !== "admin") {
+        return next({ name: "Dashboard" });
+      }
       return next();
     }
-    return next({ name: "GuestDashboard" });
-  }
 
-  // Redirect all other cases to landing page
-  next({ name: "LandingPage" });
+    // Handle guest users
+    if (isGuest) {
+      if (guestRoutes.includes(to.name)) {
+        return next();
+      }
+      return next({ name: "GuestDashboard" });
+    }
+
+    // Redirect to login for all other cases
+    next({ name: "Login" });
+  } catch (error) {
+    console.error("Error in router guard:", error);
+    next({ name: "LandingPage" });
+  }
 });
 
 export default router;

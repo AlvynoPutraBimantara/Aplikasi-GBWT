@@ -1,45 +1,46 @@
 <template>
-  <div class="signup-container">
-    <h1 class="title">Lupa Password</h1>
-    <div class="signup-box">
-      <div class="register">
-        <input type="text" v-model="Nama" placeholder="Masukan nama" />
-        <input type="text" v-model="Telp" placeholder="Masukan No.telp (0812345678910)" />
+  <div class="forgot-container">
+    <div class="forgot-content">
+      <h1 class="title">Lupa Password</h1>
+      <div class="form-box">
+        <div class="form-group">
+          <input type="text" v-model="Nama" placeholder="Masukan nama" />
+          <input type="text" v-model="Telp" placeholder="Masukan No.telp (0812345678910)" />
 
-        <div class="password-input">
-          <input
-            :type="showNewPassword ? 'text' : 'password'"
-            v-model="newPassword"
-            placeholder="Password Baru"
-          />
-          <span @click="toggleNewPasswordVisibility">
-            <font-awesome-icon :icon="showNewPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
-          </span>
-        </div>
+          <div class="password-input">
+            <input
+              :type="showNewPassword ? 'text' : 'password'"
+              v-model="newPassword"
+              placeholder="Password Baru"
+            />
+            <span @click="toggleNewPasswordVisibility" class="eye-icon">
+              <font-awesome-icon :icon="showNewPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
+            </span>
+          </div>
 
-        <div class="password-input">
-          <input
-            :type="showConfirmPassword ? 'text' : 'password'"
-            v-model="confirmPassword"
-            placeholder="Konfirmasi Password"
-          />
-          <span @click="toggleConfirmPasswordVisibility">
-            <font-awesome-icon :icon="showConfirmPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
-          </span>
-        </div>
+          <div class="password-input">
+            <input
+              :type="showConfirmPassword ? 'text' : 'password'"
+              v-model="confirmPassword"
+              placeholder="Konfirmasi Password"
+            />
+            <span @click="toggleConfirmPasswordVisibility" class="eye-icon">
+              <font-awesome-icon :icon="showConfirmPassword ? ['fas', 'eye-slash'] : ['fas', 'eye']" />
+            </span>
+          </div>
 
-        <button @click="handleReset">Ubah Password</button>
+          <button @click="handleReset" class="submit-btn">Ubah Password</button>
 
-        <div class="contact-admin">
-          <p>Jika anda masih mengalami masalah, anda dapat menghubungi admin</p>
-        <a
-  href="https://wa.me/6287857909820"
-  target="_blank"
-  class="whatsapp-button"
->
-  Hubungi Admin    <font-awesome-icon icon="fa-brands fa-whatsapp" />
-</a>
-
+          <div class="contact-admin">
+            <p>Jika anda masih mengalami masalah, anda dapat menghubungi admin</p>
+            <a
+              href="https://wa.me/6287857909820"
+              target="_blank"
+              class="whatsapp-button"
+            >
+              Hubungi Admin <font-awesome-icon icon="fa-brands fa-whatsapp" />
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -71,9 +72,6 @@ export default {
     formatPhoneNumber(telp) {
       return telp.toString().trim().replace(/^0/, '62').replace(/^\+/, '').replace(/\D/g, '');
     },
-    goToWhatsApp() {
-      window.open('https://wa.me/6287857909820', '_blank');
-    },
     async handleReset() {
       if (!this.Nama || !this.Telp || !this.newPassword || !this.confirmPassword) {
         alert("Harap isi semua field");
@@ -88,8 +86,10 @@ export default {
       const formattedTelp = this.formatPhoneNumber(this.Telp);
 
       try {
+        // Check phone number using user service
         const telpCheck = await axios.get(
-          `http://localhost:3001/user/check-phone?telp=${formattedTelp}`
+          `${process.env.VUE_APP_USER_SERVICE_URL}/user/check-phone`,
+          { params: { telp: formattedTelp } }
         );
 
         if (!telpCheck.data.exists) {
@@ -102,8 +102,9 @@ export default {
           return;
         }
 
+        // Reset password using user service
         const updateRes = await axios.put(
-          `http://localhost:3001/user/${telpCheck.data.user.id}/reset-password`,
+          `${process.env.VUE_APP_USER_SERVICE_URL}/user/${telpCheck.data.user.id}/reset-password`,
           { newPassword: this.newPassword }
         );
 
@@ -131,117 +132,221 @@ export default {
 </script>
 
 <style scoped>
-.signup-container {
+.forgot-container {
   background-image: url("@/assets/images/warung.jpg");
   background-size: cover;
   background-position: center;
+  background-attachment: fixed;
   height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: white;
+  padding: 20px;
+}
+
+.forgot-content {
+  width: 100%;
+  max-width: 500px;
 }
 
 .title {
-  font-size: xxx-large;
-  margin-bottom: 30px;
+  font-size: 2.5rem;
   color: black;
+  text-align: center;
+  margin-bottom: 20px;
+  text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.8);
 }
 
-.signup-box {
-  background: rgba(255, 255, 255, 0.75);
+.form-box {
+  background: rgba(255, 255, 255, 0.85);
   padding: 30px;
   border-radius: 15px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);
   margin-bottom: 30px;
 }
 
-.register {
+.form-group {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  font-size: 20px;
+  gap: 20px;
 }
 
-.register input {
-  width: 300px;
-  height: 40px;
-  display: block;
-  margin-bottom: 30px;
-  margin-right: auto;
-  margin-left: auto;
-  border: 1px solid skyblue;
-  padding-left: 10px;
+.form-group input {
+  width: 100%;
+  height: 50px;
+  padding: 0 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+  border-color: darkblue;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 139, 0.2);
 }
 
 .password-input {
   position: relative;
-  width: 300px;
-  margin-bottom: 10px;
-}
-
-.password-input input {
   width: 100%;
-  height: 40px;
-  padding-left: 10px;
-  padding-right: 40px;
-  border: 1px solid skyblue;
 }
 
-.password-input span {
+.eye-icon {
   position: absolute;
-  right: 10px;
-  top: 10px;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
   cursor: pointer;
-  color: rgb(10, 10, 10);
-  opacity: 0.6;
+  color: #555;
+  transition: color 0.3s ease;
 }
 
-.register button {
-  width: 300px;
-  height: 40px;
-  border: 1px solid black;
-  background: darkblue;
+.eye-icon:hover {
+  color: darkblue;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 50px;
+  background-color: darkblue;
   color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
   cursor: pointer;
-  margin-right: auto;
-  margin-left: auto;
-  display: block;
-  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.submit-btn:hover {
+  background-color: navy;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .contact-admin {
   text-align: center;
   margin-top: 20px;
-  color: black;
+  color: #333;
 }
 
 .contact-admin p {
-  margin-bottom: 10px;
-  font-size: 16px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .whatsapp-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
   background-color: #25D366;
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   padding: 12px 20px;
-  font-size: 16px;
+  font-size: 1rem;
+  font-weight: bold;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin-top: 15px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  width: 100%;
+  max-width: 250px;
+  margin: 0 auto;
 }
 
 .whatsapp-button:hover {
   background-color: darkgreen;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-.whatsapp-button font-awesome-icon {
-  margin-left: 30px;
-  font-size: 20px;
+/* Tablet and Medium Screens */
+@media (max-width: 992px) {
+  .forgot-content {
+    max-width: 450px;
+  }
+  
+  .title {
+    font-size: 2.2rem;
+  }
+  
+  .form-box {
+    padding: 25px;
+  }
+  
+  .form-group input,
+  .submit-btn {
+    height: 45px;
+  }
+}
+
+/* Mobile Devices */
+@media (max-width: 768px) {
+  .forgot-container {
+    padding: 15px;
+    background-attachment: scroll;
+  }
+  
+  .forgot-content {
+    max-width: 90%;
+  }
+  
+  .title {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+  }
+  
+  .form-box {
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .form-group {
+    gap: 15px;
+  }
+  
+  .form-group input,
+  .submit-btn {
+    height: 42px;
+    font-size: 0.9rem;
+  }
+  
+  .contact-admin p {
+    font-size: 0.85rem;
+  }
+  
+  .whatsapp-button {
+    font-size: 0.9rem;
+    padding: 10px 15px;
+  }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+  .forgot-content {
+    max-width: 95%;
+  }
+  
+  .title {
+    font-size: 1.6rem;
+  }
+  
+  .form-box {
+    padding: 15px;
+  }
+  
+  .form-group input,
+  .submit-btn {
+    height: 40px;
+    font-size: 0.85rem;
+  }
+  
+  .whatsapp-button {
+    font-size: 0.85rem;
+  }
 }
 </style>

@@ -7,7 +7,18 @@ import {
   faCircleInfo,
   faCircleDollarToSlot,
   faEye,
-  faEyeSlash
+  faEyeSlash,
+  faUserCircle,
+  faUser,
+  faBoxOpen,
+  faStore,
+  faChartLine,
+  faHistory,
+  faTrashCan,
+  faFileArrowDown,
+  faCaretLeft,
+  faCaretRight,
+  faHouse
 } from "@fortawesome/free-solid-svg-icons";
 import { faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 
@@ -19,7 +30,18 @@ library.add(
   faCircleInfo, 
   faCircleDollarToSlot,
   faEye,
-  faEyeSlash
+  faEyeSlash,
+  faUserCircle,
+  faUser,
+  faBoxOpen,
+  faStore,
+  faChartLine,
+  faHistory,
+  faTrashCan,
+  faFileArrowDown,
+  faCaretLeft,
+  faCaretRight,
+  faHouse
 );
 
 export default FontAwesomeIcon;

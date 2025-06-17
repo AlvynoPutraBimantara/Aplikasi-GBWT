@@ -1,3 +1,4 @@
+
 // eslint-disable-next-line no-unused-vars
 const { DataTypes, Model } = require("sequelize");
 const sequelize = require("./db");
@@ -13,8 +14,8 @@ const Orders = sequelize.define(
       field: 'id' // Explicitly set field name
     },
     user: {
-    type: DataTypes.STRING(255),
-    allowNull: true, 
+      type: DataTypes.STRING(255),
+      allowNull: true, 
       references: {
         model: 'user',
         key: 'id'
@@ -95,9 +96,9 @@ const OrderItems = sequelize.define(
       allowNull: false,
     },
     quantity: {
-  type: DataTypes.INTEGER, // Changed from STRING
-  allowNull: false,
-},
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   {
     tableName: "order_items",
@@ -119,8 +120,7 @@ const OrderItems = sequelize.define(
   }
 );
 
-// Define the Invoice model with updated order_id reference
-// Define the Invoice model with proper unique constraint
+// Define the Invoice model
 const Invoice = sequelize.define(
   "Invoice",
   {
@@ -150,7 +150,7 @@ const Invoice = sequelize.define(
     invoice_url: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      unique: 'idx_invoiceurl_unique' // Explicitly name the unique constraint
+      unique: 'idx_invoiceurl_unique'
     },
   },
   {
@@ -160,8 +160,7 @@ const Invoice = sequelize.define(
       {
         fields: ['order_id'],
         name: 'order_id'
-      },
-      // The unique constraint is automatically created by the field definition above
+      }
     ]
   }
 );
@@ -179,17 +178,12 @@ OrderItems.belongsTo(Orders, {
   onDelete: 'CASCADE'
 });
 
-// Simplified Invoice associations using only order_id
+
+
 Invoice.belongsTo(Orders, {
   foreignKey: "order_id",
   as: "order",
-  onDelete: 'CASCADE'
-});
-
-Orders.hasOne(Invoice, {
-  foreignKey: "order_id",
-  as: "invoice",
-  onDelete: 'CASCADE'
+  onDelete: 'SET NULL'
 });
 
 module.exports = { Orders, OrderItems, Invoice };

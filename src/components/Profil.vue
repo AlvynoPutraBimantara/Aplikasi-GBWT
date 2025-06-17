@@ -1,11 +1,11 @@
 <template>
-  <div>
+  <div class="profile-container">
     <h1>Profil</h1>
     <div class="update-container">
       <!-- Preview or Existing Profile Image -->
-      <div v-if="previewImage || User.imageUrl" class="image-container">
+      <div v-if="previewImage || fullImageUrl" class="image-container">
         <img
-          :src="previewImage || User.imageUrl"
+          :src="previewImage || fullImageUrl"
           alt="Profile Image"
           class="product-image"
         />
@@ -98,58 +98,91 @@ export default {
         Alamat: "",
         imageUrl: "",
       },
-      newPassword: "", // Separate field for new password
+      newPassword: "",
       imageFile: null,
       previewImage: null,
-      originalNamaWarung: "",
+      previousImageId: null,
+      baseUrl: process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001"
     };
+  },
+  computed: {
+    fullImageUrl() {
+      if (!this.User.imageUrl) return null;
+      // If it's already a full URL (for backward compatibility)
+      if (this.User.imageUrl.startsWith('http')) {
+        return this.User.imageUrl;
+      }
+      // Construct full URL from relative path
+      return `${this.baseUrl}${this.User.imageUrl}`;
+    }
   },
   methods: {
     async UpdateProfil() {
       try {
-        let previousImageId = null;
+        let newImageId = null;
         
-        // Handle image upload if there's a new image
-        if (this.User.imageUrl) {
-          const urlParts = this.User.imageUrl.split("/");
-          previousImageId = urlParts[urlParts.length - 1];
-        }
-
         if (this.imageFile) {
           const formData = new FormData();
           formData.append("image", this.imageFile);
 
-          const response = await axios.post("http://localhost:3001/uploads", formData);
-          const newImageId = response.data.id;
-          this.User.imageUrl = `http://localhost:3001/uploads/${newImageId}`;
+          const response = await axios.post(
+            `${this.baseUrl}/images`,
+            formData,
+            { 
+              headers: { 
+                "Content-Type": "multipart/form-data",
+                "Authorization": `Bearer ${localStorage.getItem('token')}`
+              } 
+            }
+          );
+          
+          newImageId = response.data.id;
+          this.User.imageUrl = `/images/${newImageId}`; // Store relative path
 
-          if (previousImageId) {
-            await axios.delete(`http://localhost:3001/uploads/${previousImageId}`);
+          if (this.previousImageId) {
+            await axios.delete(`${this.baseUrl}/images/${this.previousImageId}`, {
+              headers: {
+                "Authorization": `Bearer ${localStorage.getItem('token')}`
+              }
+            });
           }
         }
 
-        // Prepare update data
         const updateData = {
           ...this.User,
-          Password: this.newPassword || undefined // Only include password if it's not empty
+          Password: this.newPassword || undefined
         };
 
-        // Update user profile
         const updateResponse = await axios.put(
-          `http://localhost:3001/user/${this.$route.params.id}`,
-          updateData
+          `${this.baseUrl}/user/${this.$route.params.id}`,
+          updateData,
+          {
+            headers: {
+              "Authorization": `Bearer ${localStorage.getItem('token')}`
+            }
+          }
         );
 
         if (updateResponse.data.message && updateResponse.data.message.includes("Maaf nama warung")) {
           alert(updateResponse.data.message);
         } else {
           alert("Profil berhasil diperbarui.");
-          this.newPassword = ""; // Clear password field after successful update
-          window.location.reload();
+          this.newPassword = "";
+          this.imageFile = null;
+          this.previewImage = null;
+          
+          if (newImageId) {
+            this.previousImageId = newImageId;
+          }
+          
+          await this.fetchUser();
         }
       } catch (error) {
         console.error("Error updating profile:", error);
-        if (error.response && error.response.data && error.response.data.message) {
+        if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+          this.logout();
+        } else if (error.response && error.response.data && error.response.data.message) {
           alert(error.response.data.message);
         } else {
           alert("Terjadi kesalahan saat memperbarui profil.");
@@ -159,15 +192,31 @@ export default {
     async fetchUser() {
       try {
         const result = await axios.get(
-          `http://localhost:3001/user/${this.$route.params.id}`
+          `${this.baseUrl}/user/${this.$route.params.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
         );
-        // Don't store password in component state
         // eslint-disable-next-line no-unused-vars
         const { Password, ...userData } = result.data;
         this.User = userData;
-        this.originalNamaWarung = result.data.NamaWarung || "";
+        
+        if (this.User.imageUrl) {
+          const urlParts = this.User.imageUrl.split("/");
+          this.previousImageId = urlParts[urlParts.length - 1];
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
+        if (error.message.includes('Network Error')) {
+          alert('Cannot connect to server. Please check: \n1. Your network connection\n2. Server is running\n3. Correct server address');
+        } else if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+          this.logout();
+        } else {
+          alert('Error loading profile data');
+        }
       }
     },
     onImageChange(event) {
@@ -195,6 +244,10 @@ export default {
 </script>
 
 <style scoped>
+.profile-container {
+  padding: 20px;
+}
+
 .update-container {
   max-width: 800px;
   margin: 0 auto;
@@ -210,6 +263,7 @@ export default {
   width: 50%;
   height: auto;
   margin-bottom: 20px;
+  border-radius: 8px;
 }
 
 .update {
@@ -243,7 +297,6 @@ export default {
   border-radius: 4px;
 }
 
-/* Style specifically for file input to match other inputs */
 .file-input {
   box-sizing: border-box;
   width: 100%;
@@ -251,7 +304,6 @@ export default {
   cursor: pointer;
 }
 
-/* Optional: Style the file input button text */
 .file-input::file-selector-button {
   padding: 8px 12px;
   background-color: #f0f0f0;
@@ -308,5 +360,62 @@ export default {
 
 .logout-btn:hover {
   background-color: darkred;
+}
+
+/* Mobile Styles */
+@media only screen and (max-width: 768px) {
+  .profile-container {
+    padding: 10px;
+  }
+  
+  .update-container {
+    padding: 10px;
+  }
+  
+  .product-image {
+    width: 80%;
+    max-width: 200px;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  .form-row label {
+    width: 100%;
+    text-align: left;
+    margin-right: 0;
+    margin-bottom: 5px;
+    font-size: 14px;
+  }
+  
+  .form-row input,
+  .form-row select,
+  .form-row .file-input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  
+  .form-actions button {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .cancel-preview-btn {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+  }
 }
 </style>

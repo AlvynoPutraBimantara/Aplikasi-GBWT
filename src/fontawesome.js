@@ -18,7 +18,9 @@ import {
   faFileArrowDown,
   faCaretLeft,
   faCaretRight,
-  faHouse
+  faHouse,
+  faTableCellsLarge,
+  faGift
 } from "@fortawesome/free-solid-svg-icons";
 import { faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 
@@ -41,7 +43,9 @@ library.add(
   faFileArrowDown,
   faCaretLeft,
   faCaretRight,
-  faHouse
+  faHouse,
+  faTableCellsLarge,
+  faGift
 );
 
 export default FontAwesomeIcon;

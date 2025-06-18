@@ -87,18 +87,26 @@ export default {
     UpdateProduk(id) {
       this.$router.push({ name: "UpdateProduk", params: { id } });
     },
-    async confirmDelete(id) {
-      if (confirm("Are you sure you want to delete this product?")) {
-        try {
-          await axios.delete(`${this.baseUrl}/products/${id}`);
-          this.fetchData();
-          this.$toast.success("Product deleted successfully");
-        } catch (error) {
-          console.error("Error deleting product:", error);
-          this.$toast.error("Failed to delete product");
-        }
+ async confirmDelete(id) {
+  if (confirm("Are you sure you want to delete this product?")) {
+    try {
+      const response = await axios.delete(`${this.baseUrl}/products/${id}`);
+      if (response.data.message) {
+        this.fetchData();
+        this.$toast.success("Product deleted successfully");
+      } else {
+        this.$toast.error("Failed to delete product: Unknown response");
       }
-    },
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      // Handle both axios error structure and direct error messages
+      const errorMessage = error.response?.data?.error || 
+                         error.message || 
+                         "Failed to delete product";
+      this.$toast.error(errorMessage);
+    }
+  }
+},
     formatPrice(value) {
       if (!value) return '-';
       return new Intl.NumberFormat("id-ID", {

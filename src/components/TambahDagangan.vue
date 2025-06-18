@@ -112,19 +112,64 @@ export default {
       imageFile: null,
       previewImage: null,
       currentUserId: null,
+      baseUrl: process.env.VUE_APP_API_BASE_URL || "http://192.168.100.8:3001",
+      userData: null
     };
   },
   methods: {
+    async fetchUserData() {
+      try {
+        const userInfo = JSON.parse(localStorage.getItem("user-info"));
+        if (!userInfo?.id) {
+          console.error("No user ID found in local storage");
+          return;
+        }
+
+        const response = await axios.get(
+          `${this.baseUrl}/user/${userInfo.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        );
+
+        this.userData = response.data;
+        this.DataProduk.Pedagang = this.userData.NamaWarung || "Unknown";
+        this.currentUserId = this.userData.id;
+        
+        // Store updated user info in localStorage
+        localStorage.setItem("user-info", JSON.stringify({
+          ...userInfo,
+          NamaWarung: this.userData.NamaWarung
+        }));
+
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        // Fallback to localStorage data if API fails
+        const userInfo = JSON.parse(localStorage.getItem("user-info")) || {};
+        this.DataProduk.Pedagang = userInfo.NamaWarung || "Unknown";
+        this.currentUserId = userInfo.id || null;
+      }
+    },
     async submitProduct() {
       try {
+        // First ensure we have the latest user data
+        await this.fetchUserData();
+
         // Validate required product fields
         if (!this.DataProduk.Nama || !this.DataProduk.Harga || !this.DataProduk.Kategori || !this.DataProduk.Pedagang) {
           alert("Harap isi semua bidang yang wajib diisi!");
           return;
         }
 
+        // Convert Stok to integer
+        const stokValue = parseInt(this.DataProduk.Stok) || 0;
+        
         // Convert price to proper decimal format
-        const hargaValue = parseFloat(this.DataProduk.Harga.replace(/\./g, '').replace(',', '.'));
+        const hargaValue = parseFloat(
+          this.DataProduk.Harga.replace(/\./g, '').replace(',', '.')
+        );
 
         const formData = new FormData();
         formData.append("Nama", this.DataProduk.Nama);
@@ -132,7 +177,7 @@ export default {
         formData.append("Kategori", this.DataProduk.Kategori);
         formData.append("Keterangan", this.DataProduk.Keterangan || '');
         formData.append("Pedagang", this.DataProduk.Pedagang);
-        formData.append("Stok", this.DataProduk.Stok || 0);
+        formData.append("Stok", stokValue);
 
         // Only append user_id if available
         if (this.currentUserId && this.currentUserId !== 'undefined') {
@@ -167,7 +212,17 @@ export default {
         }
       } catch (error) {
         console.error("Error submitting product:", error);
-        alert(`Terjadi kesalahan: ${error.response?.data?.message || error.message}`);
+        let errorMessage = error.response?.data?.message || error.message;
+        
+        // Handle specific error cases
+        if (error.response?.status === 401) {
+          errorMessage = "Session expired. Silakan login kembali.";
+          this.$router.push("/login");
+        } else if (error.response?.status === 400 && error.response.data?.message?.includes("nama warung")) {
+          errorMessage = "Nama warung tidak valid. Silakan perbarui profil Anda terlebih dahulu.";
+        }
+        
+        alert(`Terjadi kesalahan: ${errorMessage}`);
       }
     },
     formatHarga(event) {
@@ -201,10 +256,8 @@ export default {
       this.previewImage = null;
     },
   },
-  created() {
-    const userInfo = JSON.parse(localStorage.getItem("user-info"));
-    this.DataProduk.Pedagang = userInfo?.NamaWarung || "Unknown";
-    this.currentUserId = userInfo?.id || null;
+  async created() {
+    await this.fetchUserData();
   },
   mounted() {
     this.fetchKategori();

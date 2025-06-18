@@ -191,22 +191,36 @@ app.post("/products", upload.single("image"), async (req, res) => {
     });
   }
 
+  // Add logging for incoming data
+  console.log("Incoming product data:", {
+    body: req.body,
+    file: req.file ? `Received file (${req.file.size} bytes)` : 'No file'
+  });
+
   try {
     const productId = generateRandomId();
     const userId = req.body.user_id || null; // Make user_id optional
 
     // If user_id is provided, verify it exists
     if (userId) {
-      const [user] = await Produk.sequelize.query(
-        'SELECT id FROM user WHERE id = ? LIMIT 1',
-        { replacements: [userId] }
-      );
-      
-      if (user.length === 0) {
-        return res.status(400).json({
+      try {
+        const [user] = await Produk.sequelize.query(
+          'SELECT id FROM `user` WHERE id = ? LIMIT 1', // Add backticks around table name
+          { replacements: [userId] }
+        );
+        
+        if (!user || user.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid user_id",
+            message: "User tidak ditemukan"
+          });
+        }
+      } catch (dbError) {
+        console.error("Database error during user verification:", dbError);
+        return res.status(500).json({
           success: false,
-          error: "Invalid user_id",
-          message: "User tidak ditemukan"
+          error: "Database error during user verification"
         });
       }
     }

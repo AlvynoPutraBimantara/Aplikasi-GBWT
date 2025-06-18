@@ -167,15 +167,8 @@ export default {
           alert(updateResponse.data.message);
         } else {
           alert("Profil berhasil diperbarui.");
-          this.newPassword = "";
-          this.imageFile = null;
-          this.previewImage = null;
-          
-          if (newImageId) {
-            this.previousImageId = newImageId;
-          }
-          
-          await this.fetchUser();
+          // Reload the entire page after successful update
+          window.location.reload();
         }
       } catch (error) {
         console.error("Error updating profile:", error);

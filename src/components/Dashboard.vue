@@ -664,23 +664,23 @@ export default {
     text-align: center;
   }
 
- .card-title {
-  font-size: 11px;
-  font-weight: bold;
-  margin: 0.25rem 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  display: -moz-box;
-  -moz-box-orient: vertical;
-  -moz-line-clamp: 2;
-  display: box;
-  line-clamp: 2;
-  box-orient: vertical;
-  overflow: hidden;
-  min-height: 2.4em;
-  line-height: 1.2;
-}
+  .card-title {
+    font-size: 11px;
+    font-weight: bold;
+    margin: 0.25rem 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    display: -moz-box;
+    -moz-box-orient: vertical;
+    -moz-line-clamp: 2;
+    display: box;
+    line-clamp: 2;
+    box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.4em;
+    line-height: 1.2;
+  }
 
   .card-text {
     font-size: 10px;
@@ -757,40 +757,45 @@ export default {
 /* Desktop styles */
 @media (min-width: 769px) {
   .dashboard-container {
-    padding: 20px;
+    padding: 30px;
   }
 
   .main-products-container {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 2rem;
-    margin: 2rem 0;
+    padding: 1rem 2rem 2rem 2rem;
+    margin: 1rem 0 2rem 0;
+    justify-items: center;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .main-product {
-    border: 3px solid black;
-    padding: 20px;
-    margin: 20px;
-    width: 300px;
-    height: 300px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    text-align: center;
-    background-size: cover;
-    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.5);
+    aspect-ratio: 1/1;
     position: relative;
-    overflow: hidden;
+    width: 100%;
+    max-width: 280px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    margin: 0.5rem;
+  }
+
+  .main-product:hover {
+    transform: scale(1.05);
   }
 
   .main-product-content {
     width: 100%;
     height: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   }
 
   .main-product-image {
@@ -800,30 +805,33 @@ export default {
     position: absolute;
     top: 0;
     left: 0;
-    z-index: 0;
   }
 
   .main-product-title {
-    font-size: 50px;
-    font-weight: bold;
-    margin: 0;
-    color: white;
-    text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
     position: relative;
     z-index: 1;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    font-size: 18px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 0;
+    text-align: center;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+    width: 90%;
   }
 
   .section-title {
     font-size: 24px;
     font-weight: bold;
     text-align: center;
-    margin: 20px 0;
+    margin: 30px 0;
   }
 
   .carousel-container {
     position: relative;
     width: 100%;
-    margin: 0 auto;
+    margin: 30px auto;
     overflow: hidden;
   }
 
@@ -843,13 +851,14 @@ export default {
 
   .carousel {
     display: flex;
-    gap: 1rem;
-    padding: 1rem;
+    gap: 2rem;
+    padding: 1.5rem;
   }
 
   .card {
     flex: 0 0 auto;
-    width: 200px;
+    width: 220px;
+    margin: 0.5rem;
     scroll-snap-align: start;
     border: 1px solid #ccc;
     border-radius: 8px;
@@ -867,20 +876,20 @@ export default {
   }
 
   .card-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin: 0.5rem 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  display: -moz-box;
-  -moz-box-orient: vertical;
-  -moz-line-clamp: 2;
-  display: box;
-  line-clamp: 2;
-  box-orient: vertical;
-  overflow: hidden;
-}
+    font-size: 16px;
+    font-weight: bold;
+    margin: 0.5rem 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    display: -moz-box;
+    -moz-box-orient: vertical;
+    -moz-line-clamp: 2;
+    display: box;
+    line-clamp: 2;
+    box-orient: vertical;
+    overflow: hidden;
+  }
 
   .card-text {
     font-size: 14px;
@@ -944,14 +953,14 @@ export default {
   }
 
   .section-new, .section-popular, .section-previous {
-    margin: 30px 0;
+    margin: 40px 0;
   }
 
   /* Center single product */
   .single-product-container {
     display: flex;
     justify-content: center;
-    padding: 1rem;
+    padding: 2rem;
   }
 }
 </style>
